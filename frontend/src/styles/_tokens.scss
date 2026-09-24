@@ -1,0 +1,68 @@
+/* Design System Tokens — Campus Coin (Modern SaaS) */
+
+:root {
+  /* Brand Accent — Refined Gold / Amber */
+  --color-primary: #EAB308;
+  --color-primary-hover: #CA8A04;
+  --color-primary-tint: rgba(234, 179, 8, 0.1);
+  --color-primary-border: rgba(234, 179, 8, 0.25);
+
+  /* Functional Status Colors (Clean, non-competing) */
+  --color-success: #10B981;
+  --color-success-tint: rgba(16, 185, 129, 0.1);
+  --color-danger: #EF4444;
+  --color-danger-tint: rgba(239, 68, 68, 0.1);
+  --color-warning: #F59E0B;
+  --color-warning-tint: rgba(245, 158, 11, 0.1);
+
+  /* Surfaces & Text (Light Mode) */
+  --color-bg: #F9FAFB;
+  --color-surface: #FFFFFF;
+  --color-card: #FFFFFF;
+  --color-text-main: #09090B;
+  --color-text-muted: #71717A;
+  --color-border: #E4E4E7;
+
+  /* Shadows — Soft, Subtle 1px SaaS Shadows */
+  --shadow-subtle: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  --shadow-subtle-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-subtle-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-subtle-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+
+  /* Standard Radii */
+  --radius-card: 12px;
+  --radius-btn: 8px;
+  --radius-input: 8px;
+  --radius-pill: 9999px;
+
+  /* Font Baseline */
+  --app-font-size: 16px;
+}
+
+/* Dark Mode Tokens */
+html.dark {
+  --color-bg: #09090B;
+  --color-surface: #18181B;
+  --color-card: #18181B;
+  --color-text-main: #FAFAFA;
+  --color-text-muted: #A1A1AA;
+  --color-border: #27272A;
+
+  --shadow-subtle: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+  --shadow-subtle-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-subtle-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-subtle-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+}
+
+/* User Font Size Preferences */
+html.text-size-sm {
+  font-size: 14px;
+}
+
+html.text-size-md {
+  font-size: 16px;
+}
+
+html.text-size-lg {
+  font-size: 18px;
+}
