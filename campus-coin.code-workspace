@@ -1,0 +1,25 @@
+{
+  "folders": [
+    {
+      "name": "Campus Coin Root",
+      "path": "."
+    },
+    {
+      "name": "Backend (Spring Boot)",
+      "path": "backend"
+    },
+    {
+      "name": "Frontend (Angular)",
+      "path": "frontend"
+    }
+  ],
+  "settings": {
+    "java.configuration.runtimes": [
+      {
+        "name": "JavaSE-21",
+        "path": "/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home",
+        "default": true
+      }
+    ]
+  }
+}

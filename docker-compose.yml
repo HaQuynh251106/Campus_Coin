@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: campus-coin-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: campuscoin
+      POSTGRES_USER: campuscoin_user
+      POSTGRES_PASSWORD: campuscoin_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - campus-coin-net
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: campus-coin-pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@campuscoin.edu.vn
+      PGADMIN_DEFAULT_PASSWORD: admin_password
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - campus-coin-net
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  campus-coin-net:
+    driver: bridge
