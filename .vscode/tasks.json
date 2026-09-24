@@ -1,0 +1,73 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Backend (Spring Boot)",
+      "type": "shell",
+      "command": "./mvnw spring-boot:run",
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "spring",
+        "pattern": {
+          "regexp": "^(.*)$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Starting CampusCoinApplication",
+          "endsPattern": "Started CampusCoinApplication"
+        }
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Start Frontend (Angular)",
+      "type": "shell",
+      "command": "npm start",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "angular",
+        "pattern": {
+          "regexp": "^(.*)$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Application bundle generation complete",
+          "endsPattern": "Local:"
+        }
+      }
+    },
+    {
+      "label": "Start Full Stack (Backend + Frontend)",
+      "dependsOn": [
+        "Start Backend (Spring Boot)",
+        "Start Frontend (Angular)"
+      ],
+      "group": "build"
+    },
+    {
+      "label": "Docker Compose Up (PostgreSQL)",
+      "type": "shell",
+      "command": "docker compose up -d",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "Docker Compose Down",
+      "type": "shell",
+      "command": "docker compose down",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+# Root Git Ignore for Campus Coin
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE & Editors
+.idea/
+*.iml
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+
+# Backend (Java / Maven)
+backend/target/
+backend/*.jar
+backend/*.war
+backend/.mvn/wrapper/maven-wrapper.jar
+
+# Frontend (Node / Angular)
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/.sass-cache/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# Database & Logs
+*.log
+pgdata/

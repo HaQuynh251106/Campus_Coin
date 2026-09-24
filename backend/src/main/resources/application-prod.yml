@@ -1,0 +1,21 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:campuscoin}
+    username: ${DB_USER:campuscoin_user}
+    password: ${DB_PASSWORD:campuscoin_password}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+logging:
+  level:
+    com.campuscoin: INFO
+    org.springframework.web: WARN

@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Debug Spring Boot Backend",
+      "request": "launch",
+      "mainClass": "com.campuscoin.CampusCoinApplication",
+      "projectName": "campus-coin-backend"
+    },
+    {
+      "type": "chrome",
+      "name": "Debug Angular Frontend (Chrome)",
+      "request": "launch",
+      "url": "http://localhost:4200",
+      "webRoot": "${workspaceFolder}/frontend"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack (Backend + Frontend)",
+      "configurations": [
+        "Debug Spring Boot Backend",
+        "Debug Angular Frontend (Chrome)"
+      ]
+    }
+  ]
+}

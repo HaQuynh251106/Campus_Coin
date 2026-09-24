@@ -1,0 +1,298 @@
+<div class="campus-coin-app">
+  <!-- Top Navigation Bar -->
+  <header class="navbar">
+    <div class="nav-container">
+      <div class="brand">
+        <div class="brand-logo">
+          <span class="coin-icon">🪙</span>
+        </div>
+        <div class="brand-text">
+          <h1>Campus Coin</h1>
+          <span class="brand-subtitle">Đại Học Số & Hệ Thống Ví Sinh Viên</span>
+        </div>
+      </div>
+
+      <div class="nav-right">
+        <!-- Backend Status Badge -->
+        <div class="status-badge" [class.online]="backendOnline" [class.offline]="!backendOnline">
+          <span class="status-dot"></span>
+          <span class="status-label">Backend: {{ backendOnline ? 'Spring Boot Online' : 'Connecting...' }}</span>
+        </div>
+
+        <!-- User Switcher Dropdown -->
+        <div class="user-selector">
+          <label for="userSelect">Đang đăng nhập:</label>
+          <select id="userSelect" [ngModel]="currentStudentId" (ngModelChange)="switchUser($event)">
+            <option *ngFor="let u of users" [value]="u.studentId">
+              {{ u.fullName }} ({{ u.studentId }} - {{ u.role }})
+            </option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Global Alerts -->
+  <div class="alerts-container">
+    <div *ngIf="successMessage" class="alert alert-success">
+      <span class="alert-icon">✓</span>
+      <span>{{ successMessage }}</span>
+    </div>
+    <div *ngIf="errorMessage" class="alert alert-danger">
+      <span class="alert-icon">⚠</span>
+      <span>{{ errorMessage }}</span>
+    </div>
+  </div>
+
+  <main class="main-content">
+    <!-- User Profile & Wallet Hero Section -->
+    <section class="hero-section">
+      <div class="profile-card">
+        <div class="avatar-wrapper">
+          <img [src]="currentUser?.avatarUrl || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Campus'" alt="Avatar" class="avatar-img" />
+          <span class="role-tag" [attr.data-role]="currentUser?.role">{{ currentUser?.role }}</span>
+        </div>
+        <div class="profile-info">
+          <h2>{{ currentUser?.fullName || 'Sinh viên' }}</h2>
+          <p class="student-id">Mã số: <strong>{{ currentUser?.studentId }}</strong></p>
+          <p class="department">🏫 {{ currentUser?.department }}</p>
+          <p class="email">✉️ {{ currentUser?.email }}</p>
+        </div>
+      </div>
+
+      <!-- Main Balance Card -->
+      <div class="balance-card">
+        <div class="balance-header">
+          <span class="card-label">SỐ DƯ KHẢ DỤNG</span>
+          <button class="btn-refresh" (click)="refreshWalletAndTransactions()" [disabled]="loading" title="Làm mới số dư">
+            🔄
+          </button>
+        </div>
+        <div class="balance-value">
+          <span class="amount">{{ currentWallet ? (currentWallet.balance | number:'1.2-2') : '---' }}</span>
+          <span class="currency">CCOIN</span>
+        </div>
+        <div class="vnd-equivalent">
+          ≈ {{ currentWallet ? ((currentWallet.balance * 1000) | number:'1.0-0') : '0' }} VNĐ (Tỷ lệ quy đổi: 1 CCOIN = 1,000đ)
+        </div>
+
+        <div class="quick-actions">
+          <button class="btn btn-transfer" (click)="openModal('transfer')">
+            <span class="btn-icon">↗</span> Chuyển Coin
+          </button>
+          <button class="btn btn-topup" (click)="openModal('topup')">
+            <span class="btn-icon">+</span> Nạp Coin
+          </button>
+          <button class="btn btn-pay" (click)="openModal('pay')">
+            <span class="btn-icon">🛒</span> Thanh Toán
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Campus Services & Stores -->
+    <section class="section-container">
+      <div class="section-header">
+        <div>
+          <h3>🏪 Cửa Hàng & Dịch Vụ Trong Khuôn Viên</h3>
+          <p class="section-desc">Sử dụng Campus Coin để thanh toán nhanh tại các điểm dịch vụ sinh viên</p>
+        </div>
+      </div>
+
+      <div class="merchants-grid">
+        <div *ngFor="let m of merchants" class="merchant-card">
+          <div class="merchant-icon">🏪</div>
+          <div class="merchant-info">
+            <h4>{{ m.name }}</h4>
+            <span class="merchant-category">{{ m.category }}</span>
+            <p class="merchant-location">📍 {{ m.location }}</p>
+            <p class="merchant-code">Mã: <code>{{ m.merchantCode }}</code></p>
+          </div>
+          <button class="btn-merchant-pay" (click)="openModal('pay', m.merchantCode)">
+            Thanh Toán
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Transaction History -->
+    <section class="section-container">
+      <div class="section-header">
+        <div>
+          <h3>📜 Lịch Sử Giao Dịch Gần Đây</h3>
+          <p class="section-desc">Theo dõi các khoản chi tiêu, chuyển tiền và nạp coin của bạn</p>
+        </div>
+        <button class="btn-sm" (click)="refreshWalletAndTransactions()">Làm mới</button>
+      </div>
+
+      <div class="transactions-table-wrapper">
+        <table *ngIf="transactions.length > 0; else noTransactions" class="transactions-table">
+          <thead>
+            <tr>
+              <th>Mã GD</th>
+              <th>Loại Giao Dịch</th>
+              <th>Mô Tả</th>
+              <th>Bên Gửi / Nhận</th>
+              <th>Số Lượng</th>
+              <th>Trạng Thái</th>
+              <th>Thời Gian</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let tx of transactions">
+              <td class="tx-code"><code>{{ tx.transactionCode }}</code></td>
+              <td>
+                <span class="badge" [attr.data-type]="tx.type">{{ tx.type }}</span>
+              </td>
+              <td>{{ tx.description }}</td>
+              <td>
+                <span *ngIf="tx.senderStudentId === currentStudentId" class="tx-direction out">
+                  Tới: {{ tx.receiverName }} ({{ tx.receiverStudentId }})
+                </span>
+                <span *ngIf="tx.receiverStudentId === currentStudentId" class="tx-direction in">
+                  Từ: {{ tx.senderName }} ({{ tx.senderStudentId }})
+                </span>
+                <span *ngIf="tx.senderStudentId !== currentStudentId && tx.receiverStudentId !== currentStudentId">
+                  {{ tx.senderName }} ➔ {{ tx.receiverName }}
+                </span>
+              </td>
+              <td class="tx-amount" [class.positive]="tx.receiverStudentId === currentStudentId" [class.negative]="tx.senderStudentId === currentStudentId">
+                {{ tx.receiverStudentId === currentStudentId ? '+' : '-' }}{{ tx.amount | number:'1.2-2' }} CCOIN
+              </td>
+              <td>
+                <span class="status-pill" [class.success]="tx.status === 'SUCCESS'">{{ tx.status }}</span>
+              </td>
+              <td class="tx-time">{{ tx.createdAt | date:'HH:mm - dd/MM/yyyy' }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <ng-template #noTransactions>
+          <div class="empty-state">
+            <p>Chưa có giao dịch nào được ghi nhận cho tài khoản này.</p>
+          </div>
+        </ng-template>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: Transfer Coin -->
+  <div *ngIf="activeModal === 'transfer'" class="modal-backdrop" (click)="closeModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>↗ Chuyển Campus Coin (P2P)</h3>
+        <button class="btn-close" (click)="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Người gửi:</label>
+          <input type="text" [value]="currentUser?.fullName + ' (' + currentUser?.studentId + ')'" disabled class="input-disabled" />
+        </div>
+        <div class="form-group">
+          <label>Người nhận (Bạn bè / Giảng viên):</label>
+          <select [(ngModel)]="transferData.receiverStudentId" class="form-control">
+            <option *ngFor="let target of getReceiverCandidates()" [value]="target.studentId">
+              {{ target.fullName }} ({{ target.studentId }} - {{ target.department }})
+            </option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Số lượng CCOIN:</label>
+          <input type="number" [(ngModel)]="transferData.amount" min="1" step="1" class="form-control" placeholder="Nhập số coin..." />
+          <small class="hint">Số dư hiện tại: {{ currentWallet?.balance | number:'1.2-2' }} CCOIN</small>
+        </div>
+        <div class="form-group">
+          <label>Lời nhắn:</label>
+          <input type="text" [(ngModel)]="transferData.description" class="form-control" placeholder="VD: Tiền photo giáo trình..." />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" (click)="closeModal()">Hủy</button>
+        <button class="btn btn-primary" (click)="submitTransfer()" [disabled]="loading">
+          Xác Nhận Chuyển
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Top-up Coin -->
+  <div *ngIf="activeModal === 'topup'" class="modal-backdrop" (click)="closeModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>+ Nạp Campus Coin Vào Ví</h3>
+        <button class="btn-close" (click)="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Tài khoản nhận:</label>
+          <input type="text" [value]="currentUser?.fullName + ' (' + currentUser?.studentId + ')'" disabled class="input-disabled" />
+        </div>
+        <div class="form-group">
+          <label>Gói nạp CCOIN:</label>
+          <div class="preset-pills">
+            <button type="button" class="pill" [class.active]="topupData.amount === 50" (click)="topupData.amount = 50">50 Coin (50k)</button>
+            <button type="button" class="pill" [class.active]="topupData.amount === 100" (click)="topupData.amount = 100">100 Coin (100k)</button>
+            <button type="button" class="pill" [class.active]="topupData.amount === 200" (click)="topupData.amount = 200">200 Coin (200k)</button>
+            <button type="button" class="pill" [class.active]="topupData.amount === 500" (click)="topupData.amount = 500">500 Coin (500k)</button>
+          </div>
+          <input type="number" [(ngModel)]="topupData.amount" min="10" step="10" class="form-control mt-2" placeholder="Hoặc nhập số lượng tùy chọn..." />
+        </div>
+        <div class="form-group">
+          <label>Phương thức thanh toán:</label>
+          <select [(ngModel)]="topupData.paymentMethod" class="form-control">
+            <option value="MoMo">Ví MoMo</option>
+            <option value="VNPay">Cổng VNPay-QR</option>
+            <option value="CampusCard">Thẻ Sinh Viên Liên Kết (SmartCard)</option>
+            <option value="BankTransfer">Chuyển Khoản Ngân Hàng (VietQR)</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" (click)="closeModal()">Hủy</button>
+        <button class="btn btn-primary" (click)="submitTopup()" [disabled]="loading">
+          Nạp Ngay
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Pay Merchant -->
+  <div *ngIf="activeModal === 'pay'" class="modal-backdrop" (click)="closeModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>🛒 Thanh Toán Dịch Vụ Căn Tin / Cửa Hàng</h3>
+        <button class="btn-close" (click)="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Điểm bán / Cửa hàng:</label>
+          <select [(ngModel)]="payData.merchantCode" class="form-control">
+            <option *ngFor="let m of merchants" [value]="m.merchantCode">
+              {{ m.name }} ({{ m.location }})
+            </option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Số lượng CCOIN thanh toán:</label>
+          <input type="number" [(ngModel)]="payData.amount" min="1" step="0.5" class="form-control" placeholder="Nhập số coin..." />
+          <small class="hint">Số dư khả dụng: {{ currentWallet?.balance | number:'1.2-2' }} CCOIN</small>
+        </div>
+        <div class="form-group">
+          <label>Nội dung thanh toán:</label>
+          <input type="text" [(ngModel)]="payData.description" class="form-control" placeholder="VD: Cơm trưa suất 25k, Cafe đá..." />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" (click)="closeModal()">Hủy</button>
+        <button class="btn btn-primary" (click)="submitPayment()" [disabled]="loading">
+          Thanh Toán Ngay
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>© 2026 Campus Coin. Kiến trúc Full-Stack Spring Boot 3.4.3 (Java 21) & Angular.</p>
+  </footer>
+</div>
