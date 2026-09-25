@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { TransactionService } from '../../core/services/transaction.service';
 import { CategoryService } from '../../core/services/category.service';
 import { AiCategorizationService, AiParseResult } from '../../core/services/ai-categorization.service';
+import { MascotService } from '../../core/services/mascot.service';
 import { Category } from '../../core/models/category.model';
 import { Transaction, TransactionType } from '../../core/models/transaction.model';
 import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadcrumbs.component';
@@ -409,6 +410,7 @@ export class QuickAddComponent implements OnInit {
   private txService = inject(TransactionService);
   private categoryService = inject(CategoryService);
   private aiService = inject(AiCategorizationService);
+  private mascotService = inject(MascotService);
   private router = inject(Router);
 
   conversationalInput = '';
@@ -467,6 +469,7 @@ export class QuickAddComponent implements OnInit {
     }
 
     this.aiResult = this.aiService.parseNaturalLanguage(text);
+    this.mascotService.onQuickAddTyping();
   }
 
   clearConversationalInput(): void {
@@ -528,6 +531,7 @@ export class QuickAddComponent implements OnInit {
           this.editingTxId = null;
           this.resetForm();
           this.loadRecent();
+          this.mascotService.onTransactionLogged();
           setTimeout(() => this.successMessage = '', 3500);
         },
         error: () => {
@@ -541,6 +545,7 @@ export class QuickAddComponent implements OnInit {
           this.successMessage = 'Transaction recorded!';
           this.resetForm();
           this.loadRecent();
+          this.mascotService.onTransactionLogged();
           setTimeout(() => this.successMessage = '', 3500);
         },
         error: () => {

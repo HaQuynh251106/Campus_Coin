@@ -1,4 +1,4 @@
-import { Component, inject, signal, HostListener, ElementRef } from '@angular/core';
+import { Component, inject, signal, HostListener, ElementRef, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { NotificationService, NotificationItem } from '../../../core/services/notification.service';
@@ -8,6 +8,7 @@ import { IconComponent } from '../icon/icon.component';
   selector: 'app-notification-bell',
   standalone: true,
   imports: [CommonModule, RouterModule, IconComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="relative">
       <!-- Bell Button Trigger -->

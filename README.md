@@ -157,3 +157,13 @@ Khi khởi động, hệ thống tự động nạp sẵn dữ liệu mẫu đ�
 - `CAFE_CAMPUS`: Campus Coffee & Bakery
 - `BOOKSTORE`: Hiệu sách & Văn phòng phẩm Đại học
 - `PRINT_LIBRARY`: Trung tâm Thư viện & In ấn Photo
+
+---
+
+## 🐿️ AI Tools, Mascot & 3D Assets Attribution
+
+- **Squirrel Mascot Animation**: Sourced vector motion asset with multi-state state machine (Idle, Walk, Deposit, Coin-Flip, Analyzing, Sleepy, Guest Roaming, Chat-Open) and interactive speech bubble, integrated via `lottie-web` under the **Lottie Simple License** (LottieFiles Community).
+- **3D Falling Gold Coins Physics**: Interactive WebGL PBR rendering powered by `three` (Three.js r186, MIT License) and WebAssembly rigid-body physics via `@dimforge/rapier3d-compat` (Rapier 3D, Apache-2.0 License).
+- **UI Iconography**: Standard functional UI icons powered by `lucide-angular` (ISC License) with custom bespoke vector squirrel brand identity marks (`squirrel-logo`, `favicon.svg`).
+- **Production Performance**: Lazy-loaded heavy modules (`@defer (on idle)`), OnPush change detection, tree-shaking, and WebP asset optimization.
+

@@ -39,8 +39,10 @@ import { STUDENT_NAV_ITEMS, STUDENT_SIDEBAR_EXTRA_ITEMS } from '../../shared/nav
           <router-outlet></router-outlet>
         </main>
 
-        <!-- Floating AI Chatbot Assistant Widget -->
-        <app-chatbot-widget></app-chatbot-widget>
+        <!-- Floating AI Chatbot Assistant Widget with Mascot (Deferred on idle) -->
+        @defer (on idle) {
+          <app-chatbot-widget></app-chatbot-widget>
+        }
 
         <!-- Mobile / Small Tablet Bottom Navigation Bar (< 1024px) -->
         @if (!isDesktop()) {

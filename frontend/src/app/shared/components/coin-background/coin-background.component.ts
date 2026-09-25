@@ -6,12 +6,13 @@ import {
   OnDestroy,
   NgZone,
   inject,
-  PLATFORM_ID
+  PLATFORM_ID,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import * as THREE from 'three';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import RAPIER from '@dimforge/rapier3d-compat';
+import type * as THREE from 'three';
+import type RAPIER from '@dimforge/rapier3d-compat';
+import type { RoomEnvironment as RoomEnvType } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 interface CoinItem {
   id: number;
@@ -30,6 +31,7 @@ interface CoinItem {
   selector: 'app-coin-background',
   standalone: true,
   imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <canvas
       #coinCanvas
@@ -66,6 +68,11 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
   private readonly FADE_DURATION = 800;  // 0.8s smooth scale-down fade
   private maxCoins = 18;
 
+  // Dynamic Module References (Loaded on demand to prevent bundling in initial/admin chunks)
+  private THREE!: typeof THREE;
+  private RAPIER!: typeof RAPIER;
+  private RoomEnvironmentClass!: typeof RoomEnvType;
+
   // Three.js Core
   private scene?: THREE.Scene;
   private camera?: THREE.OrthographicCamera;
@@ -99,8 +106,8 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
   private floorY = -95;
 
   // Interaction State
-  private raycaster = new THREE.Raycaster();
-  private mouseNdc = new THREE.Vector2();
+  private raycaster!: THREE.Raycaster;
+  private mouseNdc!: THREE.Vector2;
   private draggedCoin: CoinItem | null = null;
   private hoveredIndex: number | null = null;
   private lastMouseWorldX = 0;
@@ -115,12 +122,12 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
   private isDestroyed = false;
 
   // Reusable Math Objects for Frame Loop (zero garbage collection overhead)
-  private readonly tempMatrix = new THREE.Matrix4();
-  private readonly tempPosition = new THREE.Vector3();
-  private readonly tempQuaternion = new THREE.Quaternion();
-  private readonly tempScale = new THREE.Vector3();
-  private readonly defaultColor = new THREE.Color(0xF59E0B);
-  private readonly hoverColor = new THREE.Color(0xFDE047);
+  private tempMatrix!: THREE.Matrix4;
+  private tempPosition!: THREE.Vector3;
+  private tempQuaternion!: THREE.Quaternion;
+  private tempScale!: THREE.Vector3;
+  private defaultColor!: THREE.Color;
+  private hoverColor!: THREE.Color;
 
   async ngAfterViewInit(): Promise<void> {
     if (!this.isBrowser) return;
@@ -132,7 +139,6 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     if (prefersReducedMotion) {
-      console.log('CoinBackground: prefers-reduced-motion detected, skipping animation');
       return;
     }
 
@@ -143,15 +149,25 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
     }
 
     try {
-      // 1. Initialize Rapier WASM Physics
+      // Dynamic import of Three.js and Rapier WASM Physics
+      const [threeMod, envMod, rapierMod] = await Promise.all([
+        import('three'),
+        import('three/examples/jsm/environments/RoomEnvironment.js'),
+        import('@dimforge/rapier3d-compat')
+      ]);
+
+      this.THREE = threeMod;
+      this.RoomEnvironmentClass = envMod.RoomEnvironment;
+      this.RAPIER = (rapierMod.default || rapierMod) as typeof RAPIER;
+
       if (!this.rapierInitialized) {
-        await RAPIER.init();
+        await this.RAPIER.init();
         this.rapierInitialized = true;
       }
 
       if (this.isDestroyed) return;
 
-      // 2. Measure & Initialize Three.js & Physics World outside Angular Zone
+      // Measure & Initialize Three.js & Physics World outside Angular Zone
       this.ngZone.runOutsideAngular(() => {
         this.initWorldAndRenderer();
         this.seedInitialCoins();
@@ -169,14 +185,21 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
 
     this.updateDimensions(parentContainer);
 
+    // Initialize math helpers
+    this.tempMatrix = new this.THREE.Matrix4();
+    this.tempPosition = new this.THREE.Vector3();
+    this.tempQuaternion = new this.THREE.Quaternion();
+    this.tempScale = new this.THREE.Vector3();
+    this.defaultColor = new this.THREE.Color(0xF59E0B);
+    this.hoverColor = new this.THREE.Color(0xFDE047);
+    this.raycaster = new this.THREE.Raycaster();
+    this.mouseNdc = new this.THREE.Vector2();
+
     // 1. Three.js Scene
-    this.scene = new THREE.Scene();
+    this.scene = new this.THREE.Scene();
 
     // 2. Orthographic Camera: Camera at (0, 0, 50), lookAt (0, 0, 0)
-    // top = 0 maps to document Y=0 (top of page)
-    // bottom = -worldHeight maps to document Y=canvasHeight (bottom of page)
-    // left = -worldWidth/2, right = worldWidth/2
-    this.camera = new THREE.OrthographicCamera(
+    this.camera = new this.THREE.OrthographicCamera(
       -this.worldWidth / 2,
       this.worldWidth / 2,
       0,
@@ -188,7 +211,7 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
     this.camera.lookAt(0, 0, 0);
 
     // 3. WebGL Renderer with Alpha & Capped PixelRatio
-    this.renderer = new THREE.WebGLRenderer({
+    this.renderer = new this.THREE.WebGLRenderer({
       canvas,
       alpha: true,
       antialias: true,
@@ -196,52 +219,52 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
     });
     this.renderer.setSize(this.canvasWidth, this.canvasHeight, false);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMapping = this.THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.2;
 
     // 4. Photorealistic Metallic Reflections via RoomEnvironment
-    this.pmremGenerator = new THREE.PMREMGenerator(this.renderer);
-    const room = new RoomEnvironment();
+    this.pmremGenerator = new this.THREE.PMREMGenerator(this.renderer);
+    const room = new this.RoomEnvironmentClass();
     this.envMap = this.pmremGenerator.fromScene(room).texture;
     this.scene.environment = this.envMap;
 
     // 5. Lighting
-    const ambientLight = new THREE.AmbientLight(0xfffbeb, 1.4);
+    const ambientLight = new this.THREE.AmbientLight(0xfffbeb, 1.4);
     this.scene.add(ambientLight);
 
-    const dirLight1 = new THREE.DirectionalLight(0xfffaed, 2.8);
+    const dirLight1 = new this.THREE.DirectionalLight(0xfffaed, 2.8);
     dirLight1.position.set(15, 25, 30);
     this.scene.add(dirLight1);
 
-    const dirLight2 = new THREE.DirectionalLight(0xfef08a, 1.4);
+    const dirLight2 = new this.THREE.DirectionalLight(0xfef08a, 1.4);
     dirLight2.position.set(-15, -20, 20);
     this.scene.add(dirLight2);
 
     // 6. Coin Geometry & Gold Metallic Material
-    this.coinGeometry = new THREE.CylinderGeometry(
+    this.coinGeometry = new this.THREE.CylinderGeometry(
       this.COIN_RADIUS,
       this.COIN_RADIUS,
       this.COIN_HEIGHT,
       32
     );
 
-    this.coinMaterial = new THREE.MeshStandardMaterial({
-      color: 0xFBBF24, // Bright Rich Amber/Gold
+    this.coinMaterial = new this.THREE.MeshStandardMaterial({
+      color: 0xFBBF24,
       metalness: 0.90,
       roughness: 0.24,
       envMapIntensity: 1.5
     });
 
     // 7. InstancedMesh for high performance
-    this.instancedMesh = new THREE.InstancedMesh(
+    this.instancedMesh = new this.THREE.InstancedMesh(
       this.coinGeometry,
       this.coinMaterial,
       this.maxCoins
     );
-    this.instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.instancedMesh.instanceMatrix.setUsage(this.THREE.DynamicDrawUsage);
 
     // Initialize all instances as hidden/offscreen
-    const offscreenMatrix = new THREE.Matrix4().setPosition(0, 1000, 0);
+    const offscreenMatrix = new this.THREE.Matrix4().setPosition(0, 1000, 0);
     for (let i = 0; i < this.maxCoins; i++) {
       this.instancedMesh.setMatrixAt(i, offscreenMatrix);
       this.instancedMesh.setColorAt(i, this.defaultColor);
@@ -254,7 +277,7 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
 
     // 8. Rapier Physics World with gentle downward gravity
     const gravity = { x: 0.0, y: -4.2, z: 0.0 };
-    this.world = new RAPIER.World(gravity);
+    this.world = new this.RAPIER.World(gravity);
 
     // 9. Static Invisible Boundaries & Footer Floor Collider
     this.setupPhysicsBoundaries();
@@ -264,7 +287,6 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
   }
 
   private updateDimensions(parentContainer: HTMLElement): void {
-    // Measure total document / parent container height
     this.canvasWidth = Math.max(window.innerWidth, parentContainer.clientWidth || 1200);
     this.canvasHeight = Math.max(
       document.documentElement.scrollHeight,
@@ -274,7 +296,6 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
     this.worldWidth = this.canvasWidth / this.PIXELS_PER_UNIT;
     this.worldHeight = this.canvasHeight / this.PIXELS_PER_UNIT;
 
-    // Detect footer top offset to place floor collider naturally at footer start
     const footer = document.querySelector('app-landing-footer');
     let footerOffsetTop = this.canvasHeight - 240;
     if (footer instanceof HTMLElement) {
@@ -294,65 +315,61 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
     if (!this.world) return;
 
     // 1. Floor at the top edge of the footer section
-    const floorBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, this.floorY, 0);
+    const floorBodyDesc = this.RAPIER.RigidBodyDesc.fixed().setTranslation(0, this.floorY, 0);
     this.floorBody = this.world.createRigidBody(floorBodyDesc);
-    const floorColliderDesc = RAPIER.ColliderDesc.cuboid(this.worldWidth + 10, 0.5, 8)
+    const floorColliderDesc = this.RAPIER.ColliderDesc.cuboid(this.worldWidth + 10, 0.5, 8)
       .setRestitution(0.35)
       .setFriction(0.7);
     this.floorCollider = this.world.createCollider(floorColliderDesc, this.floorBody);
 
     // 2. Left side wall
-    const leftWallDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(
+    const leftWallDesc = this.RAPIER.RigidBodyDesc.fixed().setTranslation(
       -this.worldWidth / 2 - 0.5,
       -this.worldHeight / 2,
       0
     );
     this.leftWallBody = this.world.createRigidBody(leftWallDesc);
     this.world.createCollider(
-      RAPIER.ColliderDesc.cuboid(0.5, this.worldHeight + 10, 8),
+      this.RAPIER.ColliderDesc.cuboid(0.5, this.worldHeight + 10, 8),
       this.leftWallBody
     );
 
     // 3. Right side wall
-    const rightWallDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(
+    const rightWallDesc = this.RAPIER.RigidBodyDesc.fixed().setTranslation(
       this.worldWidth / 2 + 0.5,
       -this.worldHeight / 2,
       0
     );
     this.rightWallBody = this.world.createRigidBody(rightWallDesc);
     this.world.createCollider(
-      RAPIER.ColliderDesc.cuboid(0.5, this.worldHeight + 10, 8),
+      this.RAPIER.ColliderDesc.cuboid(0.5, this.worldHeight + 10, 8),
       this.rightWallBody
     );
 
-    // 4. Front & Back glass walls (prevent coins from drifting too far on Z axis)
-    const frontWallDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(
+    // 4. Front & Back glass walls
+    const frontWallDesc = this.RAPIER.RigidBodyDesc.fixed().setTranslation(
       0,
       -this.worldHeight / 2,
       2.0
     );
     this.frontWallBody = this.world.createRigidBody(frontWallDesc);
     this.world.createCollider(
-      RAPIER.ColliderDesc.cuboid(this.worldWidth + 10, this.worldHeight + 10, 0.5),
+      this.RAPIER.ColliderDesc.cuboid(this.worldWidth + 10, this.worldHeight + 10, 0.5),
       this.frontWallBody
     );
 
-    const backWallDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(
+    const backWallDesc = this.RAPIER.RigidBodyDesc.fixed().setTranslation(
       0,
       -this.worldHeight / 2,
       -2.0
     );
     this.backWallBody = this.world.createRigidBody(backWallDesc);
     this.world.createCollider(
-      RAPIER.ColliderDesc.cuboid(this.worldWidth + 10, this.worldHeight + 10, 0.5),
+      this.RAPIER.ColliderDesc.cuboid(this.worldWidth + 10, this.worldHeight + 10, 0.5),
       this.backWallBody
     );
   }
 
-  /**
-   * Pre-seed initial coins across the full document height down to the footer floor
-   * so coins are immediately visible across all sections when the landing page opens.
-   */
   private seedInitialCoins(): void {
     const seedCount = Math.min(12, Math.floor(this.maxCoins * 0.7));
     const totalFallDistance = Math.max(10, Math.abs(this.floorY) - 4);
@@ -367,25 +384,21 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
   private spawnCoin(customY?: number): void {
     if (!this.world || !this.instancedMesh) return;
 
-    // Find free instance index
     const freeIndex = this.coins.findIndex(c => c === null);
     if (freeIndex === -1) return;
 
-    // Randomized X and Z
     const spawnX = (Math.random() - 0.5) * (this.worldWidth * 0.85);
     const spawnY = customY !== undefined ? customY : 1.0;
     const spawnZ = (Math.random() - 0.5) * 1.0;
-    const baseScale = 0.85 + Math.random() * 0.3; // 0.85x – 1.15x natural scale variance
+    const baseScale = 0.85 + Math.random() * 0.3;
 
-    // Dynamic RigidBody with smooth damping
-    const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
+    const bodyDesc = this.RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(spawnX, spawnY, spawnZ)
       .setLinearDamping(0.25)
       .setAngularDamping(0.35);
 
     const body = this.world.createRigidBody(bodyDesc);
 
-    // Gentle initial velocity and subtle tumble
     const initialLinvel = {
       x: (Math.random() - 0.5) * 0.4,
       y: -0.6 - Math.random() * 0.6,
@@ -400,9 +413,8 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
     };
     body.setAngvel(initialAngvel, true);
 
-    // Random initial orientation
-    const randQuat = new THREE.Quaternion().setFromEuler(
-      new THREE.Euler(
+    const randQuat = new this.THREE.Quaternion().setFromEuler(
+      new this.THREE.Euler(
         Math.random() * Math.PI,
         Math.random() * Math.PI,
         Math.random() * Math.PI
@@ -410,8 +422,7 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
     );
     body.setRotation({ x: randQuat.x, y: randQuat.y, z: randQuat.z, w: randQuat.w }, true);
 
-    // Precise Cylinder Physics Collider matching visual geometry
-    const colliderDesc = RAPIER.ColliderDesc.cylinder(
+    const colliderDesc = this.RAPIER.ColliderDesc.cylinder(
       (this.COIN_HEIGHT * baseScale) / 2,
       this.COIN_RADIUS * baseScale
     )
@@ -437,21 +448,23 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
   private animate = (): void => {
     if (this.isDestroyed) return;
 
+    if (typeof document !== 'undefined' && document.hidden) {
+      this.animFrameId = requestAnimationFrame(this.animate);
+      return;
+    }
+
     const now = performance.now();
 
-    // 1. Spawning Check
     if (now - this.lastSpawnTime > this.spawnInterval) {
       this.spawnCoin();
       this.lastSpawnTime = now;
       this.spawnInterval = 1200 + Math.random() * 1000;
     }
 
-    // 2. Physics Step
     if (this.world) {
       this.world.step();
     }
 
-    // 3. Update Coins & Manage Lifecycle (Resting, Fading, Recycling)
     if (this.instancedMesh) {
       let needsMatrixUpdate = false;
       let needsColorUpdate = false;
@@ -464,7 +477,7 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
         const rot = coin.body.rotation();
         const linvel = coin.body.linvel();
 
-        // Safety bounds check: recycle if coin slips past the floor
+        // Safety bounds check
         if (pos.y < this.floorY - 5.0) {
           if (this.world) {
             this.world.removeRigidBody(coin.body);
@@ -481,7 +494,6 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
           const distToFloor = pos.y - this.floorY;
           const speed = Math.hypot(linvel.x, linvel.y, linvel.z);
 
-          // Once near floor and slowed, or landed for a while
           if (distToFloor <= 4.0 && speed < 0.8) {
             coin.state = 'resting';
             coin.landedTime = now;
@@ -490,7 +502,6 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
             coin.landedTime = now;
           }
         } else if (coin.state === 'resting') {
-          // Remain visible on floor for REST_DURATION (2–3 seconds), then begin fade-out
           if (coin.landedTime && now - coin.landedTime > this.REST_DURATION) {
             coin.state = 'fading';
             coin.fadeStartTime = now;
@@ -499,18 +510,13 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
           if (coin.fadeStartTime) {
             const elapsed = now - coin.fadeStartTime;
             const progress = Math.min(1.0, elapsed / this.FADE_DURATION);
-
-            // Smoothly dissolve scale to zero
             coin.currentScale = coin.baseScale * (1.0 - progress);
 
             if (progress >= 1.0) {
-              // Fade complete: destroy physics body and free instance slot
               if (this.world) {
                 this.world.removeRigidBody(coin.body);
               }
               this.coins[i] = null;
-
-              // Hide instance offscreen
               this.tempMatrix.setPosition(0, 1000, 0);
               this.instancedMesh.setMatrixAt(i, this.tempMatrix);
               needsMatrixUpdate = true;
@@ -519,10 +525,9 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
           }
         }
 
-        // Apply scale, position, and rotation to Three.js InstancedMesh
         let renderScale = coin.currentScale;
         if (this.hoveredIndex === i && coin !== this.draggedCoin) {
-          renderScale *= 1.15; // Subtle hover visual feedback
+          renderScale *= 1.15;
         }
 
         this.tempPosition.set(pos.x, pos.y, pos.z);
@@ -533,7 +538,6 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
         this.instancedMesh.setMatrixAt(i, this.tempMatrix);
         needsMatrixUpdate = true;
 
-        // Visual hover color tint
         if (this.hoveredIndex === i) {
           this.instancedMesh.setColorAt(i, this.hoverColor);
           needsColorUpdate = true;
@@ -551,20 +555,17 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
       }
     }
 
-    // 4. Render Frame
     if (this.renderer && this.scene && this.camera) {
       this.renderer.render(this.scene, this.camera);
     }
 
-    // Continue loop outside Angular zone
     this.animFrameId = requestAnimationFrame(this.animate);
   };
 
   private setupEventListeners(): void {
-    // Window-level Drag & Drop interaction (Canvas stays pointer-events: none)
     const onMouseDown: EventListener = (e: Event) => {
       const mouseEvent = e as MouseEvent;
-      if (mouseEvent.button !== 0) return; // Only primary left-click
+      if (mouseEvent.button !== 0) return;
 
       this.updateMouseCoords(mouseEvent);
 
@@ -578,8 +579,7 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
 
           if (hitCoin && hitCoin.state !== 'fading') {
             this.draggedCoin = hitCoin;
-            // Switch Rapier body to KinematicPositionBased for direct cursor control
-            hitCoin.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+            hitCoin.body.setBodyType(this.RAPIER.RigidBodyType.KinematicPositionBased, true);
             hitCoin.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
             hitCoin.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
 
@@ -597,25 +597,21 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
       const mouseEvent = e as MouseEvent;
       this.updateMouseCoords(mouseEvent);
 
-      // Convert mouse position to 3D world coordinates
       const targetWorldX = this.mouseNdc.x * (this.worldWidth / 2);
       const targetWorldY = ((this.mouseNdc.y - 1) / 2) * this.worldHeight;
 
       if (this.draggedCoin) {
-        // Track dragging velocity for natural release throw
         this.mouseVelocityX = (targetWorldX - this.lastMouseWorldX) * 20;
         this.mouseVelocityY = (targetWorldY - this.lastMouseWorldY) * 20;
         this.lastMouseWorldX = targetWorldX;
         this.lastMouseWorldY = targetWorldY;
 
-        // Move kinematic body to follow cursor
         this.draggedCoin.body.setNextKinematicTranslation({
           x: targetWorldX,
           y: targetWorldY,
           z: this.draggedCoin.body.translation().z
         });
       } else {
-        // Hover visual feedback detection
         if (this.camera && this.instancedMesh) {
           this.raycaster.setFromCamera(this.mouseNdc, this.camera);
           const intersects = this.raycaster.intersectObject(this.instancedMesh);
@@ -630,14 +626,10 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
 
     const onMouseUp: EventListener = () => {
       if (this.draggedCoin) {
-        // Return body to Dynamic physics simulation
-        this.draggedCoin.body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
-
-        // Apply natural throw impulse
+        this.draggedCoin.body.setBodyType(this.RAPIER.RigidBodyType.Dynamic, true);
         const clampedVx = Math.max(-10, Math.min(10, this.mouseVelocityX));
         const clampedVy = Math.max(-10, Math.min(10, this.mouseVelocityY));
         this.draggedCoin.body.setLinvel({ x: clampedVx, y: clampedVy, z: 0 }, true);
-
         this.draggedCoin = null;
       }
     };
@@ -646,7 +638,6 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
       this.handleResize();
     };
 
-    // Attach listeners
     window.addEventListener('mousedown', onMouseDown);
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
@@ -659,7 +650,6 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
       { type: 'resize', listener: onResize }
     );
 
-    // ResizeObserver on the parent container to track dynamic content expansions
     const canvas = this.canvasRef.nativeElement;
     const parentContainer = canvas.parentElement || document.body;
     this.resizeObserver = new ResizeObserver(() => {
@@ -676,7 +666,6 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
     const w = canvas.clientWidth || this.canvasWidth || window.innerWidth;
     const h = canvas.clientHeight || this.canvasHeight || 3500;
 
-    // Map scrollable page coordinates to camera NDC [-1, 1]
     this.mouseNdc.x = (pageX / w) * 2 - 1;
     this.mouseNdc.y = -(pageY / h) * 2 + 1;
   }
@@ -688,7 +677,6 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
     const parentContainer = canvas.parentElement || document.body;
     this.updateDimensions(parentContainer);
 
-    // Update Three.js camera frustum
     this.camera.left = -this.worldWidth / 2;
     this.camera.right = this.worldWidth / 2;
     this.camera.top = 0;
@@ -697,10 +685,8 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
     this.camera.lookAt(0, 0, 0);
     this.camera.updateProjectionMatrix();
 
-    // Update renderer canvas resolution
     this.renderer.setSize(this.canvasWidth, this.canvasHeight, false);
 
-    // Update static physics boundaries
     if (this.floorBody) {
       this.floorBody.setTranslation({ x: 0, y: this.floorY, z: 0 }, true);
     }
@@ -721,29 +707,24 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.isDestroyed = true;
 
-    // 1. Cancel requestAnimationFrame
     if (this.animFrameId) {
       cancelAnimationFrame(this.animFrameId);
     }
 
-    // 2. Remove all window listeners
     for (const { type, listener } of this.windowListeners) {
       window.removeEventListener(type, listener);
     }
     this.windowListeners = [];
 
-    // 3. Disconnect ResizeObserver
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
     }
 
-    // 4. Dispose Rapier Physics World
     if (this.world) {
       this.world.free();
       this.world = undefined;
     }
 
-    // 5. Dispose Three.js Geometries, Materials, Textures, and Renderer
     if (this.coinGeometry) {
       this.coinGeometry.dispose();
     }
