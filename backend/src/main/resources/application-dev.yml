@@ -4,29 +4,38 @@ spring:
       on-profile: dev
 
   datasource:
-    url: jdbc:h2:mem:campuscoindb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    driverClassName: org.h2.Driver
-    username: sa
-    password:
-
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-      settings:
-        web-allow-others: true
+    # MySQL 8 running in Docker (see docker-compose.yml). The password comes from the
+    # environment - the same MYSQL_PASSWORD used by the campuscoin_app account.
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:campuscoin}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${DB_USER:campuscoin_app}
+    password: ${DB_PASSWORD}
+    hikari:
+      # Every business view and stored procedure derives day / week / month boundaries
+      # from the session clock. Without this the connection would use the container's
+      # UTC default and reports could land in the wrong month (VĐ-10).
+      connection-init-sql: SET time_zone = '+07:00'
 
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
-      ddl-auto: update
+      # The schema already exists and is authoritative. validate only checks that the
+      # entities match it; create / update / create-drop are forbidden for this project.
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
         format_sql: true
+
+campuscoin:
+  security:
+    password-reset:
+      # Writes the reset link to a file under backend/target/ instead of sending email.
+      # The raw token is never written to the application log.
+      sink-enabled: true
 
 logging:
   level:
     com.campuscoin: DEBUG
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
+    # Never raise these to DEBUG: the JDBC binding log prints parameter values.
+    org.hibernate.orm.jdbc.bind: WARN

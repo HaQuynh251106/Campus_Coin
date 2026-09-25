@@ -1,37 +1,116 @@
-services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: campus-coin-postgres
-    restart: always
-    environment:
-      POSTGRES_DB: campuscoin
-      POSTGRES_USER: campuscoin_user
-      POSTGRES_PASSWORD: campuscoin_password
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    networks:
-      - campus-coin-net
+# ============================================================================
+#  CAMPUS COIN — Database environment (MySQL 8 + Adminer)
+#
+#  Start:             docker compose up -d
+#  Check:             docker compose ps
+#  Follow the log:    docker compose logs -f mysql
+#  Stop, keep data:   docker compose down
+#  Delete all data:   docker compose down -v   then   docker compose up -d
+#
+#  FIRST-TIME INITIALISATION
+#  -------------------------
+#  When the volume is empty, MySQL runs every file in
+#  /docker-entrypoint-initdb.d in filename order. Exactly one file is mounted:
+#
+#      ./db/merged/campuscoin_full.sql -> 01-campuscoin.sql
+#
+#  That merged file already contains all six parts (schema, views, procedures,
+#  triggers, seed, demo), so one load is enough. The whole db/ directory is NOT
+#  mounted, because Docker would then also run the six separate files and build
+#  the schema twice.
+#
+#  SUBSEQUENT RUNS
+#  ---------------
+#  MySQL only runs the init directory when the volume is EMPTY. Once the volume
+#  holds data, `docker compose restart`, `stop`/`start` and `up -d` all skip it
+#  and delete nothing - even if the .sql file above has been edited.
+#  To reload from scratch: docker compose down -v && docker compose up -d
+#
+#  NOTE ON DROP DATABASE
+#  ---------------------
+#  The merged file begins with `DROP DATABASE IF EXISTS campuscoin`, so it always
+#  rebuilds a clean database. That happens only during initialisation on an empty
+#  volume and never re-runs against a volume that already holds data.
+#
+#  LOGIN DETAILS: see .env (not committed) and .env.example (template).
+# ============================================================================
 
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: campus-coin-pgadmin
-    restart: always
+services:
+
+  mysql:
+    image: mysql:8.0
+    container_name: campuscoin-mysql
+    restart: unless-stopped
+
+    command:
+      # Time: a fixed offset so the time-zone tables need not be loaded (VĐ-10).
+      # Every day, week and month boundary in the views and procedures is derived
+      # from this clock.
+      - --default-time-zone=+07:00
+      # The character set must match the SQL files. Students may write descriptions
+      # in any language, so a narrower encoding is not acceptable.
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      # The scheduler is needed for the event that posts recurring transactions
+      # (UC-09, BR-16).
+      - --event-scheduler=ON
+      # MySQL 8.0 enables the binary log by default, and without this flag creating
+      # a function, trigger or procedure is refused for lack of the SUPER privilege.
+      - --log-bin-trust-function-creators=1
+
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@campuscoin.edu.vn
-      PGADMIN_DEFAULT_PASSWORD: admin_password
+      # All credentials come from .env; none is written into this file.
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required - copy .env.example to .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-campuscoin}
+      # The account the API uses. The API never connects as root.
+      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER is required - copy .env.example to .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required - copy .env.example to .env}
+
     ports:
-      - "5050:80"
-    depends_on:
-      - postgres
+      - "3306:3306"
+
+    volumes:
+      # A named volume, so the data survives a container stop or recreate.
+      - mysqldata:/var/lib/mysql
+      # Only the merged file is mounted, named 01-... so it runs first and alone.
+      - ./db/merged/campuscoin_full.sql:/docker-entrypoint-initdb.d/01-campuscoin.sql:ro
+
+    healthcheck:
+      # --silent: only the exit code matters. During initialisation MySQL runs with
+      # TCP closed, so this probe fails until the server is genuinely ready - which
+      # makes `healthy` also mean the data has finished loading.
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
     networks:
-      - campus-coin-net
+      - campuscoin-net
+
+  adminer:
+    # A web UI for inspecting the data: lighter than phpMyAdmin and needs no setup.
+    image: adminer:latest
+    container_name: campuscoin-adminer
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+      ADMINER_DESIGN: dracula
+    ports:
+      # 8081, not 8080: the Spring Boot API listens on 8080 (its default), and the Angular
+      # dev proxy targets that same port. Two services cannot hold it at once, and the API
+      # is the one the frontend depends on.
+      - "8081:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - campuscoin-net
 
 volumes:
-  pgdata:
+  mysqldata:
     driver: local
 
 networks:
-  campus-coin-net:
+  campuscoin-net:
     driver: bridge
