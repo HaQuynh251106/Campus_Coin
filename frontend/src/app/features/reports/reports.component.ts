@@ -30,8 +30,8 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
           <h2 class="text-2xl sm:text-3xl font-semibold text-neutral-900 dark:text-neutral-50 tracking-tight">
             Financial Analytics & Reports
           </h2>
-          <p class="text-xs sm:text-sm font-medium text-neutral-500 dark:text-neutral-400">
-            Comprehensive audit of spending velocity, category distributions and multi-month trends.
+          <p class="text-xs sm:text-sm font-medium text-[var(--color-text-muted)]">
+            Breakdown of cash flows, category distributions, and multi-month trends.
           </p>
         </div>
 
@@ -43,7 +43,7 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
             class="bg-amber-500 hover:bg-amber-600 text-neutral-950 font-medium text-xs sm:text-sm py-2 px-4 rounded-lg shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
           >
             <app-icon name="download" [size]="15" strokeWidth="1.5"></app-icon>
-            <span>Export Report (PDF / Print)</span>
+            <span>Export report</span>
           </button>
         </div>
       </div>
@@ -148,15 +148,15 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
           <div class="flex items-center justify-between mb-4 pb-2 border-b border-neutral-200 dark:border-neutral-800">
             <div>
               <h3 class="font-semibold text-base sm:text-lg text-neutral-900 dark:text-neutral-50 tracking-tight">
-                6-Month Trend (Income vs. Expense)
+                6-Month Trend
               </h3>
-              <p class="text-xs text-neutral-500">Comparative multi-month student cash flow</p>
+              <p class="text-xs text-[var(--color-text-muted)]">Monthly cash flow comparison</p>
             </div>
             <div class="flex items-center gap-3 text-xs font-medium">
-              <span class="flex items-center gap-1.5">
+              <span class="flex items-center gap-1.5 text-neutral-700 dark:text-neutral-300">
                 <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Income
               </span>
-              <span class="flex items-center gap-1.5">
+              <span class="flex items-center gap-1.5 text-neutral-700 dark:text-neutral-300">
                 <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Expense
               </span>
             </div>
@@ -202,7 +202,7 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
             <h3 class="font-semibold text-base sm:text-lg text-neutral-900 dark:text-neutral-50 tracking-tight">
               Spending by Category
             </h3>
-            <p class="text-xs text-neutral-500">Distribution breakdown for current month</p>
+            <p class="text-xs text-[var(--color-text-muted)]">Distribution for the selected period</p>
           </div>
 
           <div class="space-y-3">
@@ -238,9 +238,9 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
         <div class="flex flex-wrap items-center justify-between gap-3 mb-4 pb-2 border-b border-neutral-200 dark:border-neutral-800">
           <div>
             <h3 class="font-semibold text-base sm:text-lg text-neutral-900 dark:text-neutral-50 tracking-tight">
-              Daily Spending Rhythm (September 1 - 24, 2026)
+              Daily Spending Rhythm (Sep 1 – 24, 2026)
             </h3>
-            <p class="text-xs text-neutral-500">Day-by-day expenditure spike visualization</p>
+            <p class="text-xs text-[var(--color-text-muted)]">Day-by-day expenditure</p>
           </div>
 
           <div class="text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full">

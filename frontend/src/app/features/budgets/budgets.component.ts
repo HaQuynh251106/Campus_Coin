@@ -10,6 +10,7 @@ import { CardComponent } from '../../shared/components/card/card.component';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { ProgressRingComponent } from '../../shared/components/progress-ring/progress-ring.component';
 import { IconComponent } from '../../shared/components/icon/icon.component';
+import { CategoryIconComponent } from '../../shared/components/category-icon/category-icon.component';
 
 @Component({
   selector: 'app-budgets',
@@ -19,7 +20,8 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
     FormsModule,
     BreadcrumbsComponent,
     ProgressRingComponent,
-    IconComponent
+    IconComponent,
+    CategoryIconComponent
   ],
   template: `
     <div class="space-y-6">
@@ -129,17 +131,17 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
               <!-- Header with Icon & Edit Button -->
               <div class="flex items-center justify-between mb-3">
                 <div class="flex items-center gap-2.5">
-                  <div
-                    class="w-9 h-9 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center justify-center text-sm shadow-xs"
-                    [style.background-color]="bgt.categoryColor || '#EAB308'"
-                  >
-                    <app-icon [name]="bgt.categoryIcon" [size]="16" strokeWidth="1.5" className="text-neutral-900"></app-icon>
-                  </div>
+                  <app-category-icon
+                    [name]="bgt.categoryName"
+                    [icon]="bgt.categoryIcon"
+                    [color]="bgt.categoryColor"
+                    size="md"
+                  ></app-category-icon>
                   <div>
                     <h4 class="font-medium text-sm text-neutral-900 dark:text-neutral-50">
                       {{ bgt.categoryName }}
                     </h4>
-                    <span class="text-[11px] text-neutral-400">Monthly Target</span>
+                    <span class="text-[11px] text-[var(--color-text-muted)]">Monthly Target</span>
                   </div>
                 </div>
 

@@ -78,7 +78,7 @@ export class BudgetService {
       categoryId,
       categoryName: cat?.name || 'Category',
       categoryIcon: cat?.icon || 'tag',
-      categoryColor: cat?.color || '#FFE600',
+      categoryColor: cat?.color || '#0EA5E9',
       monthlyLimit,
       spent: 0,
       period: periodCode,

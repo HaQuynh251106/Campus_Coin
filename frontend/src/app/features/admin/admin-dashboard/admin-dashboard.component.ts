@@ -22,17 +22,17 @@ import { AdminService, AdminKpis } from '../../../core/services/admin.service';
         </div>
 
         <div class="flex items-center gap-2">
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 text-xs font-medium border border-emerald-200 dark:border-emerald-800">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 text-xs font-medium border border-emerald-200 dark:border-emerald-800">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-            Mock API Engine: Connected (Latency: 250ms)
+            System status: Healthy
           </span>
         </div>
       </div>
 
-      <!-- 4 Calm Classic KPI Cards -->
+      <!-- 4 KPI Cards with Gold Accent on Key Metrics -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-white dark:bg-neutral-900 p-5 rounded-lg border border-slate-200 dark:border-neutral-800 shadow-xs">
-          <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Registered Students</span>
+        <div class="bg-white dark:bg-neutral-900 p-5 rounded-xl border border-slate-200 dark:border-neutral-800 shadow-xs">
+          <span class="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider block">Registered Students</span>
           <div class="text-2xl font-bold text-slate-900 dark:text-white mt-1">
             {{ kpis?.totalUsers || 582 }}
           </div>
@@ -41,32 +41,32 @@ import { AdminService, AdminKpis } from '../../../core/services/admin.service';
           </div>
         </div>
 
-        <div class="bg-white dark:bg-neutral-900 p-5 rounded-lg border border-slate-200 dark:border-neutral-800 shadow-xs">
-          <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Active Users (30d)</span>
-          <div class="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+        <div class="bg-white dark:bg-neutral-900 p-5 rounded-xl border border-slate-200 dark:border-neutral-800 shadow-xs">
+          <span class="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider block">Active Users (30d)</span>
+          <div class="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
             {{ kpis?.activeUsers || 541 }}
           </div>
-          <div class="text-xs text-slate-500 font-medium mt-1">
+          <div class="text-xs text-[var(--color-text-muted)] font-medium mt-1">
             93% engagement rate
           </div>
         </div>
 
-        <div class="bg-white dark:bg-neutral-900 p-5 rounded-lg border border-slate-200 dark:border-neutral-800 shadow-xs">
-          <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Total Volume Logged</span>
-          <div class="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+        <div class="bg-white dark:bg-neutral-900 p-5 rounded-xl border border-slate-200 dark:border-neutral-800 shadow-xs">
+          <span class="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider block">Total Volume Logged</span>
+          <div class="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
             \${{ (kpis?.totalVolumeTracked || 184500).toLocaleString() }}
           </div>
-          <div class="text-xs text-slate-500 font-medium mt-1">
+          <div class="text-xs text-[var(--color-text-muted)] font-medium mt-1">
             Across 14,280 student transactions
           </div>
         </div>
 
-        <div class="bg-white dark:bg-neutral-900 p-5 rounded-lg border border-slate-200 dark:border-neutral-800 shadow-xs">
-          <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Avg. Monthly Student Outflow</span>
+        <div class="bg-white dark:bg-neutral-900 p-5 rounded-xl border border-slate-200 dark:border-neutral-800 shadow-xs">
+          <span class="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider block">Avg. Monthly Student Outflow</span>
           <div class="text-2xl font-bold text-slate-900 dark:text-white mt-1">
             \${{ kpis?.avgStudentMonthlySpend || 425 }}
           </div>
-          <div class="text-xs text-slate-500 font-medium mt-1">
+          <div class="text-xs text-[var(--color-text-muted)] font-medium mt-1">
             Within healthy student baseline
           </div>
         </div>
@@ -76,13 +76,13 @@ import { AdminService, AdminKpis } from '../../../core/services/admin.service';
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
         <!-- Left: Usage Activity Chart (8 cols) -->
-        <div class="lg:col-span-8 bg-white dark:bg-neutral-900 p-5 rounded-lg border border-slate-200 dark:border-neutral-800 shadow-xs">
+        <div class="lg:col-span-8 bg-white dark:bg-neutral-900 p-5 rounded-xl border border-slate-200 dark:border-neutral-800 shadow-xs">
           <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-neutral-800">
             <div>
               <h3 class="font-bold text-base text-slate-900 dark:text-white">
                 Daily Campus Activity & Volume (Past 14 Days)
               </h3>
-              <p class="text-xs text-slate-500">Transaction log velocity across university cohorts</p>
+              <p class="text-xs text-[var(--color-text-muted)]">Daily transaction volume across student cohorts</p>
             </div>
           </div>
 
@@ -95,7 +95,7 @@ import { AdminService, AdminKpis } from '../../../core/services/admin.service';
                 </div>
 
                 <div
-                  class="w-full max-w-[28px] bg-slate-800 dark:bg-slate-200 hover:bg-emerald-600 dark:hover:bg-emerald-400 rounded-t transition-colors"
+                  class="w-full max-w-[28px] bg-slate-800 dark:bg-slate-200 hover:bg-amber-500 dark:hover:bg-amber-400 rounded-t transition-colors cursor-pointer"
                   [style.height.%]="bar.heightPercent"
                 ></div>
                 <span class="text-[10px] text-slate-400 mt-2 font-mono">{{ bar.label }}</span>
@@ -105,12 +105,12 @@ import { AdminService, AdminKpis } from '../../../core/services/admin.service';
         </div>
 
         <!-- Right: Most Used Categories Campus-wide (4 cols) -->
-        <div class="lg:col-span-4 bg-white dark:bg-neutral-900 p-5 rounded-lg border border-slate-200 dark:border-neutral-800 shadow-xs">
+        <div class="lg:col-span-4 bg-white dark:bg-neutral-900 p-5 rounded-xl border border-slate-200 dark:border-neutral-800 shadow-xs">
           <div class="mb-4 pb-2 border-b border-slate-100 dark:border-neutral-800">
             <h3 class="font-bold text-base text-slate-900 dark:text-white">
               Campus-Wide Category Shares
             </h3>
-            <p class="text-xs text-slate-500">Aggregate student expenditure clusters</p>
+            <p class="text-xs text-[var(--color-text-muted)]">Distribution by student expenditure category</p>
           </div>
 
           <div class="space-y-3.5">

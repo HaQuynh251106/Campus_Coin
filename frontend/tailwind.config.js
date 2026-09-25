@@ -7,6 +7,9 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        'text-main': 'var(--color-text-main)',
+        'text-muted': 'var(--color-text-muted)',
+        'border-subtle': 'var(--color-border)',
         brand: {
           gold: '#EAB308',
           'gold-hover': '#CA8A04',

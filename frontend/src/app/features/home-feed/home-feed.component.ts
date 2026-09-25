@@ -14,6 +14,7 @@ import { ProgressRingComponent } from '../../shared/components/progress-ring/pro
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { LoadingSkeletonComponent } from '../../shared/components/loading-skeleton/loading-skeleton.component';
 import { IconComponent } from '../../shared/components/icon/icon.component';
+import { CategoryIconComponent } from '../../shared/components/category-icon/category-icon.component';
 
 interface GroupedDayTransactions {
   label: string;
@@ -30,7 +31,8 @@ interface GroupedDayTransactions {
     ProgressRingComponent,
     EmptyStateComponent,
     LoadingSkeletonComponent,
-    IconComponent
+    IconComponent,
+    CategoryIconComponent
   ],
   template: `
     <div class="space-y-6">
@@ -50,7 +52,7 @@ interface GroupedDayTransactions {
                 \${{ balance.net.toFixed(2) }}
               </h2>
               <p class="text-xs font-medium text-neutral-500 dark:text-neutral-400 mt-0.5">
-                Net Campus Balance (Income vs Expenses)
+                Net balance this month
               </p>
             </div>
 
@@ -126,7 +128,7 @@ interface GroupedDayTransactions {
                   </span>
                   <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
                     <app-icon name="sparkles" [size]="11" strokeWidth="1.5"></app-icon>
-                    Monthly Story
+                    Monthly Insight
                   </span>
                 </div>
                 <a routerLink="/app/insights" class="text-xs font-medium text-amber-600 dark:text-amber-400 hover:underline">
@@ -161,7 +163,7 @@ interface GroupedDayTransactions {
             <h3 class="font-semibold text-base sm:text-lg text-neutral-900 dark:text-neutral-100 tracking-tight">
               Monthly Budget Status
             </h3>
-            <p class="text-xs text-neutral-500">Live tracker computed from recent receipts</p>
+            <p class="text-xs text-[var(--color-text-muted)]">Tracked against monthly limits</p>
           </div>
           <a routerLink="/app/budgets" class="text-xs font-medium text-amber-600 dark:text-amber-400 hover:underline">
             Manage Budgets →
@@ -172,10 +174,13 @@ interface GroupedDayTransactions {
           @for (bgt of topBudgets; track bgt.id) {
             <div class="card-brutal p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs">
               <div class="flex items-center justify-between mb-2.5">
-                <div class="flex items-center gap-2">
-                  <span class="w-7 h-7 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center justify-center text-xs" [style.background-color]="bgt.categoryColor">
-                    <app-icon [name]="bgt.categoryIcon" [size]="14" strokeWidth="1.5"></app-icon>
-                  </span>
+                <div class="flex items-center gap-2 min-w-0">
+                  <app-category-icon
+                    [name]="bgt.categoryName"
+                    [icon]="bgt.categoryIcon"
+                    [color]="bgt.categoryColor"
+                    size="sm"
+                  ></app-category-icon>
                   <span class="font-medium text-xs text-neutral-900 dark:text-neutral-100 truncate max-w-[120px]">{{ bgt.categoryName }}</span>
                 </div>
                 <!-- Status Badge -->
@@ -191,7 +196,7 @@ interface GroupedDayTransactions {
               <!-- Spending vs Limit -->
               <div class="flex items-baseline justify-between text-xs mb-2">
                 <span class="font-semibold text-sm text-neutral-900 dark:text-white">\${{ bgt.spent }}</span>
-                <span class="text-neutral-500">of \${{ bgt.monthlyLimit }}</span>
+                <span class="text-[var(--color-text-muted)]">of \${{ bgt.monthlyLimit }}</span>
               </div>
 
               <app-progress-ring
@@ -211,7 +216,7 @@ interface GroupedDayTransactions {
             <h3 class="font-semibold text-base sm:text-lg text-neutral-900 dark:text-neutral-100 tracking-tight">
               Recent Transactions
             </h3>
-            <p class="text-xs text-neutral-500">Grouped timeline of campus spending</p>
+            <p class="text-xs text-[var(--color-text-muted)]">Recent spending activity</p>
           </div>
           <a routerLink="/app/quick-add" class="text-xs font-medium text-amber-600 dark:text-amber-400 hover:underline">
             + Add New
@@ -235,10 +240,10 @@ interface GroupedDayTransactions {
               <div>
                 <!-- Day Header -->
                 <div class="flex items-center gap-2 mb-2">
-                  <span class="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-md">
+                  <span class="text-[11px] font-medium text-[var(--color-text-muted)] px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800 rounded-md">
                     {{ group.label }}
                   </span>
-                  <div class="h-px flex-1 bg-neutral-200 dark:bg-neutral-800"></div>
+                  <div class="h-px flex-1 bg-neutral-200 dark:border-neutral-800"></div>
                 </div>
 
                 <!-- Transaction Rows -->
@@ -246,23 +251,24 @@ interface GroupedDayTransactions {
                   @for (tx of group.transactions; track tx.id) {
                     <div class="card-brutal p-3 sm:p-3.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs flex items-center justify-between gap-3 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
                       <div class="flex items-center gap-3 min-w-0">
-                        <!-- Category Icon -->
-                        <div
-                          class="w-9 h-9 rounded-lg border border-neutral-200 dark:border-neutral-700 shrink-0 flex items-center justify-center text-sm shadow-xs"
-                          [style.background-color]="tx.categoryColor || '#EAB308'"
-                        >
-                          <app-icon [name]="tx.categoryIcon" [size]="16" strokeWidth="1.5" className="text-neutral-900"></app-icon>
-                        </div>
+                        <!-- Category Icon Avatar (Left) -->
+                        <app-category-icon
+                          [name]="tx.categoryName"
+                          [icon]="tx.categoryIcon"
+                          [color]="tx.categoryColor"
+                          size="md"
+                        ></app-category-icon>
 
-                        <!-- Description & Category Name -->
+                        <!-- Title + Plain Category Name Underneath -->
                         <div class="min-w-0">
                           <h4 class="font-medium text-sm text-neutral-900 dark:text-neutral-100 truncate">
                             {{ tx.description }}
                           </h4>
-                          <div class="flex items-center gap-2 text-[11px] text-neutral-500">
+                          <div class="flex items-center gap-2 text-xs text-[var(--color-text-muted)] mt-0.5">
                             <span>{{ tx.categoryName }}</span>
                             @if (tx.recurringFrequency !== 'NONE') {
-                              <span class="text-[10px] bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.2 rounded text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700">
+                              <span>&bull;</span>
+                              <span class="text-[11px]">
                                 🔁 {{ tx.recurringFrequency | lowercase }}
                               </span>
                             }

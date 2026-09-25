@@ -5,11 +5,12 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ThemeService } from '../../../core/services/theme.service';
 import { TransactionService } from '../../../core/services/transaction.service';
 import { IconComponent } from '../icon/icon.component';
+import { NotificationBellComponent } from '../notification-bell/notification-bell.component';
 
 @Component({
   selector: 'app-top-bar',
   standalone: true,
-  imports: [CommonModule, RouterModule, IconComponent],
+  imports: [CommonModule, RouterModule, IconComponent, NotificationBellComponent],
   template: `
     <header class="sticky top-0 z-30 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 px-4 md:px-8 py-2.5 transition-colors">
       <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
@@ -26,11 +27,10 @@ import { IconComponent } from '../icon/icon.component';
 
           <!-- Greeting (Desktop / Tablet) -->
           <div class="hidden md:block">
-            <h1 class="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-              Hey, {{ user()?.name?.split(' ')?.[0] || 'Student' }}!
-              <span class="inline-block text-base">👋</span>
+            <h1 class="text-base sm:text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+              Welcome back, {{ user()?.name?.split(' ')?.[0] || 'Alex' }}
             </h1>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400">
+            <p class="text-[11px] text-[var(--color-text-muted)] font-normal">
               {{ user()?.major }} &bull; {{ user()?.academicYear }}
             </p>
           </div>
@@ -50,7 +50,7 @@ import { IconComponent } from '../icon/icon.component';
           </div>
         </div>
 
-        <!-- Right: Actions (Quick Add + Theme Toggle + Avatar) -->
+        <!-- Right: Actions (Quick Add + Notification Bell + Theme Toggle + Avatar) -->
         <div class="flex items-center gap-2.5">
           <!-- + Quick Add CTA Button -->
           <a
@@ -61,12 +61,15 @@ import { IconComponent } from '../icon/icon.component';
             <span class="hidden sm:inline">Quick Add</span>
           </a>
 
+          <!-- Notification Bell -->
+          <app-notification-bell></app-notification-bell>
+
           <!-- Dark Mode Toggle Button -->
           <button
             type="button"
             (click)="theme.toggleDarkMode()"
             [attr.aria-label]="theme.isDarkMode() ? 'Switch to light mode' : 'Switch to dark mode'"
-            class="p-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors shadow-xs cursor-pointer"
+            class="p-2 border border-neutral-200 dark:border-neutral-800 rounded-lg bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors shadow-xs cursor-pointer"
           >
             @if (theme.isDarkMode()) {
               <app-icon name="sun" [size]="16" className="text-amber-400"></app-icon>

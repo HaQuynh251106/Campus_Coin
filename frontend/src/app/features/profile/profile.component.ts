@@ -11,6 +11,7 @@ import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadc
 import { CardComponent } from '../../shared/components/card/card.component';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { IconComponent } from '../../shared/components/icon/icon.component';
+import { CategoryTagComponent } from '../../shared/components/category-tag/category-tag.component';
 
 @Component({
   selector: 'app-profile',
@@ -18,7 +19,8 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    BreadcrumbsComponent
+    BreadcrumbsComponent,
+    CategoryTagComponent
   ],
   template: `
     <div class="space-y-6">
@@ -264,13 +266,13 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
         <div class="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b border-neutral-200 dark:border-neutral-800">
           <div>
             <span class="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-              Data Ingestion
+              CSV Upload
             </span>
             <h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-50 mt-1 tracking-tight">
-              Import Transactions via CSV
+              Import Transactions
             </h3>
-            <p class="text-xs text-neutral-500">
-              Bulk import student spending from bank statements or spreadsheets with pre-import verification table.
+            <p class="text-xs text-[var(--color-text-muted)]">
+              Import statement rows from your bank or student account.
             </p>
           </div>
 
@@ -279,7 +281,7 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
             (click)="loadSampleCsv()"
             class="px-3 py-1.5 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded-lg text-xs transition-colors cursor-pointer"
           >
-            Load Sample CSV 📥
+            Load sample CSV
           </button>
         </div>
 
@@ -317,7 +319,7 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
           <div class="space-y-4">
             <div class="flex items-center justify-between">
               <span class="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-                Parsed {{ parsedRows.length }} Rows for Review:
+                {{ parsedRows.length }} rows parsed:
               </span>
 
               <button
@@ -326,14 +328,14 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
                 [disabled]="isImporting"
                 class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs py-2 px-4 rounded-lg shadow-xs transition-colors cursor-pointer"
               >
-                Confirm & Import {{ parsedRows.length }} Entries ✓
+                Import {{ parsedRows.length }} transactions
               </button>
             </div>
 
             <div class="overflow-x-auto border border-neutral-200 dark:border-neutral-800 rounded-lg">
               <table class="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr class="bg-neutral-50 dark:bg-neutral-800 text-neutral-500 font-medium text-[11px] uppercase border-b border-neutral-200 dark:border-neutral-800">
+                  <tr class="table-head-row bg-neutral-50 dark:bg-neutral-800 text-[var(--color-text-muted)] font-medium text-[11px] uppercase border-b border-[var(--color-border)]">
                     <th class="p-2.5">Date</th>
                     <th class="p-2.5">Description</th>
                     <th class="p-2.5">Type</th>
@@ -341,18 +343,20 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
                     <th class="p-2.5 text-right">Amount</th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800">
+                <tbody class="divide-y divide-[var(--color-border)]">
                   @for (row of parsedRows; track $index) {
                     <tr class="hover:bg-neutral-50 dark:hover:bg-neutral-800/30">
-                      <td class="p-2.5 font-mono text-neutral-500">{{ row.date }}</td>
+                      <td class="p-2.5 font-mono text-[var(--color-text-muted)]">{{ row.date }}</td>
                       <td class="p-2.5 font-medium text-neutral-900 dark:text-neutral-100">{{ row.description }}</td>
                       <td class="p-2.5">
-                        <span class="text-[10px] font-medium px-1.5 py-0.2 rounded-full" [class.bg-emerald-50]="row.type === 'INCOME'" [class.text-emerald-700]="row.type === 'INCOME'" [class.bg-rose-50]="row.type === 'EXPENSE'" [class.text-rose-700]="row.type === 'EXPENSE'">
+                        <span class="text-[10px] font-medium px-1.5 py-0.2 rounded-full" [class.bg-emerald-50]="row.type === 'INCOME'" [class.text-emerald-700]="row.type === 'INCOME'" [class.dark:bg-emerald-950/40]="row.type === 'INCOME'" [class.dark:text-emerald-300]="row.type === 'INCOME'" [class.bg-rose-50]="row.type === 'EXPENSE'" [class.text-rose-700]="row.type === 'EXPENSE'" [class.dark:bg-rose-950/40]="row.type === 'EXPENSE'" [class.dark:text-rose-300]="row.type === 'EXPENSE'">
                           {{ row.type }}
                         </span>
                       </td>
-                      <td class="p-2.5 text-neutral-600 dark:text-neutral-400">{{ row.categoryName }}</td>
-                      <td class="p-2.5 text-right font-mono font-semibold" [class.text-emerald-600]="row.type === 'INCOME'" [class.text-rose-600]="row.type === 'EXPENSE'">
+                      <td class="p-2.5 whitespace-nowrap">
+                        <app-category-tag [name]="row.categoryName" size="xs"></app-category-tag>
+                      </td>
+                      <td class="p-2.5 text-right font-mono font-semibold" [class.text-emerald-600]="row.type === 'INCOME'" [class.dark:text-emerald-400]="row.type === 'INCOME'" [class.text-rose-600]="row.type === 'EXPENSE'" [class.dark:text-rose-400]="row.type === 'EXPENSE'">
                         \${{ row.amount.toFixed(2) }}
                       </td>
                     </tr>

@@ -1,16 +1,19 @@
 import { Routes } from '@angular/router';
-import { authGuard } from './core/guards/auth.guard';
+import { authGuard, guestGuard } from './core/guards/auth.guard';
 import { adminGuard } from './core/guards/admin.guard';
 import { StudentLayoutComponent } from './layouts/student-layout/student-layout.component';
 import { AdminLayoutComponent } from './layouts/admin-layout/admin-layout.component';
 import { AuthLayoutComponent } from './layouts/auth-layout/auth-layout.component';
 
 export const routes: Routes = [
-  // Default root redirect
+  // 0. Public Guest Landing Page (Root Route for Unauthenticated Visitors)
   {
     path: '',
-    redirectTo: '/app/home',
-    pathMatch: 'full'
+    pathMatch: 'full',
+    title: 'Campus Coin — Smart Spending, Student Style',
+    canActivate: [guestGuard],
+    loadComponent: () =>
+      import('./features/landing/landing.component').then(m => m.LandingComponent)
   },
 
   // 1. Authentication Module
@@ -149,6 +152,6 @@ export const routes: Routes = [
   // Fallback Wildcard
   {
     path: '**',
-    redirectTo: '/app/home'
+    redirectTo: ''
   }
 ];
