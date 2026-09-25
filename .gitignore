@@ -31,3 +31,17 @@ frontend/yarn-error.log*
 # Database & Logs
 *.log
 pgdata/
+
+# Environment secrets — real credentials stay local, .env.example is committed
+.env
+.env.local
+.env.*.local
+
+# Docker local generated files
+docker-compose.override.yml
+
+# IDE & build artifacts not already covered above
+.vscode/settings.json
+frontend/.vite/
+backend/bin/
+backend/obj/

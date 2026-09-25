@@ -8,6 +8,78 @@ spring:
     name: campus-coin-backend
   profiles:
     active: dev
+  # The database schema is owned by db/merged/campuscoin_full.sql and is the single
+  # source of truth. Hibernate is never allowed to create or alter it - see the
+  # ddl-auto: validate setting in each profile file.
+  jpa:
+    open-in-view: false
+  jackson:
+    deserialization:
+      # Reject a JSON number where an enum is expected.
+      #
+      # Jackson's default is to read a number as the enum's ORDINAL, so {"fontScale": 2} would
+      # silently mean LARGE. That makes every enum in the API accept a second, undocumented
+      # encoding whose meaning depends on the order of the Java constants - reordering an enum
+      # would silently change what a stored client payload means. The contract is the member
+      # name the database stores (e.g. "LARGE"), and nothing else should be accepted.
+      fail-on-numbers-for-enums: true
+
+# ---------------------------------------------------------------------------
+# Campus Coin application settings
+# ---------------------------------------------------------------------------
+campuscoin:
+  security:
+    jwt:
+      # HS256 requires at least 256 bits of key material. This value MUST be
+      # supplied through the environment; there is deliberately no default.
+      secret: ${JWT_SECRET}
+      issuer: campus-coin
+      # Fallback only. The live value is auth.session_ttl_minutes in system_settings,
+      # so an administrator can retune session lifetime without a redeploy (VĐ-05).
+      default-ttl-minutes: 120
+    password-reset:
+      # Base URL of the Angular reset screen. The link sent to the student is
+      #   {base-url}?token={raw-token}
+      # The raw token is never logged and never returned in an HTTP response (UC-03 B2).
+      link-base-url: ${RESET_LINK_BASE_URL:http://localhost:4200/reset-password}
+    login:
+      # Fallback only; the live value is auth.max_login_attempts in system_settings.
+      # Brute-force counters are held in memory per instance - see docs/SECURITY.md.
+      default-max-attempts: 5
+      # Reset requests allowed per address per window. Kept above 1 so a student whose link
+      # expired can still ask for another one.
+      max-reset-requests: 3
+      lockout-minutes: 15
+    cors:
+      # Never a wildcard. Comma-separated list of the origins allowed to call the API.
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  recurring:
+    scheduler:
+      # UC-09: the job that turns due recurring rules into transactions. It calls
+      # sp_post_recurring_transactions, which owns the decision of which periods are due -
+      # including catching up over periods missed while the application was down.
+      #
+      # Enabled by default; the test environment switches it off so a timer cannot write rows
+      # during an assertion, and exercises the same procedure directly instead.
+      enabled: ${RECURRING_SCHEDULER_ENABLED:true}
+      # Once a day, shortly after midnight in the application's own zone. The exact minute does
+      # not matter: the procedure is date-based rather than interval-based, so a late or repeated
+      # run posts the same periods and no others (BR-16).
+      cron: ${RECURRING_SCHEDULER_CRON:0 5 0 * * *}
+  tips:
+    scheduler:
+      # UC-18: the job that generates each active student's saving tips for the current month.
+      # It calls sp_generate_tips, which applies the six rules and writes with INSERT IGNORE
+      # against uk_tip_dedupe - so a repeated or concurrent run produces the same tips and no
+      # others, and can never resurrect a tip a student dismissed (BR-14).
+      #
+      # Enabled by default; the test environment switches it off so a timer cannot write rows
+      # during an assertion, and calls the same procedure directly instead.
+      enabled: ${TIPS_SCHEDULER_ENABLED:true}
+      # Once a day, ten minutes after the recurring run. The offset is deliberate: on the first
+      # of the month the recurring job posts that day's transactions first, so the tips
+      # generated afterwards see them rather than describing the month without them.
+      cron: ${TIPS_SCHEDULER_CRON:0 10 0 * * *}
 
 # OpenAPI / Swagger Documentation
 springdoc:
@@ -19,11 +91,19 @@ springdoc:
     operations-sorter: method
 
 # Management & Health Endpoints
+#
+# Only the two probes the deployment needs are exposed, and SecurityConfig keeps them the only
+# reachable /actuator paths. `metrics` is deliberately NOT exposed: nothing in the requirements
+# asks for it, and it would publish internal counters to whoever can reach the port.
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info
   endpoint:
     health:
-      show-details: always
+      # `never`, not `always`. Component detail names the database and reports connection-pool
+      # and disk state - useful to an operator, and exactly the kind of internal detail section
+      # 7.7 keeps out of an unauthenticated response. `/actuator/health` stays public so a
+      # container health probe still works, and answers with the summary status only.
+      show-details: never

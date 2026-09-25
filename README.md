@@ -1,169 +1,416 @@
-# 🪙 Campus Coin - University Digital Wallet & Rewards System
+# Campus Coin — Student Expense Management System
 
-Hệ thống ví điện tử và điểm thưởng số dành cho khuôn viên trường đại học (Campus Coin), hỗ trợ thanh toán căng tin, thư viện, dịch vụ photo/in ấn, chuyển tiền P2P giữa sinh viên và giảng viên, nạp coin.
+Campus Coin lets students record their daily income and spending, set budget limits per category,
+view visual reports, and receive saving tips derived from their own spending habits.
 
----
-
-## 🏗 Kiến Trúc Hệ Thống (Tech Stack)
-
-### 1. Backend (Java Spring Boot)
-- **Ngôn ngữ**: Java 21 LTS (Temurin JDK 21)
-- **Framework**: Spring Boot 3.4.3
-- **ORM & Database**: Spring Data JPA, Hibernate ORM
-- **Database phát triển**: H2 In-Memory Database (zero-config, chạy ngay không cần cài đặt DB)
-- **Database sản xuất**: PostgreSQL 16 (có sẵn `docker-compose.yml`)
-- **API Documentation**: Springdoc OpenAPI / Swagger UI 3.0
-- **DevTools**: Lombok, Spring Boot DevTools, Actuator
-
-### 2. Frontend (Angular)
-- **Framework**: Angular 21 (Standalone Components & Signals)
-- **Language**: TypeScript 5.9
-- **Style**: SCSS với hệ thống Design Token hiện đại, Responsive
-- **HTTP & Routing**: Angular HttpClient với `proxy.conf.json` chuyển tiếp tự động sang Spring Boot backend (`http://localhost:8080`)
-
-### 3. Tích Hợp VS Code & Môi Trường
-- Tự động cấu hình `.vscode/launch.json` để debug F5 (Spring Boot + Angular Chrome Debug)
-- Tự động cấu hình `.vscode/tasks.json` để chạy Backend, Frontend và Docker Compose
-- Workspace file `campus-coin.code-workspace` đa thư mục
-- Đã cài đặt các Extension VS Code cần thiết:
-  - `vscjava.vscode-java-pack` (Extension Pack for Java)
-  - `vmware.vscode-boot-dev-pack` (Spring Boot Extension Pack)
-  - `angular.ng-template` (Angular Language Service)
+> **Current status.** The database is complete, has passed its final review, and is verified on
+> MySQL 8 (clean rebuild plus 54 regression checks, all passing). It is containerised and loads
+> from the merged `campuscoin_full.sql`. The Spring Boot backend has completed **modules 1–9** —
+> Authentication (UC-01, UC-02, UC-03, UC-05), Profile & Preferences (UC-04, UC-27), Personal
+> Categories (UC-06), Transactions (UC-07, UC-10), Recurring Expenses (UC-09), Budget &
+> Notifications (UC-13, UC-14), Dashboard (UC-12), Reports & Export (UC-15, UC-16) and Saving
+> Tips (UC-18): 41 endpoints, 511 tests passing against a real MySQL 8. **Modules 10–11 (Bookmarks
+> / Notes, Administration) are not yet built, and module 12 is locked pending the project owner's
+> approval.** The Angular frontend is still mock-only and has not yet been wired to the API.
 
 ---
 
-## 📁 Cấu Trúc Dự Án
+## 1. System architecture
+
+Three tiers, as described in SRS §1.4:
+
+| Tier | Component | Status |
+|---|---|---|
+| Presentation | Angular web application | In progress (mock data only) |
+| Application — API | Spring Boot REST service (Java 21) | Modules 1–9 complete |
+| Data | Relational database (MySQL 8) | ✅ **Complete** |
+
+The locked stack is **Java + Spring Boot, Angular, MySQL 8, Docker**. No other backend framework
+is used.
+
+---
+
+## 2. Database
+
+### 2.1 Components
+
+| Component | Count | File |
+|---|---|---|
+| Tables | 23 | `db/01_schema.sql` |
+| Reporting views | 14 | `db/02_views.sql` |
+| Procedures & functions | 24 procedures + 1 function | `db/03_procedures.sql` |
+| Triggers | 14 | `db/04_triggers.sql` |
+| Foreign keys | 38 | `db/01_schema.sql` |
+| UNIQUE / CHECK constraints | 15 / 14 | `db/01_schema.sql` |
+| Seed data | — | `db/05_seed.sql` |
+| Demo data | — | `db/06_demo.sql` (optional) |
+| **Merged file** | the 6 files above | `db/merged/campuscoin_full.sql` |
+
+> **All stored content is in English:** table and column names, ENUM values, constraint names,
+> procedure/function/trigger/view names, seed data (default categories, tip templates,
+> notifications, setting descriptions) and every error message raised by a procedure or trigger.
+> All 23 tables were scanned to confirm no non-ASCII characters remain in stored data. The
+> exception is user-entered text, such as `transactions.description`, which may be in any language.
+
+> `db/merged/campuscoin_full.sql` is the merge of all six files, with identical content, for
+> loading in one step:
+>
+> ```bash
+> mysql -u root -p --default-character-set=utf8mb4 < db/merged/campuscoin_full.sql
+> ```
+>
+> **Why it lives in the `merged/` subdirectory:** Docker automatically runs every `.sql` file at
+> the top level of `db/` during initialisation. Leaving the merged file there would build the
+> whole schema twice on the first run. In a subdirectory Docker ignores it, and the file still
+> sits alongside the rest of the database.
+
+### 2.2 Table groups
+
+| Group | Tables |
+|---|---|
+| Account & security | `users`, `user_sessions`, `password_reset_tokens` |
+| Configuration & time | `system_settings`, `dim_month` |
+| Categories | `categories` |
+| Transactions | `transactions`, `transaction_history`, `recurring_rules`, `recurring_occurrences`, `category_rules`, `import_batches`, `import_rows`, `recent_activity` |
+| Budgets | `budgets`, `budget_alert_log` |
+| Engagement | `notifications`, `announcements`, `insights`, `tip_templates`, `user_tips`, `bookmarks` |
+| Administration | `admin_audit_log` |
+
+Design detail, the reasoning behind each decision, and the mapping to the requirements documents:
+see [`docs/DB_DESIGN.md`](docs/DB_DESIGN.md) and [`docs/ERD.md`](docs/ERD.md).
+
+---
+
+## 3. Setup
+
+### 3.1 Requirements
+
+- **Docker Desktop** (20.10 or later) — the quickest route, and no manual MySQL install
+- Or **MySQL 8.0 or later** to run directly on the machine
+- For the backend: **JDK 21** (the wrapper `./mvnw` handles Maven itself)
+
+### 3.2 Docker setup (recommended)
+
+Step 1 — create the environment file from the template and fill in the passwords:
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and set `MYSQL_ROOT_PASSWORD` and `MYSQL_PASSWORD`. `.env` is gitignored — never
+commit it.
+
+Step 2 — start the stack:
+
+```bash
+docker compose up -d
+```
+
+On the first run (empty volume) MySQL loads **a single file**, `db/merged/campuscoin_full.sql`,
+mounted at `/docker-entrypoint-initdb.d/01-campuscoin.sql`. The merged file already contains all
+six parts, so one load is enough. After roughly 30–60 seconds the database is ready with all
+tables, views, procedures, triggers and seed data.
+
+Check the status:
+
+```bash
+docker compose ps
+```
+
+When `STATUS` shows `healthy`, the database is ready.
+
+> **Later runs do not reload.** MySQL only runs the init directory when the volume is **empty**.
+> Once the volume holds data, `up -d`, `stop`/`start` and `restart` all preserve it — even if the
+> `.sql` file has been edited. See §3.6 to reload from scratch, and §6 for why the
+> `DROP DATABASE` in the merged file is safe.
+
+### 3.3 Setup with an existing MySQL
+
+Without Docker, run these files in order through MySQL Workbench, DBeaver or the command line:
+
+```bash
+mysql -u root -p < db/01_schema.sql
+mysql -u root -p < db/02_views.sql
+mysql -u root -p < db/03_procedures.sql
+mysql -u root -p < db/04_triggers.sql
+mysql -u root -p < db/05_seed.sql
+mysql -u root -p < db/06_demo.sql
+```
+
+> **Order is mandatory.** `01_schema.sql` creates the tables first, `02_views.sql` references them,
+> `03_procedures.sql` is called by triggers in file 04, and `05_seed.sql` must run before
+> `06_demo.sql`.
+>
+> On the command line, add `--default-character-set=utf8mb4`. All stored content is English, but
+> students may enter descriptions in any language, so the character set must still be `utf8mb4`.
+
+### 3.4 Connecting to the database
+
+| Parameter | Value |
+|---|---|
+| Host | `localhost` |
+| Port | `3306` |
+| Database | `campuscoin` |
+| Application account | `campuscoin_app` (password in `.env`) |
+| MySQL administrative account | `root` (password in `.env`) |
+
+> The API does **not** use `root`. `campuscoin_app` has privileges on the `campuscoin` database
+> only (`GRANT ALL PRIVILEGES ON campuscoin.*`), not server-wide.
+
+**JDBC URL for Spring Boot** — read from the environment, never written into source:
+
+```
+jdbc:mysql://localhost:3306/campuscoin?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true&useSSL=false
+```
+
+The backend reads `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` and `DB_PASSWORD`, with the first
+four defaulting to the values above and `DB_PASSWORD` having **no default**. See §3.7.
+
+### 3.5 Data viewer
+
+After starting the stack, open **http://localhost:8081**
+
+| Adminer login | Value |
+|---|---|
+| System | MySQL |
+| Server | `mysql` |
+| Username | `campuscoin_app` |
+| Password | the value of `MYSQL_PASSWORD` in `.env` |
+| Database | `campuscoin` |
+
+> Adminer is mapped to host port **8081**, not 8080, because the Spring Boot API uses 8080 (its
+> default) and the Angular dev proxy targets that port. See the FAQ in §6.
+
+### 3.6 Common Docker commands
+
+```bash
+docker compose up -d
+```
+
+```bash
+docker compose ps
+```
+
+```bash
+docker compose logs -f mysql
+```
+
+```bash
+docker compose down
+```
+
+```bash
+docker compose down -v
+```
+
+> `down` keeps the data. `down -v` deletes the entire volume, and the next `up -d` reloads
+> `campuscoin_full.sql` from scratch — use it to rebuild a clean database, for example after
+> editing a file in `db/`.
+
+### 3.7 Running the backend
+
+The backend is a Spring Boot service under `backend/`. It needs the database running and two
+environment variables.
+
+Step 1 — start the database (§3.2) and confirm it is `healthy`.
+
+Step 2 — set the environment variables. There is **no default for either**, and the application
+refuses to start without them rather than falling back to a weak value:
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `JWT_SECRET` | yes | HS256 signing key, at least 32 bytes. Generate with `openssl rand -base64 48` |
+| `DB_PASSWORD` | yes | The `campuscoin_app` password — the same `MYSQL_PASSWORD` from `.env` |
+| `DB_HOST` | no | Defaults to `localhost` |
+| `DB_PORT` | no | Defaults to `3306` |
+| `DB_NAME` | no | Defaults to `campuscoin` |
+| `DB_USER` | no | Defaults to `campuscoin_app` |
+| `CORS_ALLOWED_ORIGINS` | no | Defaults to `http://localhost:4200` |
+| `RESET_LINK_BASE_URL` | no | Defaults to `http://localhost:4200/reset-password` |
+
+Step 3 — run it:
+
+```bash
+cd backend && DB_PASSWORD=<MYSQL_PASSWORD from .env> JWT_SECRET=<your secret> ./mvnw spring-boot:run
+```
+
+Or, reusing the values already in `.env` so the shared secrets are not retyped:
+
+```bash
+set -a && . ./.env && set +a && cd backend && DB_PASSWORD="$MYSQL_PASSWORD" ./mvnw spring-boot:run
+```
+
+> `.env` holds the Docker Compose variables (`MYSQL_*`), while the Spring Boot process reads
+> `DB_*`. They describe the same account, so `DB_PASSWORD` is `MYSQL_PASSWORD`. Only `JWT_SECRET`
+> is genuinely separate and is not stored in `.env`.
+
+The API starts on **http://localhost:8080**. Swagger UI is at
+**http://localhost:8080/swagger-ui.html**.
+
+Step 4 — verify:
+
+```bash
+curl -s http://localhost:8080/actuator/health
+```
+
+> **`ddl-auto` is `validate` in every profile.** Hibernate checks that the JPA entities match the
+> existing schema and never creates or alters it: `create`, `update` and `create-drop` are
+> forbidden for this project, because `campuscoin_full.sql` is the single source of truth. If the
+> application fails to start with a schema-validation error, the entities and the database have
+> drifted — fix the mapping, not the schema.
+
+#### Running the tests
+
+```bash
+cd backend && ./mvnw test
+```
+
+The tests start their own MySQL 8 container via Testcontainers and load the real
+`db/merged/campuscoin_full.sql` into it, so the development database is never touched and no
+running stack is required. Docker must be available. See
+[`docs/api/authentication.md`](docs/api/authentication.md),
+[`docs/api/profile.md`](docs/api/profile.md),
+[`docs/api/categories.md`](docs/api/categories.md),
+[`docs/api/transactions.md`](docs/api/transactions.md),
+[`docs/api/recurring.md`](docs/api/recurring.md),
+[`docs/api/budgets.md`](docs/api/budgets.md),
+[`docs/api/notifications.md`](docs/api/notifications.md),
+[`docs/api/dashboard.md`](docs/api/dashboard.md),
+[`docs/api/reports.md`](docs/api/reports.md) and
+[`docs/api/tips.md`](docs/api/tips.md) for the API contracts, and
+[`docs/SECURITY.md`](docs/SECURITY.md) for the security decisions. The endpoint list is
+[`docs/api/API_INVENTORY.md`](docs/api/API_INVENTORY.md).
+
+#### Password reset in development
+
+There is no mail provider. The reset link is appended to
+`backend/target/password-reset-dev.log` instead, and the raw token is **never** written to the
+application log. Open the link from that file to complete a reset. In production the notifier is a
+stub that sends nothing — a real provider must be wired in first (§Security).
+
+---
+
+## 4. Demo credentials
+
+SRS §1.9 requires credentials for **every user type**:
+
+| User type | Display name | Email | Password |
+|---|---|---|---|
+| Administrator | System Administrator | `admin@campuscoin.edu` | `Admin@123` |
+| Student | Alex Nguyen | `an.nguyen@student.campuscoin.edu` | `Student@123` |
+| Student | Bella Tran | `binh.tran@student.campuscoin.edu` | `Student@123` |
+
+Passwords are stored in the database as bcrypt hashes (cost 10), never as plain text (BR-01).
+
+> ⚠ **Change every one of these passwords before any real deployment.**
+
+Detail: [`docs/CREDENTIALS.md`](docs/CREDENTIALS.md)
+
+---
+
+## 5. Directory layout
 
 ```
 campus-coin/
-├── backend/                        # Java Spring Boot API
-│   ├── src/main/java/com/campuscoin/
-│   │   ├── config/                 # CORS & Swagger Configuration
-│   │   ├── controller/             # REST Controllers (Wallet, Transaction, User, Merchant, Health)
-│   │   ├── dto/                    # Data Transfer Objects & API Response Wrappers
-│   │   ├── model/
-│   │   │   ├── entity/             # JPA Entities (User, Wallet, Transaction, Merchant)
-│   │   │   └── enums/              # Enums (Role, TransactionType, Status)
-│   │   ├── repository/             # Spring Data JPA Repositories
-│   │   ├── service/                # Business Logic Services
-│   │   ├── DataLoader.java         # Seed Data khởi tạo mẫu (Sinh viên, Ví, Cửa hàng)
-│   │   └── CampusCoinApplication.java
-│   ├── src/main/resources/
-│   │   ├── application.yml         # Cấu hình chung & Swagger
-│   │   ├── application-dev.yml     # Profile H2 In-Memory DB
-│   │   └── application-prod.yml    # Profile PostgreSQL DB
-│   ├── pom.xml                     # Maven Dependencies
-│   └── mvnw                        # Maven Wrapper
+├── db/                             # The entire database
+│   ├── 01_schema.sql               # 23 tables, foreign keys, indexes, CHECK
+│   ├── 02_views.sql                # 14 reporting views
+│   ├── 03_procedures.sql           # 24 procedures + 1 function
+│   ├── 04_triggers.sql             # 14 triggers enforcing business rules
+│   ├── 05_seed.sql                 # Settings, accounts, categories, tip templates
+│   ├── 06_demo.sql                 # Demo data (optional)
+│   └── merged/
+│       └── campuscoin_full.sql     # Merge of the six files above (load once)
 │
-├── frontend/                       # Angular Frontend Application
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── models/             # TypeScript Interfaces & DTOs
-│   │   │   ├── services/           # CampusCoinService (API Client)
-│   │   │   ├── app.ts              # Root Standalone Component Logic
-│   │   │   ├── app.html            # Dashboard & UI Giao dịch, Cửa hàng
-│   │   │   └── app.scss            # Styling hiện đại, responsive
-│   │   ├── index.html
-│   │   └── styles.scss             # Design tokens & Global theme
-│   ├── proxy.conf.json             # Proxy API sang http://localhost:8080
-│   ├── package.json
-│   └── angular.json
+├── docs/
+│   ├── DB_DESIGN.md                # Detailed design & UC/BR mapping
+│   ├── ERD.md                      # Entity-relationship diagram
+│   ├── CREDENTIALS.md              # Demo accounts
+│   ├── REVIEW_CHECKLIST.md         # Final review mapped back to the SQL
+│   ├── SECURITY.md                 # Security decisions and deployment requirements
+│   ├── OVERNIGHT_BLOCKERS.md       # Decisions awaiting the project owner's input
+│   ├── api/
+│   │   ├── API_INVENTORY.md        # Every endpoint, with its use case
+│   │   ├── authentication.md       # Module 1 contract + Angular integration
+│   │   ├── profile.md              # Module 2 contract + Angular integration
+│   │   ├── categories.md           # Module 3 contract + Angular integration
+│   │   ├── transactions.md         # Module 4 contract + Angular integration
+│   │   ├── recurring.md            # Module 5 contract + the scheduler
+│   │   ├── budgets.md              # Module 6 contract: limits & consumption (UC-13)
+│   │   ├── notifications.md        # Module 6 contract: budget alerts (UC-14)
+│   │   ├── dashboard.md            # Module 7 contract: the home screen (UC-12)
+│   │   └── reports.md              # Module 8 contract: reports & export (UC-15, UC-16)
+│   ├── modules/
+│   │   ├── MODULE_02_PROFILE.md        # Module report: tests, reviews, traceability
+│   │   ├── MODULE_03_CATEGORIES.md     # Module report
+│   │   ├── MODULE_04_TRANSACTIONS.md   # Module report
+│   │   ├── MODULE_05_RECURRING.md      # Module report
+│   │   ├── MODULE_06_BUDGET.md         # Module report
+│   │   ├── MODULE_07_DASHBOARD.md      # Module report
+│   │   └── MODULE_08_REPORTS.md        # Module report
+│   └── testing/
+│       └── manual/                 # Hand-run test procedures, one per module
 │
-├── .vscode/                        # Cấu hình VS Code
-│   ├── launch.json                 # Cấu hình F5 Debug Full-Stack
-│   ├── tasks.json                  # Tasks chạy dự án
-│   ├── settings.json               # Cấu hình Java 21 & Angular
-│   └── extensions.json             # Extension đề xuất
-├── campus-coin.code-workspace       # VS Code Multi-root Workspace
-├── docker-compose.yml              # PostgreSQL 16 & pgAdmin4
-├── start-dev.sh                    # Script khởi chạy 1-click cả 2 service
-└── README.md
+├── backend/                        # Spring Boot API (Java 21)
+│   └── src/main/java/com/campuscoin/
+│       ├── auth/                   # Module 1: controller, service, repository, entity, dto, security
+│       ├── profile/                # Module 2: profile & preferences (UC-04, UC-27)
+│       ├── category/               # Module 3: personal categories (UC-06)
+│       ├── transaction/            # Module 4: recording & managing transactions (UC-07, UC-10)
+│       ├── recurring/              # Module 5: recurring expenses (UC-09)
+│       ├── budget/                 # Module 6: limits, consumption & notifications (UC-13, UC-14)
+│       ├── dashboard/              # Module 7: the home screen (UC-12)
+│       ├── reports/                # Module 8: monthly report & spending series (UC-15, UC-16)
+│       ├── tips/                   # Module 9: saving tips (UC-18)
+│       └── common/                 # Errors, configuration, settings
+├── frontend/                       # Angular web application (not yet wired to the API)
+├── docker-compose.yml              # MySQL 8 + Adminer
+├── .env.example                    # Environment template (committed)
+└── .env                            # Real passwords (NOT committed — gitignored)
 ```
 
 ---
 
-## 🚀 Hướng Dẫn Khởi Chạy Dự Án
+## 6. FAQ
 
-### Cách 1: Khởi chạy nhanh bằng script `start-dev.sh` (Khuyên dùng)
-Tại thư mục gốc `campus-coin/`:
+**How do I reload the database from scratch?**
 ```bash
-./start-dev.sh
+docker compose down -v && docker compose up -d
 ```
-Script sẽ tự động khởi động đồng thời cả Backend (port 8080) và Frontend (port 4200).
+
+**I edited a SQL file — now what?**
+MySQL only runs the init directory on first initialisation, when the volume is empty. After
+editing `db/merged/campuscoin_full.sql`, reload with
+`docker compose down -v && docker compose up -d`.
+
+**Why is `DROP DATABASE IF EXISTS campuscoin` in the merged file not dangerous?**
+Because that file runs exactly once — during initialisation on an empty volume. Later `up -d`,
+`stop`/`start` and `restart` do not re-run the init directory, so the statement never touches
+existing data. It only guarantees that the first build always starts from a clean state.
+
+**What if port 3306 or 8081 is already in use?**
+Edit the `"3306:3306"` or `"8081:8080"` line in `docker-compose.yml` to a different port, for
+example `"3406:3306"`, then run `docker compose up -d` again and update the port in the connection
+settings in §3.4.
+
+**Why is the API on 8080 and Adminer on 8081?**
+The Angular dev proxy (`frontend/proxy.conf.json`) and `environment.development.ts` both target
+`http://localhost:8080/api`, which is also Spring Boot's default port. Adminer therefore moved to
+8081, because the API is what the frontend depends on.
+
+**How do I remove the demo data and start from zero?**
+Delete the 31 transactions and their related rows from `06_demo.sql`, or load only as far as
+`05_seed.sql`. The cleanest route is to remove `06_demo.sql` from `db/` and reload from scratch.
+
+**The backend fails to start with a schema-validation error.**
+That is `ddl-auto=validate` doing its job: an entity no longer matches the database. Fix the entity
+mapping. Do not switch `ddl-auto` to `update` — the schema is owned by `campuscoin_full.sql`.
 
 ---
 
-### Cách 2: Khởi chạy thủ công từng phần
-
-#### 1. Khởi động Backend:
-```bash
-cd backend
-./mvnw spring-boot:run
-```
-- API Base URL: `http://localhost:8080`
-- **Swagger UI (Tài liệu API tương tác)**: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
-- **H2 Database Console**: [http://localhost:8080/h2-console](http://localhost:8080/h2-console)
-  - JDBC URL: `jdbc:h2:mem:campuscoindb`
-  - User: `sa`
-  - Password: *(để trống)*
-
-#### 2. Khởi động Frontend:
-```bash
-cd frontend
-npm start
-```
-- Ứng dụng Web: [http://localhost:4200](http://localhost:4200)
-
----
-
-### Cách 3: Sử dụng VS Code Tasks & Debugger
-- Nhấn `Ctrl+Shift+P` (hoặc `Cmd+Shift+P` trên Mac) ➔ gõ `Tasks: Run Task` ➔ chọn:
-  - `Start Full Stack (Backend + Frontend)`
-  - Hoặc `Start Backend (Spring Boot)` / `Start Frontend (Angular)`
-- Hoặc nhấn `F5` ➔ chọn cấu hình debug: `Full Stack (Backend + Frontend)`
-
----
-
-## 🗄️ Sử Dụng PostgreSQL (Tùy Chọn Môi Trường Prod)
-
-Nếu muốn chạy cơ sở dữ liệu PostgreSQL thay cho H2 In-Memory:
-1. Khởi động PostgreSQL qua Docker:
-   ```bash
-   docker compose up -d
-   ```
-2. Chạy Backend với profile `prod`:
-   ```bash
-   cd backend
-   ./mvnw spring-boot:run -Dspring-boot.run.profiles=prod
-   ```
-3. Truy cập pgAdmin tại [http://localhost:5050](http://localhost:5050)
-   - Email: `admin@campuscoin.edu.vn`
-   - Mật khẩu: `admin_password`
-
----
-
-## 👥 Dữ Liệu Khởi Tạo Mẫu (Seed Data)
-
-Khi khởi động, hệ thống tự động nạp sẵn dữ liệu mẫu để bạn thử nghiệm ngay lập tức trên giao diện web:
-
-### Tài khoản sinh viên & giảng viên:
-- **SV001** - `Nguyen Van An` (Khoa CNTT) - Số dư: **250.00 CCOIN**
-- **SV002** - `Tran Thi Mai` (Khoa Kinh tế) - Số dư: **180.00 CCOIN**
-- **SV003** - `Le Hoang Long` (Khoa ĐTVT) - Số dư: **320.00 CCOIN**
-- **GV001** - `TS. Pham Quoc Hung` (Giảng viên CNTT) - Số dư: **500.00 CCOIN**
-
-### Các điểm chấp nhận thanh toán (Merchants):
-- `CANTEEN_A`: Canteen Khu A - Món ngon sinh viên
-- `CAFE_CAMPUS`: Campus Coffee & Bakery
-- `BOOKSTORE`: Hiệu sách & Văn phòng phẩm Đại học
-- `PRINT_LIBRARY`: Trung tâm Thư viện & In ấn Photo
-
----
-
-## 🐿️ AI Tools, Mascot & 3D Assets Attribution
+## 7. AI Tools, Mascot & 3D Assets Attribution
 
 - **Squirrel Mascot Animation**: Sourced vector motion asset with multi-state state machine (Idle, Walk, Deposit, Coin-Flip, Analyzing, Sleepy, Guest Roaming, Chat-Open) and interactive speech bubble, integrated via `lottie-web` under the **Lottie Simple License** (LottieFiles Community).
 - **3D Falling Gold Coins Physics**: Interactive WebGL PBR rendering powered by `three` (Three.js r186, MIT License) and WebAssembly rigid-body physics via `@dimforge/rapier3d-compat` (Rapier 3D, Apache-2.0 License).
 - **UI Iconography**: Standard functional UI icons powered by `lucide-angular` (ISC License) with custom bespoke vector squirrel brand identity marks (`squirrel-logo`, `favicon.svg`).
 - **Production Performance**: Lazy-loaded heavy modules (`@defer (on idle)`), OnPush change detection, tree-shaking, and WebP asset optimization.
-

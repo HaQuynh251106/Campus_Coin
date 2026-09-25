@@ -12,11 +12,19 @@
 	<artifactId>campus-coin-backend</artifactId>
 	<version>1.0.0-SNAPSHOT</version>
 	<name>campus-coin-backend</name>
-	<description>Campus Coin - Backend Service for Campus Digital Currency &amp; Points System</description>
+	<description>Campus Coin - student personal finance and expense tracking REST API</description>
 
 	<properties>
 		<java.version>21</java.version>
 		<springdoc.version>2.8.5</springdoc.version>
+		<jjwt.version>0.12.6</jjwt.version>
+		<!--
+		  Overrides the version Spring Boot's dependency management would pick (1.20.x).
+		  Testcontainers 1.20 negotiates an API version below 1.40, which Docker Engine 29
+		  rejects with 400 Bad Request, so the container would never start. 1.21 uses a
+		  docker-java that negotiates a supported version.
+		-->
+		<testcontainers.version>1.21.3</testcontainers.version>
 	</properties>
 
 	<dependencies>
@@ -35,6 +43,10 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
@@ -45,15 +57,29 @@
 			<version>${springdoc.version}</version>
 		</dependency>
 
-		<!-- Databases -->
+		<!-- Database - MySQL is the single source of truth for the schema -->
 		<dependency>
-			<groupId>com.h2database</groupId>
-			<artifactId>h2</artifactId>
+			<groupId>com.mysql</groupId>
+			<artifactId>mysql-connector-j</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+		<!-- JSON Web Token (HS256) -->
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-api</artifactId>
+			<version>${jjwt.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-impl</artifactId>
+			<version>${jjwt.version}</version>
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.postgresql</groupId>
-			<artifactId>postgresql</artifactId>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-jackson</artifactId>
+			<version>${jjwt.version}</version>
 			<scope>runtime</scope>
 		</dependency>
 
@@ -74,6 +100,37 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!--
+		  Test scope only, and the version is Spring Boot's managed one.
+
+		  Without a real HTTP client on the classpath, TestRestTemplate falls back to the JDK's
+		  HttpURLConnection, which rejects the PATCH method outright with
+		  "Invalid HTTP method: PATCH". Module 2 uses PATCH for both profile endpoints - the
+		  method is part of the documented contract, not a detail of the tests - so the harness
+		  has to be able to speak it. Adding this makes RestTemplate auto-configure a client that
+		  can, rather than contorting the API to fit a testing limitation.
+		-->
+		<dependency>
+			<groupId>org.apache.httpcomponents.client5</groupId>
+			<artifactId>httpclient5</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- Integration tests run against a real MySQL 8 with the project's own SQL loaded -->
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>mysql</artifactId>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
@@ -104,6 +161,48 @@
 					</excludes>
 				</configuration>
 			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<!--
+					  Surefire only picks up *Test / *Tests by default. The API tests are
+					  named *IT because they exercise the real HTTP stack against a real
+					  MySQL, so they have to be included explicitly or `mvn test` would
+					  silently run nothing but the context test.
+					-->
+					<includes>
+						<include>**/*Test.java</include>
+						<include>**/*Tests.java</include>
+						<include>**/*IT.java</include>
+					</includes>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<!--
+		  mvn test -Pstandalone
+		  Skips the Testcontainers-based integration suites so the unit tests can run
+		  on a machine without a Docker daemon.
+		-->
+		<profile>
+			<id>standalone</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-surefire-plugin</artifactId>
+						<configuration>
+							<includes>
+								<include>**/*Test.java</include>
+								<include>**/*Tests.java</include>
+							</includes>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 </project>
