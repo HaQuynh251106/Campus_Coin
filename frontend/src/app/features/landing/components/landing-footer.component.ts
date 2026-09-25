@@ -1,11 +1,12 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { IconComponent } from '../../../shared/components/icon/icon.component';
 
 @Component({
   selector: 'app-landing-footer',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, IconComponent],
   template: `
     <footer class="border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-900/70 backdrop-blur-xs transition-colors">
       <div class="max-w-6xl mx-auto px-4 sm:px-6 py-12">
@@ -14,8 +15,8 @@ import { RouterModule } from '@angular/router';
           <!-- Brand Column -->
           <div class="md:col-span-2 space-y-3">
             <div class="flex items-center gap-2.5">
-              <div class="w-7 h-7 rounded-lg bg-amber-500 flex items-center justify-center text-neutral-950 font-bold text-xs shadow-xs">
-                ⚡
+              <div class="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-neutral-950 shadow-xs">
+                <app-icon name="squirrel-logo" [size]="18" strokeWidth="1.75"></app-icon>
               </div>
               <span class="font-bold text-lg text-neutral-900 dark:text-neutral-50 tracking-tight">
                 Campus Coin

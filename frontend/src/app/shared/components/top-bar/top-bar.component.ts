@@ -19,8 +19,8 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
         <div class="flex items-center gap-3">
           <!-- Mobile Brand Logo -->
           <a routerLink="/app/home" class="md:hidden flex items-center gap-2 font-semibold text-lg tracking-tight">
-            <span class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center text-sm font-bold">
-              🪙
+            <span class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-xs">
+              <app-icon name="squirrel-logo" [size]="16" strokeWidth="1.75"></app-icon>
             </span>
             <span class="text-neutral-900 dark:text-white font-semibold">Campus<span class="text-amber-500">Coin</span></span>
           </a>

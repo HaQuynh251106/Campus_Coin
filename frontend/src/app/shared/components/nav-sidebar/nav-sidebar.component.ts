@@ -21,9 +21,9 @@ import { IconComponent } from '../icon/icon.component';
         <div class="px-2 py-2.5 mb-5 border-b border-neutral-200 dark:border-neutral-800 pb-4">
           <a [routerLink]="isAdmin ? '/admin/dashboard' : '/app/home'" class="flex items-center gap-2.5 group">
             <div
-              class="w-9 h-9 rounded-lg flex items-center justify-center text-base font-bold transition-all border bg-amber-500/10 border-amber-500/25 text-amber-600 dark:text-amber-400 shadow-xs"
+              class="w-9 h-9 rounded-lg flex items-center justify-center transition-all border bg-amber-500/10 border-amber-500/25 text-amber-600 dark:text-amber-400 shadow-xs"
             >
-              {{ isAdmin ? '🛡️' : '🪙' }}
+              <app-icon [name]="isAdmin ? 'shield-check' : 'squirrel-logo'" [size]="20" strokeWidth="1.75"></app-icon>
             </div>
             <div>
               <span class="font-semibold text-lg tracking-tight text-neutral-900 dark:text-neutral-100 block leading-tight">

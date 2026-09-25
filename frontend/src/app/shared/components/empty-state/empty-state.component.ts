@@ -14,6 +14,9 @@ import { IconComponent } from '../icon/icon.component';
         <img
           [src]="imageUrl"
           [alt]="imageAlt"
+          width="128"
+          height="128"
+          loading="lazy"
           class="w-full h-full object-cover"
         />
       </div>

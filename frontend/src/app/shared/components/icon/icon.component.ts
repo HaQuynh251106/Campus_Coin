@@ -297,6 +297,24 @@ import { CommonModule } from '@angular/common';
       @if (name === 'message-square') {
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
       }
+
+      <!-- Squirrel Brand Identity Icons -->
+      @if (name === 'squirrel-logo' || name === 'squirrel-coin') {
+        <!-- Bushy curved tail -->
+        <path d="M15 19c3 0 5-2 5-5.5 0-3-2-5.5-4.5-5.5-1.5 0-2.5.8-3 2" />
+        <!-- Squirrel head and ears -->
+        <path d="M7 6.5 6 3l3 2" />
+        <path d="M12 6.5l1-3.5-3 2" />
+        <path d="M5.5 11.5c-1 0-1.5.8-1.5 1.8 0 1.5 1.5 2.7 3.5 2.7" />
+        <circle cx="9" cy="11.5" r="4.5" />
+        <circle cx="8" cy="11" r=".75" fill="currentColor" />
+        <!-- Paws holding gold coin -->
+        <circle cx="13" cy="16.5" r="3.5" />
+        <path d="M13 15v3" />
+        <path d="M11.5 16.5h3" />
+        <!-- Front paws gripping coin -->
+        <path d="M9.5 16c.8.2 1.5-.2 2-.5" />
+      }
     </svg>
   `
 })

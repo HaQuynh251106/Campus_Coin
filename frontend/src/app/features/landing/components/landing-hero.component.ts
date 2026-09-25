@@ -131,6 +131,8 @@ import { CategoryIconComponent } from '../../../shared/components/category-icon/
                   <img
                     src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=128&q=80"
                     alt="Campus AI Advisor"
+                    width="32"
+                    height="32"
                     class="w-full h-full object-cover"
                   />
                 </div>

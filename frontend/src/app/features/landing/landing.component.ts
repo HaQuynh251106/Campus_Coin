@@ -8,6 +8,7 @@ import { LandingSocialProofComponent } from './components/landing-social-proof.c
 import { LandingCtaComponent } from './components/landing-cta.component';
 import { LandingFooterComponent } from './components/landing-footer.component';
 import { CoinBackgroundComponent } from '../../shared/components/coin-background/coin-background.component';
+import { SquirrelMascotComponent } from '../../shared/components/squirrel-mascot/squirrel-mascot.component';
 
 @Component({
   selector: 'app-landing',
@@ -15,6 +16,7 @@ import { CoinBackgroundComponent } from '../../shared/components/coin-background
   imports: [
     CommonModule,
     CoinBackgroundComponent,
+    SquirrelMascotComponent,
     LandingNavbarComponent,
     LandingHeroComponent,
     LandingFeaturesComponent,
@@ -25,8 +27,10 @@ import { CoinBackgroundComponent } from '../../shared/components/coin-background
   ],
   template: `
     <div class="relative min-h-screen flex flex-col bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-50 selection:bg-amber-500 selection:text-neutral-950 font-sans transition-colors overflow-hidden">
-      <!-- 0. 3D Falling Coins Canvas Background (Bottom-most layer) -->
-      <app-coin-background></app-coin-background>
+      <!-- 0. 3D Falling Coins Canvas Background (Deferred on idle to prioritize LCP) -->
+      @defer (on idle) {
+        <app-coin-background></app-coin-background>
+      }
 
       <!-- 1. Top Navbar -->
       <app-landing-navbar class="relative z-10"></app-landing-navbar>
@@ -48,6 +52,11 @@ import { CoinBackgroundComponent } from '../../shared/components/coin-background
         <!-- 6. Final CTA Banner -->
         <app-landing-cta></app-landing-cta>
       </main>
+
+      <!-- Squirrel Mascot (Guest Roaming Mode) -->
+      @defer (on idle) {
+        <app-squirrel-mascot initialAnchor="mid-right"></app-squirrel-mascot>
+      }
 
       <!-- 7. Footer -->
       <app-landing-footer class="relative z-10"></app-landing-footer>

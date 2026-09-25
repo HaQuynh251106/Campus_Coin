@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <linearGradient id="furGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+    <linearGradient id="coinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="100%" stop-color="#EAB308"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background circle badge -->
+  <rect width="32" height="32" rx="8" fill="#18181B"/>
+
+  <!-- Bushy Squirrel Tail -->
+  <path d="M 19 26 C 26 25 29 18 27 12 C 25 8 20 8 21 13 C 21.5 15 22 17 20 20 Z" fill="url(#furGrad)" opacity="0.9"/>
+
+  <!-- Squirrel Head & Ears -->
+  <path d="M 9 9 L 11 15 L 7 15 Z" fill="url(#furGrad)"/>
+  <path d="M 8.5 10.5 L 10 14 L 7.5 14 Z" fill="#FDE68A"/>
+
+  <path d="M 15 9 L 17 15 L 13 15 Z" fill="url(#furGrad)"/>
+  <path d="M 14.5 10.5 L 16 14 L 13.5 14 Z" fill="#FDE68A"/>
+
+  <!-- Head Base -->
+  <circle cx="12" cy="17" r="6" fill="url(#furGrad)"/>
+  <!-- Puffed Cheek / Muzzle -->
+  <ellipse cx="10" cy="19" rx="3.5" ry="2.5" fill="#FEF3C7"/>
+
+  <!-- Eye & Snout -->
+  <circle cx="10" cy="16" r="1.2" fill="#18181B"/>
+  <circle cx="10.4" cy="15.6" r="0.4" fill="#FFFFFF"/>
+  <polygon points="7,19 8,18 8,20" fill="#78350F"/>
+
+  <!-- Gold Coin held in paws -->
+  <circle cx="16" cy="22" r="4.5" fill="url(#coinGrad)" stroke="#CA8A04" stroke-width="0.8"/>
+  <!-- Coin Lightning Symbol -->
+  <path d="M 16.5 19.5 L 14.8 22 L 16.2 22 L 15.5 24.5 L 17.5 21.8 L 16.2 21.8 Z" fill="#78350F"/>
+
+  <!-- Paws holding coin -->
+  <ellipse cx="13" cy="22" rx="1.2" ry="1.5" fill="#F59E0B"/>
+  <ellipse cx="18" cy="22" rx="1.2" ry="1.5" fill="#F59E0B"/>
+</svg>

@@ -12,10 +12,10 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
     <nav class="sticky top-0 z-50 w-full bg-white/85 dark:bg-neutral-900/85 backdrop-blur-md border-b border-neutral-200/80 dark:border-neutral-800 transition-colors">
       <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
 
-        <!-- Logo & Wordmark -->
+        <!-- Logo & Wordmark with Squirrel Brand Mark -->
         <a routerLink="/" class="flex items-center gap-2.5 group cursor-pointer">
-          <div class="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-neutral-950 font-bold text-sm shadow-xs group-hover:scale-105 transition-transform">
-            ⚡
+          <div class="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-neutral-950 shadow-xs group-hover:scale-105 transition-transform">
+            <app-icon name="squirrel-logo" [size]="18" strokeWidth="1.75"></app-icon>
           </div>
           <div class="flex items-center gap-2">
             <span class="font-bold text-base sm:text-lg tracking-tight text-neutral-900 dark:text-neutral-50">
