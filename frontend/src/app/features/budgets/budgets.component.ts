@@ -252,21 +252,35 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
                 />
               </div>
 
-              <div class="flex items-center justify-end gap-2 pt-3">
-                <button
-                  type="button"
-                  (click)="closeModal()"
-                  class="px-3.5 py-2 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded-lg text-xs transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  (click)="saveModal()"
-                  class="bg-amber-500 hover:bg-amber-600 text-neutral-950 font-medium text-xs py-2 px-4 rounded-lg shadow-xs transition-colors cursor-pointer"
-                >
-                  Save Limit ✓
-                </button>
+              <div class="flex items-center justify-between pt-3">
+                @if (editingBudget) {
+                  <button
+                    type="button"
+                    (click)="deleteBudget(editingBudget.id)"
+                    class="px-3 py-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-neutral-800 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                  >
+                    Delete Budget
+                  </button>
+                } @else {
+                  <div></div>
+                }
+
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    (click)="closeModal()"
+                    class="px-3.5 py-2 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded-lg text-xs transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    (click)="saveModal()"
+                    class="bg-amber-500 hover:bg-amber-600 text-neutral-950 font-medium text-xs py-2 px-4 rounded-lg shadow-xs transition-colors cursor-pointer"
+                  >
+                    Save Limit ✓
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -319,7 +333,7 @@ export class BudgetsComponent implements OnInit {
     this.categoryService.getExpenseCategories().subscribe(cats => {
       this.availableCategories = cats;
       if (cats.length > 0) {
-        this.selectedCategoryId = cats[0].id;
+        this.selectedCategoryId = String(cats[0].id);
       }
     });
   }
@@ -354,15 +368,39 @@ export class BudgetsComponent implements OnInit {
     if (this.modalLimit <= 0) return;
 
     if (this.editingBudget) {
-      this.budgetService.updateBudgetLimit(this.editingBudget.id, this.modalLimit).subscribe(() => {
-        this.loadBudgets();
-        this.closeModal();
+      this.budgetService.updateBudgetLimit(this.editingBudget.id, this.modalLimit).subscribe({
+        next: () => {
+          this.loadBudgets();
+          this.closeModal();
+        },
+        error: (err) => {
+          alert(err.error?.message || 'Failed to update budget limit');
+        }
       });
     } else {
       if (!this.selectedCategoryId) return;
-      this.budgetService.addBudget(this.selectedCategoryId, this.modalLimit).subscribe(() => {
-        this.loadBudgets();
-        this.closeModal();
+      this.budgetService.addBudget(this.selectedCategoryId, this.modalLimit).subscribe({
+        next: () => {
+          this.loadBudgets();
+          this.closeModal();
+        },
+        error: (err) => {
+          alert(err.error?.message || 'Failed to set category budget');
+        }
+      });
+    }
+  }
+
+  deleteBudget(id: string | number): void {
+    if (confirm('Are you sure you want to remove this category budget?')) {
+      this.budgetService.deleteBudget(id).subscribe({
+        next: () => {
+          this.loadBudgets();
+          this.closeModal();
+        },
+        error: (err) => {
+          alert(err.error?.message || 'Failed to delete budget');
+        }
       });
     }
   }

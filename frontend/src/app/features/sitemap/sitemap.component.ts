@@ -135,21 +135,21 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
             <a routerLink="/app/home" class="font-mono font-medium text-amber-600 dark:text-amber-400 hover:underline block mb-1 text-sm">
               /app/home
             </a>
-            <span class="text-neutral-500">Feed view: balance hero, AI story card, budget meters, grouped transaction log.</span>
+            <span class="text-neutral-500">Feed view: balance hero, monthly budget status, and grouped transaction log.</span>
           </div>
 
           <div class="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-800/40">
             <a routerLink="/app/quick-add" class="font-mono font-medium text-amber-600 dark:text-amber-400 hover:underline block mb-1 text-sm">
               /app/quick-add
             </a>
-            <span class="text-neutral-500">Conversational AI input, smart category chips, manual form & soft-delete table.</span>
+            <span class="text-neutral-500">Manual entry form with category selector, recurring frequency, and recent entries table.</span>
           </div>
 
           <div class="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-800/40">
             <a routerLink="/app/reports" class="font-mono font-medium text-amber-600 dark:text-amber-400 hover:underline block mb-1 text-sm">
               /app/reports
             </a>
-            <span class="text-neutral-500">Analytics dashboard: 6-month trend, donut breakdown, daily rhythm, PDF export.</span>
+            <span class="text-neutral-500">Analytics dashboard: 6-month trend, category breakdown, daily/weekly spending rhythm.</span>
           </div>
 
           <div class="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-800/40">
@@ -160,24 +160,17 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
           </div>
 
           <div class="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-800/40">
-            <a routerLink="/app/insights" class="font-mono font-medium text-amber-600 dark:text-amber-400 hover:underline block mb-1 text-sm">
-              /app/insights
-            </a>
-            <span class="text-neutral-500">Historical AI-generated monthly reviews, actionable student tips, and pin toggle.</span>
-          </div>
-
-          <div class="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-800/40">
             <a routerLink="/app/categories" class="font-mono font-medium text-amber-600 dark:text-amber-400 hover:underline block mb-1 text-sm">
               /app/categories
             </a>
             <span class="text-neutral-500">System default lock vs user-created custom categories with full CRUD.</span>
           </div>
 
-          <div class="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-800/40 sm:col-span-2 md:col-span-3">
+          <div class="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-800/40">
             <a routerLink="/app/profile" class="font-mono font-medium text-amber-600 dark:text-amber-400 hover:underline block mb-1 text-sm">
               /app/profile
             </a>
-            <span class="text-neutral-500">Student allowances, savings goals, dark mode switch, font scaling (sm/md/lg), and CSV bulk import preview table.</span>
+            <span class="text-neutral-500">Student allowances, savings goals, dark mode switch, and font scaling (sm/md/lg).</span>
           </div>
         </div>
       </div>

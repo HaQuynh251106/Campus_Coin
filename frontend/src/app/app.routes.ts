@@ -53,6 +53,11 @@ export const routes: Routes = [
     ]
   },
 
+  {
+    path: 'reset-password',
+    redirectTo: 'auth/forgot-password'
+  },
+
   // 2. Student Portal Module (Responsive Nav Layout)
   {
     path: 'app',
@@ -89,12 +94,6 @@ export const routes: Routes = [
           import('./features/budgets/budgets.component').then(m => m.BudgetsComponent)
       },
       {
-        path: 'insights',
-        title: 'AI Monthly Summaries & Tips — Campus Coin',
-        loadComponent: () =>
-          import('./features/insights/insights.component').then(m => m.InsightsComponent)
-      },
-      {
         path: 'categories',
         title: 'Manage Categories — Campus Coin',
         loadComponent: () =>
@@ -102,7 +101,7 @@ export const routes: Routes = [
       },
       {
         path: 'profile',
-        title: 'Profile, Dark Mode & CSV Import — Campus Coin',
+        title: 'Profile, Dark Mode & Preferences — Campus Coin',
         loadComponent: () =>
           import('./features/profile/profile.component').then(m => m.ProfileComponent)
       }

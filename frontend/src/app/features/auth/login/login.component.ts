@@ -27,7 +27,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
       <div class="mb-5 p-3 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 rounded-lg flex items-center justify-between gap-2">
         <div class="text-xs">
           <span class="font-medium text-neutral-900 dark:text-neutral-100 block">Demo Student</span>
-          <span class="text-neutral-500">alex.morgan&#64;campus.edu</span>
+          <span class="text-neutral-500 font-mono">an.nguyen&#64;student.campuscoin.edu</span>
         </div>
         <button
           type="button"
@@ -116,14 +116,14 @@ export class LoginComponent {
   errorMessage = '';
 
   loginForm = this.fb.group({
-    email: ['alex.morgan@campus.edu', [Validators.required, Validators.email]],
-    password: ['password123', [Validators.required, Validators.minLength(6)]]
+    email: ['an.nguyen@student.campuscoin.edu', [Validators.required, Validators.email]],
+    password: ['Student@123', [Validators.required, Validators.minLength(6)]]
   });
 
   fillDemoStudent(): void {
     this.loginForm.patchValue({
-      email: 'alex.morgan@campus.edu',
-      password: 'password123'
+      email: 'an.nguyen@student.campuscoin.edu',
+      password: 'Student@123'
     });
   }
 
@@ -141,7 +141,7 @@ export class LoginComponent {
       },
       error: (err) => {
         this.isLoading = false;
-        this.errorMessage = err.message || 'Login failed. Please check credentials.';
+        this.errorMessage = err.error?.message || err.message || 'Login failed. Please check credentials.';
       }
     });
   }

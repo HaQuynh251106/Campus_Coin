@@ -108,13 +108,13 @@ export class AdminLoginComponent {
 
   adminForm = this.fb.group({
     email: ['admin@campuscoin.edu', [Validators.required, Validators.email]],
-    password: ['adminpass', [Validators.required]]
+    password: ['Admin@123', [Validators.required]]
   });
 
   fillAdminCredentials(): void {
     this.adminForm.patchValue({
       email: 'admin@campuscoin.edu',
-      password: 'adminpass'
+      password: 'Admin@123'
     });
   }
 
@@ -132,7 +132,7 @@ export class AdminLoginComponent {
       },
       error: (err) => {
         this.isLoading = false;
-        this.errorMessage = err.message || 'Admin authentication failed.';
+        this.errorMessage = err.error?.message || err.message || 'Admin authentication failed.';
       }
     });
   }

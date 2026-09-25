@@ -3,11 +3,10 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { TransactionService, MonthlyBalance } from '../../core/services/transaction.service';
 import { BudgetService } from '../../core/services/budget.service';
-import { InsightService } from '../../core/services/insight.service';
+import { DashboardService } from '../../core/services/dashboard.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Transaction } from '../../core/models/transaction.model';
 import { Budget } from '../../core/models/budget.model';
-import { MonthlyInsight } from '../../core/models/insight.model';
 import { CardComponent } from '../../shared/components/card/card.component';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { ProgressRingComponent } from '../../shared/components/progress-ring/progress-ring.component';
@@ -99,64 +98,7 @@ interface GroupedDayTransactions {
         </div>
       </div>
 
-      <!-- 2. AI Insight Card (Clean SaaS style) -->
-      @if (isLoadingInsight) {
-        <app-loading-skeleton type="card"></app-loading-skeleton>
-      } @else if (currentInsight) {
-        <div class="card-brutal p-5 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs relative">
-          <div class="flex items-start gap-4">
-            <!-- Sourced Free-Licensed Real Photo for AI Student Advisor Avatar -->
-            <div class="relative shrink-0">
-              <div class="w-11 h-11 rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden bg-neutral-100 dark:bg-neutral-800">
-                <img
-                  [src]="currentInsight.avatarUrl"
-                  alt="Campus AI Financial Coach"
-                  class="w-full h-full object-cover"
-                />
-              </div>
-              <span class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-500 border border-white dark:border-neutral-900 flex items-center justify-center text-[8px] text-white">
-                ⚡
-              </span>
-            </div>
-
-            <!-- Content Bubble -->
-            <div class="flex-1 min-w-0">
-              <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
-                <div class="flex items-center gap-2">
-                  <span class="font-semibold text-sm text-neutral-900 dark:text-neutral-100">
-                    Campus AI Coach
-                  </span>
-                  <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-                    <app-icon name="sparkles" [size]="11" strokeWidth="1.5"></app-icon>
-                    Monthly Insight
-                  </span>
-                </div>
-                <a routerLink="/app/insights" class="text-xs font-medium text-amber-600 dark:text-amber-400 hover:underline">
-                  All Insights →
-                </a>
-              </div>
-
-              <h4 class="font-semibold text-base text-neutral-900 dark:text-neutral-100 mb-1.5">
-                "{{ currentInsight.title }}"
-              </h4>
-
-              <p class="text-xs sm:text-sm text-neutral-600 dark:text-neutral-300 leading-relaxed mb-3">
-                {{ currentInsight.narrativeSummary }}
-              </p>
-
-              <!-- Actionable Saving Tip Box -->
-              <div class="p-3 bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-2.5">
-                <span class="text-sm">💡</span>
-                <p class="text-xs font-medium text-amber-900 dark:text-amber-200 leading-snug">
-                  {{ currentInsight.savingTip }}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      }
-
-      <!-- 3. Category Budget Progress Cards Strip -->
+      <!-- 2. Category Budget Progress Cards Strip -->
       <div>
         <div class="flex items-center justify-between mb-3 px-0.5">
           <div>
@@ -312,47 +254,59 @@ interface GroupedDayTransactions {
 export class HomeFeedComponent implements OnInit {
   private txService = inject(TransactionService);
   private budgetService = inject(BudgetService);
-  private insightService = inject(InsightService);
+  private dashboardService = inject(DashboardService);
   private auth = inject(AuthService);
 
   balance: MonthlyBalance = { income: 0, expense: 0, net: 0, savingsRate: 0 };
-  currentInsight: MonthlyInsight | null = null;
+  periodLabel = 'September 2026';
   topBudgets: Budget[] = [];
   groupedTransactions: GroupedDayTransactions[] = [];
 
   isLoadingTxs = true;
-  isLoadingInsight = true;
 
   ngOnInit(): void {
     this.refreshAll();
   }
 
   refreshAll(): void {
-    // 1. Balance
-    this.balance = this.txService.getMonthlyBalance('2026-09');
-
-    // 2. Insight
-    this.isLoadingInsight = true;
-    this.insightService.getCurrentInsight().subscribe(insight => {
-      this.currentInsight = insight;
-      this.isLoadingInsight = false;
+    // 1. Live Dashboard from Backend (M7)
+    this.dashboardService.getDashboard().subscribe({
+      next: (d) => {
+        if (d && d.summary) {
+          this.balance = {
+            income: d.summary.totalIncome,
+            expense: d.summary.totalExpense,
+            net: d.summary.netAmount,
+            savingsRate: Math.round(d.summary.savingsGoalPct ?? 0)
+          };
+          this.periodLabel = d.periodMonth || '2026-09';
+        }
+      },
+      error: () => {
+        // Fallback to local transaction sum
+        this.balance = this.txService.getMonthlyBalance('2026-09');
+      }
     });
 
-    // 3. Budgets
+    // 2. Live Budgets (M6)
     this.budgetService.getBudgets('2026-09').subscribe(budgets => {
       this.topBudgets = budgets.slice(0, 4);
     });
 
-    // 4. Transactions stream
+    // 3. Transactions stream (M4)
     this.loadTransactions();
   }
 
   loadTransactions(): void {
     this.isLoadingTxs = true;
-    this.txService.getTransactions().subscribe(txs => {
-      this.groupTransactionsByDay(txs.slice(0, 15));
-      this.balance = this.txService.getMonthlyBalance('2026-09');
-      this.isLoadingTxs = false;
+    this.txService.getTransactions().subscribe({
+      next: (txs) => {
+        this.groupTransactionsByDay(txs.slice(0, 15));
+        this.isLoadingTxs = false;
+      },
+      error: () => {
+        this.isLoadingTxs = false;
+      }
     });
   }
 
@@ -396,7 +350,7 @@ export class HomeFeedComponent implements OnInit {
     return limit > 0 ? Math.round((spent / limit) * 100) : 0;
   }
 
-  deleteTx(id: string): void {
+  deleteTx(id: string | number): void {
     this.txService.deleteTransaction(id).subscribe(() => {
       this.refreshAll();
     });

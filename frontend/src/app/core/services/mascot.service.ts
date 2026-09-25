@@ -165,8 +165,6 @@ export class MascotService {
           this.triggerState('walk', 'Checking monthly budget caps!', 3200);
         } else if (url.includes('/quick-add')) {
           this.triggerState('walk', 'Ready to log spending!', 3200);
-        } else if (url.includes('/insights')) {
-          this.triggerState('analyzing', 'Reviewing your AI monthly insights!', 3500);
         } else if (url.includes('/home')) {
           this.triggerState('walk', 'Heading back to your feed!', 3000);
         } else {
