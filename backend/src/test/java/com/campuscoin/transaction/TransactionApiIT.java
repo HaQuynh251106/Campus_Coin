@@ -23,6 +23,9 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
@@ -59,6 +62,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * refusals into a {@code 409} is verified against the exact exception shapes in
  * {@code TransactionWriteFailureTest}, which is where the classification lives.
  */
+@ExtendWith(OutputCaptureExtension.class)
 class TransactionApiIT extends AbstractMySqlIntegrationTest {
 
     private static final String TRANSACTIONS_URL = "/api/v1/transactions";
@@ -460,7 +464,9 @@ class TransactionApiIT extends AbstractMySqlIntegrationTest {
         LocalDate today = today();
 
         Long padded = createAndReturnId(token, categoryId, "1.00", today, "  padded note  ");
-        assertThat(columnInDatabase(padded, "description")).isEqualTo("padded note");
+        // Stored encrypted, so the trim is only observable after decryption - which is the proof
+        // the round trip really happened in the database rather than in the service's head.
+        assertThat(decryptField(columnInDatabase(padded, "description"))).isEqualTo("padded note");
 
         Long blank = createAndReturnId(token, categoryId, "2.00", today, "   ");
         assertThat(columnInDatabase(blank, "description")).isNull();
@@ -476,7 +482,8 @@ class TransactionApiIT extends AbstractMySqlIntegrationTest {
         LocalDate today = today();
 
         Long accepted = createAndReturnId(token, categoryId, "1.00", today, "line one\nline two");
-        assertThat(columnInDatabase(accepted, "description")).isEqualTo("line one\nline two");
+        assertThat(decryptField(columnInDatabase(accepted, "description")))
+                .isEqualTo("line one\nline two");
 
         // 256 characters cannot fit VARCHAR(255), and the check is applied after trimming because
         // the service trims before storing.
@@ -486,6 +493,78 @@ class TransactionApiIT extends AbstractMySqlIntegrationTest {
                         "txnDate", today.toString(),
                         "description", "x".repeat(256)),
                 "description");
+    }
+
+    @Test
+    @DisplayName("Encryption: a description is ciphertext at rest but plaintext through the API")
+    void descriptionIsCiphertextAtRestAndPlaintextThroughTheApi() throws Exception {
+        String token = loginNewStudent();
+        Long categoryId = defaultCategoryId(DEFAULT_EXPENSE_NAME);
+        LocalDate today = today();
+
+        Long transactionId = createAndReturnId(token, categoryId, "9.99", today, "canteen lunch");
+
+        // The direct SELECT an attacker with the database file runs. It must not reveal the words.
+        String stored = columnInDatabase(transactionId, "description");
+        assertThat(stored).isNotNull().doesNotContain("canteen").isNotEqualTo("canteen lunch");
+        // ...and it must be a real envelope, not merely an encoding - the app can recover the text.
+        assertThat(decryptField(stored)).isEqualTo("canteen lunch");
+
+        // The owner still sees it: the API decrypts on the way out.
+        assertThat(send(HttpMethod.GET, TRANSACTIONS_URL + "/" + transactionId, token, null).getBody())
+                .contains("canteen lunch");
+
+        // The history snapshot the trigger wrote carries the same envelope, so the audit trail of
+        // BR-09 leaks nothing either - while still holding the value.
+        String snapshot = historyJson(transactionId, "new_values");
+        assertThat(snapshot).doesNotContain("canteen");
+        assertThat(decryptField(objectMapper.readTree(snapshot).get("description").asText()))
+                .isEqualTo("canteen lunch");
+
+        // Two rows with identical words do not share ciphertext: a fresh IV per value is what stops
+        // an attacker recognising which students wrote the same note.
+        Long second = createAndReturnId(token, categoryId, "9.99", today, "canteen lunch");
+        assertThat(columnInDatabase(second, "description"))
+                .isNotEqualTo(columnInDatabase(transactionId, "description"));
+    }
+
+    @Test
+    @DisplayName("Section 7.6: neither the plaintext description nor the envelope reaches the log")
+    void plaintextDescriptionNeverReachesTheLog(CapturedOutput output) throws Exception {
+        String token = loginNewStudent();
+        Long categoryId = defaultCategoryId(DEFAULT_EXPENSE_NAME);
+        LocalDate today = today();
+
+        // A word that appears nowhere in the seed or in any other test, so a hit can only have come
+        // from this value rather than from unrelated output.
+        String marker = "zzplaintextsweep";
+        String description = marker + " lunch with a classmate";
+
+        Long transactionId = createAndReturnId(token, categoryId, "12.34", today, description);
+        String envelope = columnInDatabase(transactionId, "description");
+
+        // Exercise the read path too: that is the direction where the plaintext genuinely exists in
+        // the process and could be logged by accident.
+        assertThat(send(HttpMethod.GET, TRANSACTIONS_URL + "/" + transactionId, token, null).getBody())
+                .contains(marker);
+
+        // The capture is the real log stream for this method, under the dev profile where
+        // com.campuscoin is at DEBUG - so the strongest form of the claim. It is asserted rather
+        // than assumed that the value is absent; note that if the capture were ever empty this
+        // check would pass silently, which is why SecurityHardeningIT's token test and this one are
+        // companions rather than a replacement for reading the log during a manual pass.
+        String log = output.getOut() + output.getErr();
+        assertThat(log)
+                .as("the plaintext a student typed must never be logged")
+                .doesNotContain(marker)
+                .doesNotContain(description);
+
+        // Nor the ciphertext: an envelope in a log is useless to an attacker without the key, but it
+        // is still a value that belongs in the database and nowhere else, and logging it would put a
+        // second copy of the student's data somewhere the key-holder did not intend.
+        assertThat(log)
+                .as("the stored envelope must not be logged either")
+                .doesNotContain(envelope);
     }
 
     @Test
@@ -1079,7 +1158,10 @@ class TransactionApiIT extends AbstractMySqlIntegrationTest {
         // TINYINT are not the contract, the values are.
         JsonNode newValues = objectMapper.readTree(historyJson(transactionId, "new_values"));
         assertThat(newValues.get("amount").decimalValue()).isEqualByComparingTo("24.00");
-        assertThat(newValues.get("description").asText()).isEqualTo("history probe");
+        // The snapshot copies the COLUMN, so `description` in the log is the envelope, not the
+        // words. That is the point: a direct SELECT on transaction_history must not reveal what the
+        // student wrote. BR-09 still holds - the value is recoverable, by the application.
+        assertThat(decryptField(newValues.get("description").asText())).isEqualTo("history probe");
         assertThat(newValues.get("isDeleted").asInt()).isZero();
         assertThat(newValues.get("categoryId").asLong()).isEqualTo(categoryId);
         // `type` is in the snapshot as the category's type at this moment, not as a reference: a
@@ -1124,9 +1206,9 @@ class TransactionApiIT extends AbstractMySqlIntegrationTest {
         JsonNode oldValues = objectMapper.readTree(historyJson(transactionId, "old_values"));
         JsonNode newValues = objectMapper.readTree(historyJson(transactionId, "new_values"));
         assertThat(oldValues.get("amount").decimalValue()).isEqualByComparingTo("10.00");
-        assertThat(oldValues.get("description").asText()).isEqualTo("before");
+        assertThat(decryptField(oldValues.get("description").asText())).isEqualTo("before");
         assertThat(newValues.get("amount").decimalValue()).isEqualByComparingTo("11.00");
-        assertThat(newValues.get("description").asText()).isEqualTo("after");
+        assertThat(decryptField(newValues.get("description").asText())).isEqualTo("after");
 
         // The columns the edit did not touch are identical in both halves, so the diff the log
         // names is the whole of what changed.
@@ -1157,7 +1239,7 @@ class TransactionApiIT extends AbstractMySqlIntegrationTest {
         assertThat(send(HttpMethod.PATCH, TRANSACTIONS_URL + "/" + transactionId, otherToken,
                 Map.of("amount", "9999.00")).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(columnInDatabase(transactionId, "amount")).isEqualTo("10.00");
-        assertThat(columnInDatabase(transactionId, "description")).isEqualTo("mine");
+        assertThat(decryptField(columnInDatabase(transactionId, "description"))).isEqualTo("mine");
 
         // DELETE: refused, and the record is still live.
         assertThat(send(HttpMethod.DELETE, TRANSACTIONS_URL + "/" + transactionId, otherToken, null)
@@ -1527,7 +1609,7 @@ class TransactionApiIT extends AbstractMySqlIntegrationTest {
         assertThat(historyActions(transactionId).get(0)).isEqualTo("CREATE");
         assertThat(historyActions(transactionId).subList(1, 5))
                 .containsOnly("UPDATE");
-        assertThat(columnInDatabase(transactionId, "description")).startsWith("editor ");
+        assertThat(decryptField(columnInDatabase(transactionId, "description"))).startsWith("editor ");
     }
 
     @Test

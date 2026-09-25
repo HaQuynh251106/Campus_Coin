@@ -28,6 +28,34 @@ spring:
 # Campus Coin application settings
 # ---------------------------------------------------------------------------
 campuscoin:
+  encryption:
+    # Application-Level Field Encryption (AES-256-GCM) for the free-text columns the
+    # database must not store in the clear: transactions.description,
+    # recurring_rules.description and bookmarks.note.
+    #
+    # NOT applied to transactions.amount or recurring_rules.amount. MySQL has no
+    # AES-GCM and cannot be given the key, so an encrypted amount could not be
+    # SUM()-ed, compared or ordered by any view or procedure, and the whole reporting
+    # tier would have to move into the application first. That is a separate,
+    # separately-approved piece of work - see OB-013 in docs/OVERNIGHT_BLOCKERS.md.
+    # Nothing on the encrypted columns is filtered, joined or aggregated, which is why
+    # encrypting them breaks no SQL.
+    #
+    # A SYMMETRIC secret, Base64-encoded, decoding to exactly 32 bytes. It is not a
+    # private key - AES-256-GCM uses the same secret in both directions.
+    #
+    # There is deliberately NO default. The application refuses to start without it
+    # (see EncryptionService), because starting without a key would either write
+    # plaintext where ciphertext is expected or invent a predictable one.
+    #
+    # Generate one with:  openssl rand -base64 32
+    # It lives in the environment only: never in this file, never in git, never in
+    # MySQL, never in a JWT, never sent to Angular.
+    key: ${CAMPUSCOIN_ENCRYPTION_KEY}
+    # Identifier written into every envelope this process produces, so a future key
+    # rotation can tell which key encrypted a row. Rotation itself is not implemented
+    # yet - see docs/SECURITY.md and the blocker in docs/OVERNIGHT_BLOCKERS.md.
+    key-version: 1
   security:
     jwt:
       # HS256 requires at least 256 bits of key material. This value MUST be

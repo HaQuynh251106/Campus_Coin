@@ -212,8 +212,32 @@ CREATE TABLE transactions (
   id                       BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id                  BIGINT UNSIGNED NOT NULL,
   category_id              BIGINT UNSIGNED NOT NULL,
+  -- NOT encrypted, deliberately. MySQL cannot decrypt, so an encrypted amount
+  -- could not be SUM()-ed, compared or ordered by any view or procedure, and the
+  -- whole reporting tier (M6 consumption, M7 dashboard, M8 reports, M9 tip rules,
+  -- M11 admin stats) would have to be rebuilt in the application. That is a
+  -- separate, separately-approved project - see OB-013 in docs/OVERNIGHT_BLOCKERS.md.
+  -- `amount` therefore remains the one sensitive transaction field MySQL itself
+  -- must read. ck_txn_amount below still enforces BR-08.
   amount                   DECIMAL(15,2)   NOT NULL,          -- BR-08: > 0
-  description              VARCHAR(255)    NULL,              -- free text, any language
+  -- ENCRYPTED. Holds a Base64 AES-256-GCM envelope:
+  --   format(1) || keyVersion(1) || iv(12) || ciphertext+tag
+  -- Unlike amount, description has no SQL logic on it anywhere - no WHERE, no
+  -- SUM, no ORDER BY - so encrypting it breaks nothing. See docs/SECURITY.md.
+  --
+  -- VARCHAR rather than VARBINARY because the envelope is Base64 and therefore
+  -- pure ASCII: a character column maps straight onto the entity's String field,
+  -- which keeps `ddl-auto=validate` meaningful, and lets the history triggers copy
+  -- the value into their JSON snapshot as an ordinary string instead of MySQL's
+  -- opaque `base64:typeNN:` binary encoding.
+  --
+  -- ascii_bin, not the table default: Base64 is case-sensitive and has no notion
+  -- of collation. Nothing compares this column, but a case-insensitive collation
+  -- on ciphertext is a trap for whoever adds the first comparison.
+  --
+  -- 2048 chars: the plaintext is at most 255 characters, each up to 4 bytes in
+  -- UTF-8, which Base64 expands to about 1360 characters, plus the envelope.
+  description              VARCHAR(2048) CHARACTER SET ascii COLLATE ascii_bin NULL,
   txn_date                 DATE            NOT NULL,          -- BR-08: not in the future
   source                   ENUM('MANUAL','CSV','RECURRING') NOT NULL DEFAULT 'MANUAL',
   -- BR-13: an AI suggestion may only point at a default category or at a
@@ -258,6 +282,18 @@ CREATE TABLE transactions (
 -- transaction_history — BR-09, VĐ-09: "preserve history" of changes.
 -- old_values / new_values are stored as JSON so that adding a column to
 -- `transactions` later does not require changing this table.
+--
+-- KNOWN PLAINTEXT — RESIDUAL EXPOSURE, DELIBERATE.
+-- The snapshots contain `amount`, which is the field this project could not
+-- encrypt without rebuilding the whole reporting tier (see `transactions.amount`
+-- above and OB-013). Encrypting the snapshots while `amount` itself stays readable
+-- would protect nothing extra, so history is left as it is and both are deferred
+-- to the same piece of work. Consequence, stated plainly: a direct SELECT on this
+-- table still reveals every amount and description a transaction ever held.
+--
+-- When that work happens, the snapshot moves to an encrypted MEDIUMBLOB written by
+-- TransactionService, because a MySQL trigger cannot encrypt - it would need the
+-- key, and the key must never reach MySQL.
 -- ---------------------------------------------------------------------------
 CREATE TABLE transaction_history (
   id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -292,8 +328,21 @@ CREATE TABLE recurring_rules (
   user_id        BIGINT UNSIGNED NOT NULL,
   category_id    BIGINT UNSIGNED NOT NULL,
   type           ENUM('INCOME','EXPENSE') NOT NULL,
+  -- NOT encrypted, for the same reason as transactions.amount: the scheduler
+  -- procedure sp_post_recurring_transactions SELECTs it directly, and a rule's
+  -- amount is the source of the transaction it posts. See OB-013.
   amount         DECIMAL(15,2)   NOT NULL,
-  description    VARCHAR(255)    NULL,
+  -- ENCRYPTED, same Base64 envelope and the same VARCHAR/ascii_bin reasoning as
+  -- transactions.description.
+  --
+  -- LIMITATION, and it is real: sp_post_recurring_transactions copies this column
+  -- into the transaction it posts (see 03_procedures.sql), and a MySQL procedure
+  -- cannot decrypt. Transactions posted by the scheduler therefore carry the rule's
+  -- ciphertext into a column that is meant to hold the ciphertext of the
+  -- transaction's own plaintext. TransactionService repairs this when it reads such
+  -- a row, by recognising the envelope and decrypting it exactly once; the
+  -- limitation and the repair are recorded as OB-014.
+  description    VARCHAR(2048) CHARACTER SET ascii COLLATE ascii_bin NULL,
   frequency      ENUM('DAILY','WEEKLY','MONTHLY','QUARTERLY','YEARLY') NOT NULL,
   interval_count SMALLINT UNSIGNED NOT NULL DEFAULT 1,   -- "every 2 weeks" => 2
   day_of_month   TINYINT UNSIGNED NULL,                   -- hint for the UI
@@ -413,6 +462,10 @@ CREATE TABLE budget_alert_log (
   threshold_type  ENUM('NEAR','EXCEEDED') NOT NULL,
   threshold_pct   DECIMAL(6,2)    NOT NULL,
   consumed_pct    DECIMAL(9,2)    NOT NULL,
+  -- NOT encrypted: written by sp_check_budget_alerts, which needs the numbers to
+  -- compute consumed_pct. Part of the same deferred work as transactions.amount
+  -- (OB-013). A direct SELECT here reveals what a student spent in a month where
+  -- an alert fired - residual exposure, recorded rather than silently ignored.
   spent_amount    DECIMAL(15,2)   NOT NULL,
   limit_amount    DECIMAL(15,2)   NOT NULL,
   notification_id BIGINT UNSIGNED NULL,
@@ -484,6 +537,25 @@ CREATE TABLE announcements (
 -- insights — UC-17, BR-13, BR-15: one insight per month, kept for later viewing.
 -- flagged_categories stores the list of unusual categories so it does not have
 -- to be recomputed.
+--
+-- KNOWN PLAINTEXT — RESIDUAL EXPOSURE, DELIBERATE.
+-- total_income / total_expense / net_amount / flagged_categories are aggregates
+-- over transaction amounts, so they are exactly as sensitive as the encrypted
+-- columns in `transactions`. They are NOT encrypted here, and the reason is
+-- scope, not oversight:
+--
+--   - The only writer is sp_generate_monthly_insight, and the only reader would
+--     be UC-17's API. UC-17 belongs to module 12, which is LOCKED pending the
+--     project owner's approval.
+--   - Encrypting these columns without rewriting that procedure would stop the
+--     schema from loading at all (the procedure writes DECIMAL sums into what
+--     would become VARBINARY).
+--   - Rewriting the procedure to aggregate in the application is module 12 work,
+--     and doing it here would be implementing a locked module by the back door.
+--
+-- Consequence, stated plainly: a direct SELECT on `insights` still reveals a
+-- student's monthly income, expense and net totals. Recorded as OB-012 in
+-- docs/OVERNIGHT_BLOCKERS.md, to be closed when UC-17 is approved and built.
 -- ---------------------------------------------------------------------------
 CREATE TABLE insights (
   id                 BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -577,13 +649,18 @@ CREATE TABLE user_tips (
 -- table) — pinning controls display order, bookmarking saves an item for later.
 -- dedupe_key is VIRTUAL (see the explanation on the categories table).
 -- ---------------------------------------------------------------------------
+-- `note` is ENCRYPTED - a student's own words about what they saved, and free
+-- text has no SQL logic on it, so it is the same case as transactions.description:
+-- the same Base64 envelope, the same VARCHAR/ascii_bin reasoning. Module 10 is
+-- implemented against this column, so its entity maps String and encrypts at the
+-- service boundary (see docs/SECURITY.md).
 CREATE TABLE bookmarks (
   id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id    BIGINT UNSIGNED NOT NULL,
   item_type  ENUM('TIP','INSIGHT') NOT NULL,
   tip_id     BIGINT UNSIGNED NULL,
   insight_id BIGINT UNSIGNED NULL,
-  note       VARCHAR(500)    NULL,
+  note       VARCHAR(2048) CHARACTER SET ascii COLLATE ascii_bin NULL,
   created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   dedupe_key VARCHAR(120) GENERATED ALWAYS AS (
                CONCAT(user_id, '|', item_type, '|',
@@ -647,6 +724,12 @@ CREATE TABLE import_rows (
   csv_row_no               INT UNSIGNED    NOT NULL,
   raw_data                 JSON            NULL,
   parsed_date              DATE            NULL,
+  -- KNOWN PLAINTEXT — RESIDUAL EXPOSURE, DELIBERATE. Same reasoning as `insights`:
+  -- parsed_amount and parsed_description are a CSV row's sensitive values, but the
+  -- only writer is sp_apply_csv_batch and the surrounding feature is UC-11, which
+  -- belongs to the LOCKED module 12. No Java code calls that procedure yet, so
+  -- there is no read path to protect and rewriting it here would be implementing a
+  -- locked module. Closed together with OB-012 when UC-11 is approved.
   parsed_amount            DECIMAL(15,2)   NULL,
   parsed_type              ENUM('INCOME','EXPENSE') NULL,
   parsed_description       VARCHAR(255)    NULL,   -- free text, any language

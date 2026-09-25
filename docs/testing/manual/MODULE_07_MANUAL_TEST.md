@@ -381,16 +381,16 @@ You have an `EXPENSE` `categoryId` and an `INCOME` `categoryId` from `GET /api/v
 **Covers:** UC-12 B1; the nullable field, and the two directions of it.
 
 **Preconditions:** Signed in as owner B (`${USER_B_JWT}`) — or a freshly registered student, who has
-no goal. `PATCH /api/v1/profile` (module 2) sets the goal.
+no goal. `PATCH /api/v1/profile/me` (module 2) sets the goal.
 
 **Steps:**
 
 1. `GET /api/v1/dashboard` as owner B. Confirm `summary` has **no** `savingsGoalPct` (M7-02).
-2. `PATCH /api/v1/profile` with `{"monthlySavingsGoal": 100.00}`.
+2. `PATCH /api/v1/profile/me` with `{"monthlySavingsGoal": 100.00}`.
 3. `GET /api/v1/dashboard` again.
 4. Record one expense of `40.00` in any `EXPENSE` category, dated **today**.
 5. `GET /api/v1/dashboard` again.
-6. `PATCH /api/v1/profile` with `{"monthlySavingsGoal": 0.00}`.
+6. `PATCH /api/v1/profile/me` with `{"monthlySavingsGoal": 0.00}`.
 7. `GET /api/v1/dashboard` again.
 
 **Expected result:**
@@ -586,63 +586,69 @@ write.
 
 **Covers:** UC-12 B3; BR-14 (pinned tips first, dismissed tips gone).
 
-> **This case needs a database write, because the endpoint that changes a tip's state does not exist
-> yet.** Pinning and dismissing are UC-18 and belong to module 9, which is not built. The statements
-> below are the only way a hand tester can make the change, and each is paired with the statement that
-> undoes it. **Run them only against your dev database.**
+> **This case changes a tip's state through module 9's endpoint** —
+> `POST /api/v1/tips/{id}/state` with `{"state": "PINNED" | "DISMISSED" | "NEW"}`. The effect on the
+> dashboard is what this case is about; the write itself is UC-18 and is exercised fully in
+> `MODULE_09_MANUAL_TEST.md`. Restore each tip to `NEW` so the seeded database is left unchanged.
 
-**Preconditions:** Owner A (`${USER_A_JWT}`), freshly seeded. Record the demo student's id as **U1**
-step 1 returns it.
+**Preconditions:** Owner A (`${USER_A_JWT}`), freshly seeded.
 
 **Steps:**
 
-1. Record the account's id:
-
-   ```bash
-   mysql -h 127.0.0.1 -u campuscoin_app -p campuscoin -N -e \
-     "SELECT id FROM users WHERE email = 'an.nguyen@student.campuscoin.edu';"
-   ```
-
-2. `GET /api/v1/dashboard` as owner A. Record the ids of the three tips, in order, as **T1**, **T2**,
+1. `GET /api/v1/dashboard` as owner A. Record the ids of the three tips, in order, as **T1**, **T2**,
    **T3**.
-3. Pin the **last** one (`T3`) — so the change is visible and cannot be confused with the order it
+2. Pin the **last** one (`T3`) — so the change is visible and cannot be confused with the order it
    already had:
 
    ```bash
-   mysql -h 127.0.0.1 -u campuscoin_app -p campuscoin -e \
-     "UPDATE user_tips SET state = 'PINNED' WHERE tip_id = <T3> AND user_id = <U1>;"
+   curl -i -X POST http://localhost:8080/api/v1/tips/<T3>/state \
+     -H "Authorization: Bearer ${USER_A_JWT}" -H "Content-Type: application/json" \
+     -d '{ "state": "PINNED" }'
    ```
 
-4. `GET /api/v1/dashboard` again as owner A.
-5. Dismiss **T1** (the tip that led before step 3):
+3. `GET /api/v1/dashboard` again as owner A.
+4. Dismiss **T1** (the tip that led before step 2):
 
    ```bash
-   mysql -h 127.0.0.1 -u campuscoin_app -p campuscoin -e \
-     "UPDATE user_tips SET state = 'DISMISSED' WHERE tip_id = <T1> AND user_id = <U1>;"
+   curl -i -X POST http://localhost:8080/api/v1/tips/<T1>/state \
+     -H "Authorization: Bearer ${USER_A_JWT}" -H "Content-Type: application/json" \
+     -d '{ "state": "DISMISSED" }'
    ```
 
-6. `GET /api/v1/dashboard` again.
-7. Restore both tips so the database is seeded again:
+5. `GET /api/v1/dashboard` again.
+6. Restore both tips so the database is seeded again:
 
    ```bash
-   mysql -h 127.0.0.1 -u campuscoin_app -p campuscoin -e \
-     "UPDATE user_tips SET state = 'NEW' WHERE tip_id IN (<T1>, <T3>) AND user_id = <U1>;"
+   curl -i -X POST http://localhost:8080/api/v1/tips/<T1>/state \
+     -H "Authorization: Bearer ${USER_A_JWT}" -H "Content-Type: application/json" \
+     -d '{ "state": "NEW" }'      # T1 (allowed — it was NEW before step 4)
+   curl -i -X POST http://localhost:8080/api/v1/tips/<T3>/state \
+     -H "Authorization: Bearer ${USER_A_JWT}" -H "Content-Type: application/json" \
+     -d '{ "state": "NEW" }'      # T3: un-pin
    ```
 
-8. `GET /api/v1/dashboard` once more.
+7. `GET /api/v1/dashboard` once more.
 
 **Expected result:**
 
-- Step 4: **`T3` is now first**, and it reads `state: "PINNED"`. The other two follow in their previous
+- Step 3: **`T3` is now first**, and it reads `state: "PINNED"`. The other two follow in their previous
   relative order. Pinning wins over `rank_score` — that is BR-14's "pinned tips lead the list".
-- Step 6: **`T1` is absent entirely.** It does not move to the end, it does not appear with
+- Step 5: **`T1` is absent entirely.** It does not move to the end, it does not appear with
   `state: "DISMISSED"`, and the array is one shorter. A dismissed tip is filtered out by the view, so no
   request can bring it back.
-- Step 8: the array is the seeded three again, in the seeded order, all `state: "NEW"`.
-- The tip count after step 6 is one fewer than after step 4 — not the same count with one marked.
+- Step 6's `T1` restore returns `400` — **dismissal is one-way**, so a dismissed tip cannot be moved
+  back to `NEW` through the API. Restore `T1` directly in the database instead:
+
+  ```bash
+  mysql -h 127.0.0.1 -u campuscoin_app -p campuscoin -e \
+    "UPDATE user_tips SET state = 'NEW' WHERE tip_id = <T1> AND user_id = \
+     (SELECT id FROM users WHERE email = 'an.nguyen@student.campuscoin.edu');"
+  ```
+
+- Step 7: the array is the seeded three again, in the seeded order, all `state: "NEW"`.
+- The tip count after step 5 is one fewer than after step 3 — not the same count with one marked.
 - **Restoring the state is part of the case.** A live database left with `T1` dismissed makes M7-08's
-  count wrong for the next tester, for the same reason a write to the seeded account would: nothing
-  rolls it back.
+  count wrong for the next tester, and dismissal cannot be undone through the API.
 
 **Result:** [ ] Pass   [ ] Fail
 
@@ -652,9 +658,11 @@ step 1 returns it.
 
 **Covers:** UC-12 B3; **the module's one reachable disclosure, closed by the application** (§5.2).
 
-> **This case needs a database write, because raising an announcement is UC-21 and belongs to module
-> 11, which is not built.** The statement below is paired with the statement that removes the row.
-> **Run it only against your dev database.**
+> **This case inserts the notices directly, because it is about the dashboard's read filter, not about
+> the write route.** Raising an announcement through the API is `POST /api/v1/admin/announcements`
+> (module 11), but that path needs an `ADMIN` token and an announcement id to withdraw afterwards;
+> inserting the three rows keeps the case focused on one server, one response and one diff. The
+> statements are paired so the seeded state is restored. **Run them only against your dev database.**
 
 **Preconditions:** Owner A (`${USER_A_JWT}`), freshly seeded. The two seeded notices are `STUDENTS`.
 
@@ -891,7 +899,7 @@ query if you need a before/after.
 |---|---|---|
 | a | `GET /api/v1/dashboard/summary` | `404` — the summary is a block of the one response, not its own route |
 | b | `GET /api/v1/dashboard/top-category` | `404` |
-| c | `GET /api/v1/dashboard/tips` | `404` — tips are a block here; the tips *screen* is UC-18 and a later module |
+| c | `GET /api/v1/dashboard/tips` | `404` — tips are a block here; the tips *screen* is UC-18, at `/api/v1/tips` |
 | d | `GET /api/v1/dashboard/announcements` | `404` |
 | e | `GET /api/v1/dashboard/1` | `404` — a dashboard belongs to an account, not to a record |
 | f | `POST /api/v1/dashboard` | `405` or `404` — a dashboard render writes nothing |
@@ -908,9 +916,9 @@ query if you need a before/after.
 - j: `200` with the caller's figures, never `userId=2`'s. An ignored parameter is the correct outcome;
   a `200` returning student 2's data would be a **critical** finding.
 - The OpenAPI document at `/api-docs` lists **exactly one** dashboard operation. This is
-  machine-checked by `OpenApiContractIT` (22 distinct paths, 35 operations overall), and the path count
-  is asserted deliberately — adding a route without adding it to `docs/api/API_INVENTORY.md` fails
-  that test on purpose.
+  machine-checked by `OpenApiContractIT` (22 distinct paths, 35 operations overall as of module 7;
+  the count grows as later modules add routes), and the path count is asserted deliberately — adding
+  a route without adding it to `docs/api/API_INVENTORY.md` fails that test on purpose.
 
 **Result:** [ ] Pass   [ ] Fail
 
@@ -1006,8 +1014,8 @@ Listed so a gap is not mistaken for a pass. None of these is reachable by hand t
 
 | Not covered | Why |
 |---|---|
-| The API that pins or dismisses a tip (UC-18) | Module 9 is not built. M7-11 changes the state through the database and restores it, and says so |
-| The API that raises, edits or withdraws an announcement (UC-21) | Module 11 is not built. M7-12 and M7-13 insert and delete rows directly, and say so |
+| The pin/dismiss route itself (UC-18) | Module 9 owns `POST /api/v1/tips/{id}/state` and `MODULE_09_MANUAL_TEST.md` exercises it. M7-11 uses it only to produce the dashboard-visible effect, and unpins what it pinned |
+| Raising announcements through the API (UC-21) | Module 11 owns `POST /api/v1/admin/announcements`. M7-12 and M7-13 insert rows directly because they test the dashboard's *read* filter, and say so |
 | Generating tips for a month (`sp_generate_tips`) | The procedure is a database object, not an endpoint. This module reads the rows it wrote; the demo script's three calls are what produced M7-01's tips |
 | A month other than the current one | The endpoint takes no month and no other month can be requested (§3.4). Producing one would mean changing the server's clock |
 | Concurrency | A read with no lock, no write and no pagination has nothing to race. `readingTheDashboardChangesNoState` pins idempotency instead, which is the property that does apply |

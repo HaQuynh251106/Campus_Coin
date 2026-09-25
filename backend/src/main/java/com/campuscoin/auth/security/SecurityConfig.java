@@ -36,8 +36,12 @@ import com.campuscoin.auth.service.SessionService;
  *       here.</li>
  *   <li><b>Role rules.</b> {@code /api/v1/admin/**} requires {@code ADMIN}. That is the
  *       server-side half of UC-05 E1: a student who navigates to an administrator URL is refused
- *       by the API, not merely by the interface. The student-facing paths
- *       ({@code /profile/**}, {@code /categories/**}, {@code /transactions/**},
+ *       by the API, not merely by the interface. It is also the whole authorisation rule for
+ *       module 11, which adds sixteen endpoints under that prefix - UC-20 to UC-23 - and the
+ *       reason none of them carries a role annotation of its own: the rule is stated once here,
+ *       ahead of the student rules below, so an administrator route added later is protected by
+ *       arriving in the right place rather than by remembering to annotate it. The student-facing
+ *       paths ({@code /profile/**}, {@code /categories/**}, {@code /transactions/**},
  *       {@code /recurring-rules/**}, {@code /budgets/**}, {@code /notifications/**},
  *       {@code /dashboard/**}) require {@code STUDENT} for the mirror-image reason: each
  *       use case is a student acting on their own data, and the {@code /api/**} catch-all below
@@ -47,7 +51,10 @@ import com.campuscoin.auth.service.SessionService;
  * <p>The administrator sign-in endpoint itself is {@code /api/v1/admin/auth/login} and must stay
  * anonymous - nobody can present a token before signing in - so that one path is permitted
  * explicitly and the role check for it happens in the authentication service, which is what
- * UC-05 A1 asks for (a student is rejected with 403, not merely refused a token).
+ * UC-05 A1 asks for (a student is rejected with 403, not merely refused a token). It is the only
+ * {@code /admin/**} path open to an anonymous caller; everything else there is UC-05's administrator
+ * session or module 11's administrative surface, and the rule below admits both only with an
+ * administrator token.
  */
 @Configuration
 @EnableWebSecurity
@@ -182,6 +189,16 @@ public class SecurityConfig {
                         // `tip_templates`, not on a student's `user_tips`, and lives under
                         // /api/v1/admin/**.
                         .requestMatchers("/api/v1/tips/**").hasRole("STUDENT")
+                        // UC-19 is a student's own saved list: the tips they chose to keep, together
+                        // with a note they wrote in their own words about what they saved. The entries
+                        // are the same readable prose about one student's spending that the tips rule
+                        // above protects, plus text the student typed, so an administrator token would
+                        // reach a named student's private jottings through a route with no use case for
+                        // them. The role has no administrative counterpart here at all - there is no
+                        // view over `bookmarks` in db/02_views.sql and no UC-20..UC-23 operation on the
+                        // table - so refusing the role costs nothing. Without this rule the route would
+                        // fall to /api/** below, which admits any authenticated account.
+                        .requestMatchers("/api/v1/bookmarks/**").hasRole("STUDENT")
                         .requestMatchers("/api/**").authenticated()
                         // Kept permissive because Spring's own /error dispatch and the static
                         // Swagger UI assets live outside /api/**. Every application endpoint is

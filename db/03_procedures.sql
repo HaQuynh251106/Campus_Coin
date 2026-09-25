@@ -708,7 +708,12 @@ BEGIN
   DECLARE v_user_id     BIGINT UNSIGNED;
   DECLARE v_category_id BIGINT UNSIGNED;
   DECLARE v_amount      DECIMAL(15,2);
-  DECLARE v_desc        VARCHAR(255);
+  -- Sized to the COLUMN, not to the plaintext. Since recurring_rules.description holds a Base64
+  -- AES-256-GCM envelope (up to 2048 characters for a 255-character note), the old VARCHAR(255)
+  -- truncated on the first fetch and every run failed with "Data too long for column 'v_desc'".
+  -- The envelope is copied through unchanged: a procedure cannot decrypt, and must not, because
+  -- that would require the key inside MySQL.
+  DECLARE v_desc        VARCHAR(2048);
   DECLARE v_freq        VARCHAR(12);
   DECLARE v_interval    INT;
   DECLARE v_next        DATE;

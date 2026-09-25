@@ -110,6 +110,14 @@ public class RecurringRule {
     @Column(name = "amount", nullable = false)
     private BigDecimal amount;
 
+    /**
+     * The rule's free-text note. As stored, and therefore as held on the entity, this is the
+     * <em>ciphertext</em> - a Base64 AES-256-GCM envelope. {@code RecurringRuleService} encrypts on
+     * write and {@code RecurringRuleMapper} decrypts on read, so an entity never leaks plaintext
+     * into a response and a response never leaks ciphertext to a student. {@code length = 255}
+     * describes the plaintext the column accepts. See {@code Transaction#getDescription()} for why
+     * there is no JPA converter.
+     */
     @Column(name = "description", length = 255)
     private String description;
 

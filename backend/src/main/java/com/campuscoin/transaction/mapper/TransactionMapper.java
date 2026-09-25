@@ -3,6 +3,7 @@ package com.campuscoin.transaction.mapper;
 import org.springframework.stereotype.Component;
 
 import com.campuscoin.category.entity.Category;
+import com.campuscoin.common.crypto.EncryptionService;
 import com.campuscoin.transaction.dto.TransactionResponse;
 import com.campuscoin.transaction.entity.Transaction;
 
@@ -31,9 +32,23 @@ import com.campuscoin.transaction.entity.Transaction;
  * transaction joins it. The mapping reads it through one local variable rather than repeating
  * {@code transaction.getCategory()} five times, so there is a single place where that assumption
  * lives.
+ *
+ * <p><b>{@code description} is decrypted here.</b> As stored it is an AES-256-GCM envelope, and
+ * this method is the one place it becomes readable again. Doing it in the mapper rather than in
+ * each caller keeps the rule "an entity holds ciphertext, a response holds plaintext" true for
+ * every path that returns a transaction, including the ones added later. Decryption is the
+ * tolerant variant ({@code decryptStored}), so a row written before encryption was enabled - or
+ * by the recurring scheduler, which copies the rule's own envelope - still reads correctly rather
+ * than failing the whole response. See {@code docs/SECURITY.md}.
  */
 @Component
 public class TransactionMapper {
+
+    private final EncryptionService encryptionService;
+
+    public TransactionMapper(EncryptionService encryptionService) {
+        this.encryptionService = encryptionService;
+    }
 
     /**
      * UC-07, UC-10: one transaction as the client sees it.
@@ -54,7 +69,7 @@ public class TransactionMapper {
                 category.getType(),
                 transaction.getAmount(),
                 transaction.getTxnDate(),
-                transaction.getDescription(),
+                encryptionService.decryptStored(transaction.getDescription()),
                 transaction.getSource(),
                 transaction.getIsDeleted(),
                 transaction.getDeletedAt());

@@ -16,7 +16,7 @@ import com.campuscoin.auth.dto.PasswordResetVerifyResponse;
 import com.campuscoin.auth.repository.PasswordResetProcedureDao;
 import com.campuscoin.auth.repository.UserRepository;
 import com.campuscoin.auth.security.PasswordResetNotifier;
-import com.campuscoin.auth.security.PasswordResetProperties;
+import com.campuscoin.auth.security.PasswordResetLinkBuilder;
 import com.campuscoin.auth.security.TokenHashService;
 import com.campuscoin.common.exception.ApiError;
 import com.campuscoin.common.exception.InvalidResetTokenException;
@@ -54,7 +54,7 @@ public class PasswordResetService {
     private final PasswordEncoder passwordEncoder;
     private final TokenHashService tokenHashService;
     private final PasswordResetNotifier notifier;
-    private final PasswordResetProperties properties;
+    private final PasswordResetLinkBuilder linkBuilder;
     private final LoginAttemptService loginAttemptService;
 
     public PasswordResetService(UserRepository userRepository,
@@ -62,14 +62,14 @@ public class PasswordResetService {
                                 PasswordEncoder passwordEncoder,
                                 TokenHashService tokenHashService,
                                 PasswordResetNotifier notifier,
-                                PasswordResetProperties properties,
+                                PasswordResetLinkBuilder linkBuilder,
                                 LoginAttemptService loginAttemptService) {
         this.userRepository = userRepository;
         this.resetDao = resetDao;
         this.passwordEncoder = passwordEncoder;
         this.tokenHashService = tokenHashService;
         this.notifier = notifier;
-        this.properties = properties;
+        this.linkBuilder = linkBuilder;
         this.loginAttemptService = loginAttemptService;
     }
 
@@ -93,7 +93,7 @@ public class PasswordResetService {
         userRepository.findByEmail(email).ifPresent(user -> {
             String rawToken = tokenHashService.newSecretToken();
             resetDao.createResetToken(user.getId(), tokenHashService.sha256Hex(rawToken), ipAddress);
-            notifier.sendPasswordResetLink(user.getEmail(), buildResetLink(rawToken));
+            notifier.sendPasswordResetLink(user.getEmail(), linkBuilder.build(rawToken));
             // The account id is useful for audit; the token is not written here.
             log.info("Password reset token issued userId={}", user.getId());
         });
@@ -158,11 +158,5 @@ public class PasswordResetService {
     /** SHA-256 hex, the only representation of a reset token this application handles. */
     private String tokenHash(String rawToken) {
         return tokenHashService.sha256Hex(rawToken.trim());
-    }
-
-    private String buildResetLink(String rawToken) {
-        String baseUrl = properties.linkBaseUrl();
-        String separator = baseUrl.contains("?") ? "&" : "?";
-        return baseUrl + separator + "token=" + rawToken;
     }
 }

@@ -784,20 +784,28 @@ B has no records and no tips.
 | g | `POST /api/v1/tips/1/pin` | `404` |
 | h | `POST /api/v1/tips/1/unpin` | `404` |
 | i | `POST /api/v1/tips/1/dismiss` | `404` |
-| j | `PATCH /api/v1/tips/1` | `400` `INVALID_REQUEST` |
-| k | `DELETE /api/v1/tips/1` | `400` `INVALID_REQUEST` |
+| j | `PATCH /api/v1/tips/1` | `404` |
+| k | `DELETE /api/v1/tips/1` | `404` |
 | l | `GET /api/v1/profile/me/tips` | `404` |
 | m | `GET /api/v1/tips?state=PINNED` | `200`, **the caller's whole list** — `state` is ignored |
 
 **Expected result:**
 
-- a–e, g–i, l: `404`. **None of these routes exists, and that is deliberate** (§3.4): a tip is only
-  meaningful inside its month's ranked list, and there is no create, no per-transition route and no
-  export. Each absence is asserted by the contract test, so a future developer adding one fails the
-  build with the reason attached.
-- f, j, k: `400` with `errorCode: "INVALID_REQUEST"` and message "The HTTP method is not supported by
-  this endpoint." This is the application-wide behaviour for an unsupported method (every module
-  answers the same way), not a `405`. **Nothing is created, changed or deleted.** It carries no data.
+- a–e, g–l: `404`. **None of these routes exists, and that is deliberate** (§3.4): a tip is only
+  meaningful inside its month's ranked list, and there is no create, no per-transition route, no
+  per-tip `PATCH`/`DELETE` and no export. Each absence is asserted by the contract test, so a future
+  developer adding one fails the build with the reason attached.
+- f: `400` with `errorCode: "INVALID_REQUEST"` and message "The HTTP method is not supported by this
+  endpoint." **This is the one case where a route exists but the method does not** — `/api/v1/tips`
+  serves `GET` and `POST /generate`'s collection, and `POST` on the bare collection is the wrong verb.
+  It is the application-wide behaviour for an unsupported method (every module answers the same way),
+  not a `405`. **Nothing is created, changed or deleted.** It carries no data.
+- **No `/{id}` path exists at all here, unlike `/api/v1/bookmarks/{id}`**, which serves `PATCH` and
+  `DELETE`. That is why j and k are `404` rather than `400`: nothing is routed to
+  `/api/v1/tips/{id}`, so the request fails at path matching before the method is ever considered.
+  That contrast is now machine-checked from the bookmarks side by
+  `BookmarksApiIT#unroutedPathsAndWrongMethodsFailDifferently`, so the two codes cannot silently
+  start meaning the same thing.
 - m: `200` with the **whole** list, pinned and unpinned alike — `state` is not a parameter either
   endpoint reads. The list already carries each row's state and is already ordered pinned-first, so
   a filter would be a second expression of the view's own rule. **A `200` that returned only pinned
@@ -806,9 +814,9 @@ B has no records and no tips.
   read paths are `@Transactional(readOnly = true)` and call no procedure, so opening the screen
   cannot change what is on it.
 - The OpenAPI document at `/api-docs` lists **exactly four** tips operations. This is machine-checked
-  by `OpenApiContractIT` (28 distinct paths, 41 operations overall), and the path count is asserted
-  deliberately — adding a route without adding it to `docs/api/API_INVENTORY.md` fails that test on
-  purpose.
+  by `OpenApiContractIT` (28 distinct paths, 41 operations overall as of module 9; the count grows as
+  later modules add routes), and the path count is asserted deliberately — adding a route without
+  adding it to `docs/api/API_INVENTORY.md` fails that test on purpose.
 
 **Result:** [ ] Pass   [ ] Fail
 

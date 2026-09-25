@@ -195,6 +195,20 @@ holds only `EXECUTE` on procedures plus `SELECT` on views, with no direct table 
 `sp_require_admin`, which verifies both `role = 'ADMIN'` and `status = 'ACTIVE'` against the
 `users` table. Documented as a known, deliberate trade-off.
 
+**Module 11 confirms this claim in the API as well as in the design.** The module's sixteen
+endpoints were built so that **no administrative write reaches a table except through one of the
+eight `sp_admin_*` procedures** — the application account holds direct `INSERT`/`UPDATE` grants on
+every table the module touches, so a JPA `save` would have succeeded while skipping
+`sp_require_admin` and leaving no `admin_audit_log` row, which is exactly the bypass this blocker
+records. Concretely, `CategoryRepository`, `UserRepository` and `SystemSettingRepository` are
+**read-only** in this module, and the one decision that preserves the property is that
+`PATCH /admin/announcements/{id}` writes `isActive` only: `announcements` has no content-update
+procedure, so a content-update endpoint would have had to write through Hibernate, where neither the
+gate nor the audit row runs. That refusal is a §13 scope decision recorded in
+`docs/modules/MODULE_11_ADMINISTRATION.md` §2.1 and §5, and manual case M11-06 step 12 is where a
+tester sees it. **It closes the API half of this blocker; the direct-credential half is unchanged**,
+and the required grant change below is still what would close the blocker itself.
+
 **Temporary action.** Documented in `DB_DESIGN.md` §4.4, §6 and `docs/SECURITY.md`.
 
 **Impact.** Someone with direct database credentials can bypass the admin gate. This is a
@@ -555,6 +569,234 @@ and option 2 (accept and close). Until then the module ships with the documented
 
 ---
 
+## OB-012 — Values written by the locked M12 surface stay in plaintext
+
+| Field | Value |
+|---|---|
+| **Priority** | LOW |
+| **Module** | 12 — Optional / Advanced (`insights`, `import_rows`) |
+| **Related UC** | UC-17, UC-11 |
+| **Related BR** | BR-12, BR-17 |
+| **Status** | OPEN — deferred with module 12 |
+
+**Blocked task.** Bringing `insights.title`/`insights.body` (UC-17) and
+`import_rows.original_description`/`parsed_*` (UC-11) under application-level field encryption.
+
+**Why it is blocked.** Both tables are written by stored procedures
+(`sp_generate_monthly_insight`, `sp_apply_csv_batch`) that belong to module 12, which is locked
+pending project-owner approval. A procedure cannot encrypt — that would require the key inside
+MySQL — so encrypting these columns means rewriting those procedure bodies, which is building the
+locked module by the back door. Claiming the columns are encrypted while their only writer still
+inserts plaintext would be worse than leaving the gap documented.
+
+**Required input from me.** Approval to start module 12 (or explicit approval to change those two
+procedures ahead of it). When module 12 is built, the same treatment the transaction descriptions
+already have applies: the Java writer encrypts, the Java reader decrypts, and the procedure is
+narrowed to stop writing the free-text columns directly.
+
+**Current safe state.** The columns are marked in `db/01_schema.sql` with a `KNOWN PLAINTEXT —
+RESIDUAL EXPOSURE, DELIBERATE` comment pointing at this blocker, so a later reader finds the gap at
+the schema rather than having to rediscover it. No Java code reads or writes either table today, so
+nothing in the current build can leak or mis-handle them.
+
+**Impact.** Low. Neither table is reachable through the running API: both are inert until module 12
+exists, and no student can currently create an insight or an import row. The exposure is latent, not
+live. It is recorded rather than fixed so that module 12 is not built on the assumption that these
+columns are already protected.
+
+**Recommended next action.** Leave OPEN; fold into module 12 when it is approved.
+
+---
+
+## OB-013 — Amounts are deliberately not encrypted
+
+| Field | Value |
+|---|---|
+| **Priority** | MEDIUM |
+| **Modules** | 6, 7, 8, 9, 11 — every module that aggregates an amount |
+| **Related UC** | UC-12, UC-13, UC-14, UC-15, UC-16, UC-18, UC-21, UC-22 |
+| **Related BR** | BR-05, BR-10, BR-13 |
+| **Status** | OPEN — deferred by explicit decision; needs its own approval |
+
+**Blocked task.** Encrypting `transactions.amount`, `recurring_rules.amount` and
+`budget_alert_log.spent_amount`/`limit_amount` so that a direct `SELECT` does not reveal what a
+student spent.
+
+**Why it is blocked.** MySQL cannot decrypt. It has no AES-GCM, and putting the application key
+inside the database is forbidden by the project's own security constraints, so an encrypted amount
+could not be `SUM()`-ed, compared, ordered, or used in a `CHECK` by **any** view or stored
+procedure. **Twelve of the fourteen views** do exactly that — `v_monthly_income_expense`,
+`v_monthly_income_expense_6m`, `v_category_month_totals`, `v_category_spend_trend`,
+`v_top_category_current_month`, `v_dashboard_summary`, `v_budget_consumption`,
+`v_daily_spending_current_month`, `v_weekly_spending_current_month`, `v_user_recent_activity`,
+`v_admin_usage_stats` and `v_admin_top_categories`; only `v_active_announcements` and
+`v_dashboard_tips` are unaffected. Most read it indirectly, by joining `v_monthly_income_expense` or
+`v_category_month_totals`, so they would break too. **Five procedures** touch it:
+`sp_check_budget_alerts` (which compares `SUM(amount)` against a limit and writes
+`budget_alert_log`), `sp_generate_tips`, `sp_generate_monthly_insight`,
+`sp_post_recurring_transactions` and `sp_apply_csv_batch`.
+
+Encrypting amounts is therefore not a column change. It means moving the entire reporting and
+aggregation tier out of the database and into Java — modules 6, 7, 8, 9 and 11, across dozens of
+files and every report test — because the database would no longer be able to answer a single
+question about money. That is a piece of work in its own right, with its own approval.
+
+Three shortcuts were considered and **rejected**, and the reasons are recorded so they are not
+reintroduced later:
+
+1. **Keep a plaintext `amount` column as well**, so reports keep working. This defeats the security
+   goal outright — the whole point is that a direct `SELECT` reveals nothing.
+2. **Encrypt only in the API and leave the column plaintext.** That is theatre: the data at rest is
+   what the threat model protects, and it would be unchanged.
+3. **Deterministic encryption** to make equality or `SUM` work. MySQL cannot sum ciphertext in any
+   mode, so this does not solve the problem it is proposed for; and a deterministic scheme leaks
+   which rows hold equal amounts, which is itself sensitive.
+
+**Required input from me.** Approval to schedule the reporting-tier migration as a separate project.
+Until then the decision recorded in `docs/SECURITY.md` §12.5 stands, stated plainly rather than
+softened: **this build encrypts free text only; a direct `SELECT` on `transactions` still reveals
+amounts, and `docs/SECURITY.md` says so.**
+
+**Module 11 serves this exposure and does not change it.** `GET /api/v1/admin/stats` publishes
+`totalExpenseLogged` and `totalIncomeLogged`, and `GET /api/v1/admin/stats/top-categories` publishes a
+`totalAmount` per category — all three from `v_admin_usage_stats` and `v_admin_top_categories`, which
+are `SUM(t.amount)` over the plaintext column. Serving them was a deliberate choice over the
+alternative of hiding the figures: the view defines the column, UC-23 asks for the figures, and a
+response that silently dropped them would be less honest than one that carries them and names the
+gap. **No route in module 11 returns one student's amounts** — every money figure there is a sum over
+many students — so the module widens the *number of readers* of the existing aggregate, not the
+granularity of the data. The exposure is stated in the response DTO's javadoc
+(`AdminUsageStatsResponse`), in `docs/api/administration.md` §7, in
+`docs/modules/MODULE_11_ADMINISTRATION.md` §3.6 and §11, and in manual case M11-10 and §5.2.
+
+**Current safe state.** The gap is stated in three places an operator will actually reach — the
+`campuscoin.encryption` block in `application.yml`, the `EncryptionService` class javadoc, and
+`docs/SECURITY.md` §12.5 — each naming this blocker. `EncryptionService.encryptAmount` /
+`decryptAmount` already exist, are unit-tested (canonicalising to scale 2 so `12.0` and `12.00` are
+interchangeable), and are **deliberately unused**: they are there so the deferred work does not also
+have to invent an amount-encoding contract. `transactions.amount` carries a "NOT encrypted,
+deliberately" comment in `db/01_schema.sql`.
+
+**Impact.** Medium. It is the largest remaining gap in the "a stolen database reveals nothing"
+guarantee: descriptions and notes are protected, but spending amounts — arguably the more sensitive
+figure — are not. Anyone with the database file can see exactly what every student spent. Nothing is
+*worse* than before this phase; the free-text fields are newly protected and the amounts are
+unchanged from the original design.
+
+**Recommended next action.** Leave OPEN and explicitly deferred. Revisit only as a scoped project
+with the reporting-tier rewrite costed, not as a schema tweak. Until then, treat the tablespace
+encryption in `docs/SECURITY.md` "Outstanding before production" item 9 as the mitigation for the
+amount columns.
+
+---
+
+## OB-014 — The recurring scheduler copies the rule's envelope into the posted transaction
+
+| Field | Value |
+|---|---|
+| **Priority** | LOW |
+| **Module** | 5 — Recurring (UC-09), with 4 (UC-07) |
+| **Related UC** | UC-09, UC-07 |
+| **Related BR** | BR-08, BR-16 |
+| **Status** | READY FOR REVIEW — limitation documented and pinned by a test |
+
+**Blocked task.** Nothing is blocked; this records a limitation discovered while encrypting
+`recurring_rules.description`, and the repair that makes it harmless.
+
+**What happens.** `sp_post_recurring_transactions` builds each posted transaction from the rule,
+copying `r.description` into the new transaction's description. A stored procedure cannot decrypt,
+so it copies the rule's **ciphertext envelope** through unchanged. The posted transaction therefore
+holds the same envelope the rule holds, rather than a freshly encrypted one.
+
+**Why it is not a defect.** The envelope it copies is a valid envelope under the current key, so it
+decrypts back to exactly the rule's original plaintext — which is the correct description for the
+posted transaction. Two properties make this safe rather than lucky: the value is authenticated, so
+a corrupted copy fails loudly instead of surfacing as a wrong description; and the transaction's
+description is then identical to the rule's, which is the intended semantics of "post this rule".
+
+Ciphertext reuse across two rows is normally something to avoid, because it leaks that two values
+are equal. It does not apply here: the two rows genuinely do hold the same description by design,
+and the attacker who could compare them already holds the database the envelopes sit in. The
+security property that matters — a fresh random IV for every *distinct* value the application
+writes — is unaffected, because the procedure writes no new plaintext.
+
+The procedure's local variable was widened to `VARCHAR(2048)` to match the column. At the original
+`VARCHAR(255)` the envelope (up to 2048 characters for a 255-character note) was truncated on fetch
+and **every** run failed with `Data too long for column 'v_desc'` — a real defect this work
+introduced and immediately fixed, caught by six failing recurring tests.
+
+**Required input from me.** Confirm the current behaviour is acceptable, or ask for the alternative:
+have `TransactionService` re-encrypt the description after the procedure posts, so each transaction
+row carries its own envelope. The alternative buys nothing security-wise (the plaintext is the same)
+and costs a second write per posted transaction, which is why it was not taken.
+
+**Current safe state.** The behaviour is correct and pinned by
+`postedTransactionDescriptionSurvivesTheScheduler` in `RecurringRuleApiIT`, which posts a rule
+through the scheduler path and asserts the description survives end to end: the raw transaction
+column is not the plaintext, it decrypts to the rule's original text, and the HTTP response shows
+it. The limitation and its reasoning are recorded in `db/03_procedures.sql` at the procedure that
+performs the copy.
+
+**Impact.** Very low. Student-visible behaviour is exactly right. The only observable trace is that
+a posted transaction's `description` column equals the rule's rather than differing by IV — visible
+only to someone reading raw columns, who by definition already has the database.
+
+**Recommended next action.** Accept and close, unless the per-row envelope is wanted for its own
+sake.
+
+---
+
+## OB-015 — The insight branch of UC-19 is refused until module 12 is approved
+
+| Field | Value |
+|---|---|
+| **Priority** | LOW |
+| **Module** | 10 — Bookmarks / Notes (UC-19), with 12 — Optional / Advanced |
+| **Related UC** | UC-19, UC-17 |
+| **Related BR** | BR-02 |
+| **Status** | OPEN — deferred with module 12 |
+
+**Blocked task.** Serving `POST /api/v1/bookmarks` with `itemType: "INSIGHT"`, so a student can save
+a monthly insight as well as a saving tip.
+
+**Why it is blocked.** UC-19 B1 names "a tip or an insight", and `bookmarks.item_type` is
+`ENUM('TIP','INSIGHT')` with `ck_bookmark_target` and a dedicated `insights` foreign key supporting
+both shapes — so the schema is ready. But insights are **UC-17**, inside module 12, which is locked
+pending the project owner's approval, and `insights` has **no read path anywhere in the repository**:
+no view in `db/02_views.sql`, no endpoint, no Java type. Serving the branch would mean exposing a
+locked module's contract through this one, and faking it — returning a tip under an `INSIGHT` label —
+would be worse.
+
+**What was built instead.** `POST` accepts `itemType` and answers `INSIGHT` with
+`400 VALIDATION_ERROR` and a field error on `itemType` whose message names UC-17. Refusing **by
+name** rather than narrowing the enum matters: `INSIGHT` is a real value of the column, so a narrowed
+enum would answer with a JSON parsing failure calling a genuine column value "invalid" — both untrue
+and unhelpful. This is the treatment module 9 gives `LOW_SAVINGS_RATE` ("the value exists in the
+schema and the module records what it does not serve"). It is pinned by
+`BookmarksApiIT#anInsightIsRefusedByName`, which also asserts nothing was written.
+
+`BookmarkResponse.itemType` is published even though it holds only `TIP` today, so that adding the
+branch later is not a breaking response change.
+
+**Required input from me.** Approval to start module 12 (or explicit approval to build the insight
+read path ahead of it). When module 12 exists, the work here is small: `requireTipTarget` becomes a
+two-branch resolver, `Bookmark.newTipBookmark` gains an insight counterpart, and
+`BookmarkViewDao`'s two queries gain the `insights` join they already have a column for.
+
+**Current safe state.** The refusal happens before the database is asked anything, so no partial row
+can exist. The scope decision is recorded in `BookmarkService`'s class javadoc, in
+`BookmarkController`'s class javadoc, in the inventory's Module 10 section, and in
+[`docs/api/bookmarks.md` §7](api/bookmarks.md#7-the-insight-branch-is-refused-not-served).
+
+**Impact.** Low. One act of UC-19 — saving an insight — is not available. Everything else in UC-19
+(mark a tip, add a note, read the list, un-mark) is complete and tested. No student can currently
+*create* an insight either, so nothing that exists is unreachable through the API.
+
+**Recommended next action.** Leave OPEN; fold into module 12 when it is approved, together with
+OB-012.
+
+---
+
 ## Summary
 
 | ID | Priority | Module | Status |
@@ -563,13 +805,17 @@ and option 2 (accept and close). Until then the module ships with the documented
 | OB-002 | MEDIUM | 1 — Authentication | OPEN — no production mail provider |
 | OB-003 | MEDIUM | All | OPEN — secret store not chosen |
 | OB-004 | LOW | 1 — Authentication | READY FOR REVIEW — throttle is per instance |
-| OB-005 | MEDIUM | 11 — Administration | READY FOR REVIEW — DB admins bypass the admin gate |
+| OB-005 | MEDIUM | 11 — Administration | READY FOR REVIEW — DB admins bypass the admin gate; module 11 confirms every API write goes through `sp_require_admin` |
 | OB-006 | LOW | 12 — Advanced | OPEN — `import_rows` ownership check at app layer |
 | OB-007 | LOW | Infrastructure | RESOLVED — `docker-compose.yml` translated |
 | OB-008 | LOW | Cross-cutting | RESOLVED — unauthenticated `/actuator` paths closed |
 | OB-009 | MEDIUM | 5 — Recurring (with 3) | READY FOR REVIEW — retired category freezes its rules |
 | OB-010 | MEDIUM | 5 — Recurring | READY FOR REVIEW — a pause defers its periods instead of skipping them |
 | OB-011 | MEDIUM | 6 — Budget (with 3) | READY FOR REVIEW — retired category freezes its budgets |
+| OB-012 | LOW | 12 — Advanced | OPEN — `insights`/`import_rows` stay plaintext with module 12 |
+| OB-013 | MEDIUM | 6, 7, 8, 9, 11 — every aggregation | OPEN — amounts deliberately not encrypted; module 11 serves the plaintext aggregates |
+| OB-014 | LOW | 5 — Recurring | READY FOR REVIEW — scheduler copies the rule's envelope |
+| OB-015 | LOW | 10 — Bookmarks (with 12) | OPEN — the insight branch of UC-19 waits for module 12 |
 
 **Nothing in this list blocks modules 2–12 from proceeding.** Every item is either an external
 dependency, a deployment decision, or already-solved work recorded for review. The blocker that

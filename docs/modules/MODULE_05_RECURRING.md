@@ -630,12 +630,36 @@ affect it and are in `OVERNIGHT_BLOCKERS.md`.
 
 **Global, not fixable in this module:**
 
+- **OB-012** (`insights`/`import_rows` stay plaintext with the locked module 12) and **OB-013**
+  (amounts deliberately not encrypted) apply as they do project-wide. A recurring rule's `amount` is
+  one of the columns OB-013 covers: `sp_post_recurring_transactions` reads it and the views aggregate
+  the transactions it produces, so it cannot be encrypted without moving the reporting tier.
 - **OB-001** (source documents absent) applies as it does to every module: UC-09's behaviour is derived
   from the schema and its procedure bodies, which encode BR-16, the catch-up loop, the period keys and
   the retired-category rule directly, rather than quoted from the Use Case document.
 - **OB-003** (secret store) and **OB-004** (per-instance throttle) are unaffected by this module — it
   has no credentials and no authentication endpoint.
 - **OB-006** (`import_rows` ownership) is module 12.
+
+**Added after this module closed — application-level field encryption, and OB-014:**
+
+- **`recurring_rules.description` now holds ciphertext at rest.** Same treatment as
+  `transactions.description`: `RecurringRuleService` encrypts on write, `RecurringRuleMapper`
+  decrypts on read, and the column is `VARCHAR(2048) CHARACTER SET ascii COLLATE ascii_bin`.
+  The rule's `amount` is **not** encrypted (OB-013).
+- **The scheduler copies the rule's envelope into the posted transaction.** `sp_post_recurring_transactions`
+  builds each posted row from the rule and copies `r.description` through unchanged; a procedure
+  cannot decrypt, and must not, because that would require the key inside MySQL. The copied value is
+  a valid envelope under the current key, so the posted transaction reads back as the rule's original
+  text — verified end to end. This is a **limitation with no user-visible effect**, not a defect, and
+  it is recorded as **OB-014** with the reasoning and the alternative that was rejected.
+- **A real defect this work introduced and fixed:** the procedure's local variable was `VARCHAR(255)`,
+  too small for an envelope of up to 2048 characters, so every run failed with
+  `Data too long for column 'v_desc'`. It is now `VARCHAR(2048)`, sized to the column. Caught by six
+  failing recurring tests before it reached the suite.
+- Pinned by `postedTransactionDescriptionSurvivesTheScheduler` and by M5-28 in the manual procedure,
+  which tells a tester explicitly that two identical ciphertexts across the rule and its posted
+  transaction are expected rather than a reused-IV bug.
 
 **Not claimed:** this module is production-ready. It is implemented, tested, reviewed and documented,
 and it depends on no external service that is missing. Its one open item is a schema-owned limitation

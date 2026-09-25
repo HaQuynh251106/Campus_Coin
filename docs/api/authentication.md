@@ -599,9 +599,23 @@ Requirements with no endpoint here, and why:
 
 | Requirement | Status |
 |-------------|--------|
-| UC-04 Profile, UC-27 Preferences | Module 2, not started |
-| All other UCs | Modules 3–12, not started |
+| UC-04 Profile, UC-27 Preferences | Built — module 2, see [profile.md](profile.md) |
+| UC-06 … UC-23 | Built — modules 3–11, see [API_INVENTORY.md](API_INVENTORY.md) |
+| UC-11 CSV import, UC-08 AI categorisation, UC-17 insights, UC-24/UC-25 anomalies | Not built — module 12, locked |
 | Email verification (UC-01 BA note) | Explicitly not required by UC-01 |
 | Token refresh | No use case defines it, although `user_sessions.refresh_token_hash` exists |
 | Change password while signed in | Not a use case in this module |
 | Session listing / revocation by id | Not a use case in this module |
+
+---
+
+## Related documentation
+
+- [FRONTEND_API_GUIDE.md](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for the
+  frontend: base URL, the auth and error interceptors to install, the shared error contract, the
+  enum reference and the master table of all 61 operations
+- [API_INVENTORY.md](API_INVENTORY.md) — the authoritative endpoint list
+- [profile.md](profile.md) — module 2, the profile these tokens give access to
+- [../testing/manual/MODULE_01_MANUAL_TEST.md](../testing/manual/MODULE_01_MANUAL_TEST.md) — the
+  hand-run procedure
+- [../SECURITY.md](../SECURITY.md) — the security decisions behind these endpoints

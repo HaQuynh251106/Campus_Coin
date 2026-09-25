@@ -260,21 +260,32 @@ Two notes on rendering them:
 the two this module produces. A client switching on `type` should handle each, and a value it does
 not recognise should be rendered generically rather than crashing the list.
 
-| Type | Produced by | Module |
+| Type | Written by | Produced in this build? |
 |---|---|---|
-| `BUDGET_NEAR` | `sp_check_budget_alerts` | 6, this module |
-| `BUDGET_EXCEEDED` | `sp_check_budget_alerts` | 6, this module |
-| `RECURRING_POSTED` | the recurring scheduler | 5 |
-| `TIP` | `sp_generate_tips` | 9 (not yet built) |
-| `ANNOUNCEMENT` | the administrator announcement procedure | 11 (not yet built) |
-| `SYSTEM` | written outside any single use case | — |
-| `INSIGHT_READY` | the monthly insight generator | 12 (not yet built) |
+| `BUDGET_NEAR` | `sp_check_budget_alerts` | **Yes** — module 6, this module |
+| `BUDGET_EXCEEDED` | `sp_check_budget_alerts` | **Yes** — module 6, this module |
+| `RECURRING_POSTED` | nothing | **No** — see below |
+| `TIP` | nothing | **No** — `sp_generate_tips` writes `user_tips` (UC-18) |
+| `ANNOUNCEMENT` | nothing | **No** — `sp_admin_create_announcement` writes `announcements` (UC-21) |
+| `SYSTEM` | nothing | **No** — reserved for a writer outside any single use case |
+| `INSIGHT_READY` | nothing | **No** — the monthly insight generator is module 12, locked |
 
-This is why the enum is mapped in full even though only two members are produced today: the column is
-a MySQL `ENUM`, so an **unmapped** member would be a value the application cannot deserialise — a row
+**Only two of the seven are produced, and every other row says so deliberately.** The three modules
+that the enum's name might suggest produce the resource the type is *named* after, not a
+`notifications` row of that type: the recurring scheduler posts transactions, module 9 generates
+`user_tips`, and module 11 publishes `announcements` — which students read through
+`GET /api/v1/dashboard`, not through the notification list. `ANNOUNCEMENT` is therefore a value of
+the column that **no statement in `db/` or `backend/` ever writes**, and the same is true of
+`RECURRING_POSTED` and `TIP`.
+
+This is why the enum is mapped in full even though only two members are produced: the column is a
+MySQL `ENUM`, so an **unmapped** member would be a value the application cannot deserialise — a row
 written by a later module would fail to load and take the whole notification list down with it,
 rather than simply appearing as an unfamiliar kind. Mapping the complete set costs nothing and makes
-the read path total.
+the read path total. **A client switching on `type` should handle all seven**, but should not expect
+to receive five of them from this build; a hypothetical `ANNOUNCEMENT` row here would be a second,
+weaker answer to the same question `announcements` already answers, and this build does not create
+one.
 
 ---
 
@@ -685,6 +696,9 @@ differ (`2026-09-24T18:02:11` vs `...Z`) and the comparison would be meaningless
 
 ## Related documentation
 
+- [FRONTEND_API_GUIDE.md](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for the
+  frontend: base URL, interceptors, the shared error contract, the enum reference and the master
+  table of all 61 operations
 - [API_INVENTORY.md](API_INVENTORY.md) — the authoritative endpoint list
 - [authentication.md](authentication.md) — how to obtain the token these endpoints need
 - [budgets.md](budgets.md) — module 6's other half, UC-13, where the limits these alerts are about are set

@@ -5,13 +5,22 @@ view visual reports, and receive saving tips derived from their own spending hab
 
 > **Current status.** The database is complete, has passed its final review, and is verified on
 > MySQL 8 (clean rebuild plus 54 regression checks, all passing). It is containerised and loads
-> from the merged `campuscoin_full.sql`. The Spring Boot backend has completed **modules 1–9** —
+> from the merged `campuscoin_full.sql`. The Spring Boot backend has completed **modules 1–11** —
 > Authentication (UC-01, UC-02, UC-03, UC-05), Profile & Preferences (UC-04, UC-27), Personal
 > Categories (UC-06), Transactions (UC-07, UC-10), Recurring Expenses (UC-09), Budget &
-> Notifications (UC-13, UC-14), Dashboard (UC-12), Reports & Export (UC-15, UC-16) and Saving
-> Tips (UC-18): 41 endpoints, 511 tests passing against a real MySQL 8. **Modules 10–11 (Bookmarks
-> / Notes, Administration) are not yet built, and module 12 is locked pending the project owner's
-> approval.** The Angular frontend is still mock-only and has not yet been wired to the API.
+> Notifications (UC-13, UC-14), Dashboard (UC-12), Reports & Export (UC-15, UC-16), Saving
+> Tips (UC-18), Bookmarks / Notes (UC-19) and Administration (UC-20 – UC-23): 61 endpoints, 736
+> tests passing against a real MySQL 8.
+>
+> Free-text fields are protected by **Application-Level Field Encryption using AES-256-GCM**: a
+> transaction or recurring-rule description is written to MySQL as ciphertext, so a direct `SELECT`
+> does not reveal what the student typed. Amounts are deliberately **not** encrypted — MySQL cannot
+> sum ciphertext and most views aggregate amounts — and that gap is recorded rather than hidden; see
+> [`docs/SECURITY.md`](docs/SECURITY.md) §12 and blockers OB-012/OB-013. The key comes from
+> `CAMPUSCOIN_ENCRYPTION_KEY` and the application refuses to start without it.
+>
+> **Module 12 (Optional / Advanced) is locked pending the project owner's approval.** The Angular
+> frontend is still mock-only and has not yet been wired to the API.
 
 ---
 
@@ -22,7 +31,7 @@ Three tiers, as described in SRS §1.4:
 | Tier | Component | Status |
 |---|---|---|
 | Presentation | Angular web application | In progress (mock data only) |
-| Application — API | Spring Boot REST service (Java 21) | Modules 1–9 complete |
+| Application — API | Spring Boot REST service (Java 21) | Modules 1–11 complete |
 | Data | Relational database (MySQL 8) | ✅ **Complete** |
 
 The locked stack is **Java + Spring Boot, Angular, MySQL 8, Docker**. No other backend framework
@@ -209,17 +218,18 @@ docker compose down -v
 
 ### 3.7 Running the backend
 
-The backend is a Spring Boot service under `backend/`. It needs the database running and two
+The backend is a Spring Boot service under `backend/`. It needs the database running and three
 environment variables.
 
 Step 1 — start the database (§3.2) and confirm it is `healthy`.
 
-Step 2 — set the environment variables. There is **no default for either**, and the application
-refuses to start without them rather than falling back to a weak value:
+Step 2 — set the environment variables. There is **no default for any of the three**, and the
+application refuses to start without them rather than falling back to a weak value:
 
 | Variable | Required | Purpose |
 |---|---|---|
 | `JWT_SECRET` | yes | HS256 signing key, at least 32 bytes. Generate with `openssl rand -base64 48` |
+| `CAMPUSCOIN_ENCRYPTION_KEY` | yes | AES-256-GCM key for application-level field encryption. Base64 of **exactly 32 random bytes** — generate with `openssl rand -base64 32` |
 | `DB_PASSWORD` | yes | The `campuscoin_app` password — the same `MYSQL_PASSWORD` from `.env` |
 | `DB_HOST` | no | Defaults to `localhost` |
 | `DB_PORT` | no | Defaults to `3306` |
@@ -228,21 +238,37 @@ refuses to start without them rather than falling back to a weak value:
 | `CORS_ALLOWED_ORIGINS` | no | Defaults to `http://localhost:4200` |
 | `RESET_LINK_BASE_URL` | no | Defaults to `http://localhost:4200/reset-password` |
 
+> **`CAMPUSCOIN_ENCRYPTION_KEY` is a symmetric secret, not a private key.** It encrypts the
+> free-text columns `transactions.description`, `recurring_rules.description` and
+> `bookmarks.note`, so a direct `SELECT` on the database shows ciphertext instead of what the
+> student wrote. It stays in the environment only — never in git, never in MySQL, never in a JWT,
+> never sent to Angular.
+>
+> **Back it up, and do not lose it.** Data encrypted with one key cannot be read by a build
+> configured with a different one. Losing this value makes every encrypted description and note
+> permanently unreadable — there is no recovery path that does not involve the key. Do not derive
+> it from `JWT_SECRET` and do not reuse an existing key from elsewhere.
+>
+> Amounts are **not** encrypted, because MySQL cannot sum ciphertext and twelve of the fourteen
+> views read an amount. See `docs/SECURITY.md` §12 and blocker OB-013.
+
 Step 3 — run it:
 
 ```bash
-cd backend && DB_PASSWORD=<MYSQL_PASSWORD from .env> JWT_SECRET=<your secret> ./mvnw spring-boot:run
+cd backend && DB_PASSWORD=<MYSQL_PASSWORD from .env> JWT_SECRET=<your secret> CAMPUSCOIN_ENCRYPTION_KEY=<your key> ./mvnw spring-boot:run
 ```
 
 Or, reusing the values already in `.env` so the shared secrets are not retyped:
 
 ```bash
-set -a && . ./.env && set +a && cd backend && DB_PASSWORD="$MYSQL_PASSWORD" ./mvnw spring-boot:run
+set -a && . ./.env && set +a && cd backend && DB_PASSWORD="$MYSQL_PASSWORD" JWT_SECRET="$JWT_SECRET" CAMPUSCOIN_ENCRYPTION_KEY="$CAMPUSCOIN_ENCRYPTION_KEY" ./mvnw spring-boot:run
 ```
 
 > `.env` holds the Docker Compose variables (`MYSQL_*`), while the Spring Boot process reads
-> `DB_*`. They describe the same account, so `DB_PASSWORD` is `MYSQL_PASSWORD`. Only `JWT_SECRET`
-> is genuinely separate and is not stored in `.env`.
+> `DB_*`. They describe the same account, so `DB_PASSWORD` is `MYSQL_PASSWORD`. `JWT_SECRET` and
+> `CAMPUSCOIN_ENCRYPTION_KEY` are genuinely separate secrets; both are listed (empty) in
+> `.env.example`, which is committed, so fill them there or export them from a secret manager —
+> never commit real values.
 
 The API starts on **http://localhost:8080**. Swagger UI is at
 **http://localhost:8080/swagger-ui.html**.
@@ -271,13 +297,16 @@ running stack is required. Docker must be available. See
 [`docs/api/authentication.md`](docs/api/authentication.md),
 [`docs/api/profile.md`](docs/api/profile.md),
 [`docs/api/categories.md`](docs/api/categories.md),
-[`docs/api/transactions.md`](docs/api/transactions.md),
+[`docs/api/FRONTEND_API_GUIDE.md`](docs/api/FRONTEND_API_GUIDE.md) (the entry point for a frontend
+developer), [`docs/api/transactions.md`](docs/api/transactions.md),
 [`docs/api/recurring.md`](docs/api/recurring.md),
 [`docs/api/budgets.md`](docs/api/budgets.md),
 [`docs/api/notifications.md`](docs/api/notifications.md),
 [`docs/api/dashboard.md`](docs/api/dashboard.md),
-[`docs/api/reports.md`](docs/api/reports.md) and
-[`docs/api/tips.md`](docs/api/tips.md) for the API contracts, and
+[`docs/api/reports.md`](docs/api/reports.md),
+[`docs/api/tips.md`](docs/api/tips.md),
+[`docs/api/bookmarks.md`](docs/api/bookmarks.md) and
+[`docs/api/administration.md`](docs/api/administration.md) for the API contracts, and
 [`docs/SECURITY.md`](docs/SECURITY.md) for the security decisions. The endpoint list is
 [`docs/api/API_INVENTORY.md`](docs/api/API_INVENTORY.md).
 
@@ -329,7 +358,9 @@ campus-coin/
 │   ├── REVIEW_CHECKLIST.md         # Final review mapped back to the SQL
 │   ├── SECURITY.md                 # Security decisions and deployment requirements
 │   ├── OVERNIGHT_BLOCKERS.md       # Decisions awaiting the project owner's input
+│   ├── HANDOFF_M1_M11.md           # M1–M11 release gate + handoff output
 │   ├── api/
+│   │   ├── FRONTEND_API_GUIDE.md   # START HERE: base URL, auth, interceptors, errors, enums, all 61 ops
 │   │   ├── API_INVENTORY.md        # Every endpoint, with its use case
 │   │   ├── authentication.md       # Module 1 contract + Angular integration
 │   │   ├── profile.md              # Module 2 contract + Angular integration
@@ -339,7 +370,10 @@ campus-coin/
 │   │   ├── budgets.md              # Module 6 contract: limits & consumption (UC-13)
 │   │   ├── notifications.md        # Module 6 contract: budget alerts (UC-14)
 │   │   ├── dashboard.md            # Module 7 contract: the home screen (UC-12)
-│   │   └── reports.md              # Module 8 contract: reports & export (UC-15, UC-16)
+│   │   ├── reports.md              # Module 8 contract: reports & export (UC-15, UC-16)
+│   │   ├── tips.md                 # Module 9 contract: saving tips (UC-18)
+│   │   ├── bookmarks.md            # Module 10 contract: bookmarks & notes (UC-19)
+│   │   └── administration.md       # Module 11 contract: the admin surface (UC-20 – UC-23)
 │   ├── modules/
 │   │   ├── MODULE_02_PROFILE.md        # Module report: tests, reviews, traceability
 │   │   ├── MODULE_03_CATEGORIES.md     # Module report
@@ -347,7 +381,10 @@ campus-coin/
 │   │   ├── MODULE_05_RECURRING.md      # Module report
 │   │   ├── MODULE_06_BUDGET.md         # Module report
 │   │   ├── MODULE_07_DASHBOARD.md      # Module report
-│   │   └── MODULE_08_REPORTS.md        # Module report
+│   │   ├── MODULE_08_REPORTS.md        # Module report
+│   │   ├── MODULE_09_TIPS.md           # Module report
+│   │   ├── MODULE_10_BOOKMARKS.md      # Module report
+│   │   └── MODULE_11_ADMINISTRATION.md # Module report
 │   └── testing/
 │       └── manual/                 # Hand-run test procedures, one per module
 │
@@ -362,6 +399,8 @@ campus-coin/
 │       ├── dashboard/              # Module 7: the home screen (UC-12)
 │       ├── reports/                # Module 8: monthly report & spending series (UC-15, UC-16)
 │       ├── tips/                   # Module 9: saving tips (UC-18)
+│       ├── bookmark/               # Module 10: bookmarks / notes (UC-19)
+│       ├── admin/                  # Module 11: administration (UC-20 – UC-23)
 │       └── common/                 # Errors, configuration, settings
 ├── frontend/                       # Angular web application (not yet wired to the API)
 ├── docker-compose.yml              # MySQL 8 + Adminer

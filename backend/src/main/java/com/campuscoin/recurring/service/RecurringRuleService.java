@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.campuscoin.auth.security.AuthenticatedUser;
 import com.campuscoin.category.entity.Category;
 import com.campuscoin.category.repository.CategoryRepository;
+import com.campuscoin.common.crypto.EncryptionService;
 import com.campuscoin.common.exception.ApiError;
 import com.campuscoin.common.exception.CategoryRetiredException;
 import com.campuscoin.common.exception.DataConflictException;
@@ -93,13 +94,16 @@ public class RecurringRuleService {
     private final RecurringRuleRepository recurringRuleRepository;
     private final CategoryRepository categoryRepository;
     private final RecurringRuleMapper recurringRuleMapper;
+    private final EncryptionService encryptionService;
 
     public RecurringRuleService(RecurringRuleRepository recurringRuleRepository,
                                 CategoryRepository categoryRepository,
-                                RecurringRuleMapper recurringRuleMapper) {
+                                RecurringRuleMapper recurringRuleMapper,
+                                EncryptionService encryptionService) {
         this.recurringRuleRepository = recurringRuleRepository;
         this.categoryRepository = categoryRepository;
         this.recurringRuleMapper = recurringRuleMapper;
+        this.encryptionService = encryptionService;
     }
 
     /**
@@ -171,7 +175,7 @@ public class RecurringRuleService {
                 userId,
                 category,
                 request.amount(),
-                trimToNull(request.description()),
+                encryptionService.encrypt(trimToNull(request.description())),
                 request.frequency(),
                 request.intervalCount() != null ? request.intervalCount() : DEFAULT_INTERVAL,
                 startDate,
@@ -275,7 +279,7 @@ public class RecurringRuleService {
             rule.setAmount(request.amount());
         }
         if (request.description() != null) {
-            rule.setDescription(trimToNull(request.description()));
+            rule.setDescription(encryptionService.encrypt(trimToNull(request.description())));
         }
         if (request.frequency() != null) {
             rule.setFrequency(request.frequency());

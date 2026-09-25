@@ -1006,6 +1006,51 @@ step 9, or prepare one as in M5-24.
 
 ---
 
+### M5-28 — The description survives encryption across the scheduler path
+
+**Covers:** Application-Level Field Encryption (AES-256-GCM) on the UC-09 posting path; **OB-014**;
+`SECURITY.md` §12.4.
+
+**Preconditions:** the scheduler can be triggered (§3.4); `CAMPUSCOIN_ENCRYPTION_KEY` is set in the
+backend's environment. Read the expected result before judging step 6 — one line there looks like a
+defect and is not.
+
+**Steps:**
+
+1. Create **RULE_D** with `description: "zzschedcheck streaming fee"` and `nextRunDate` set to
+   **today**, so the rule is due.
+2. Trigger a scheduler run (§3.4).
+3. `GET /api/v1/transactions?from=<today>&to=<today>` and find the `RECURRING` row this rule posted.
+   Note its id (`<TID>`).
+4. `GET /api/v1/transactions/{TID}` → read `description`.
+5. Read both rows directly from the database:
+
+   ```sql
+   SELECT description FROM recurring_rules WHERE id = <RULE_D>;
+   SELECT description FROM transactions    WHERE id = <TID>;
+   ```
+
+6. Compare the two raw values with each other.
+
+**Expected result:**
+
+- Step 4: `"description": "zzschedcheck streaming fee"` — the posted transaction reads back as the
+  text the student typed.
+- Step 5: **both** raw values are opaque Base64 that contains no plaintext. Neither row leaks the
+  words to a direct `SELECT`.
+- Step 6: the two raw values are **byte-for-byte identical**. This is expected, not a bug:
+  `sp_post_recurring_transactions` copies the rule's description column into the posted transaction,
+  and a stored procedure cannot encrypt — that would require the encryption key inside MySQL, which
+  the design forbids. The copied value is already a valid envelope under the current key, which is
+  exactly why step 4 reads correctly. See OB-014.
+- A tester who saw only step 6 might report "the scheduler reuses ciphertext". The plaintext is the
+  same on purpose — it is the description of the rule that generated the transaction — so no
+  information is leaked by the reuse.
+
+**Result:** [ ] Pass   [ ] Fail
+
+---
+
 ## 5. Two behaviours a tester is most likely to misread
 
 Both are deliberate, documented behaviour. Read this section before marking anything in §4 as a
@@ -1115,6 +1160,7 @@ failure. Neither is a defect in the module.
 | M5-25 | UC-09 A2 (an edit applies to future periods only); BR-16 |
 | M5-26 | §15 (role `STUDENT` enforced server-side; a token is required on every endpoint); BR-03 context (`401` for a token that stopped being valid) |
 | M5-27 | UC-09 validation on create/update; BR-08 (amount strictly positive and within the column); BR-07 (per-field `categoryId` errors) |
+| M5-28 | Application-Level Field Encryption across the scheduler posting path; **OB-014** |
 
 ---
 
