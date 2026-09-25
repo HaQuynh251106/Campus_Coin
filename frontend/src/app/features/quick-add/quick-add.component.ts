@@ -4,7 +4,6 @@ import { ReactiveFormsModule, FormBuilder, Validators, FormsModule } from '@angu
 import { Router } from '@angular/router';
 import { TransactionService } from '../../core/services/transaction.service';
 import { CategoryService } from '../../core/services/category.service';
-import { AiCategorizationService, AiParseResult } from '../../core/services/ai-categorization.service';
 import { MascotService } from '../../core/services/mascot.service';
 import { Category } from '../../core/models/category.model';
 import { Transaction, TransactionType } from '../../core/models/transaction.model';
@@ -13,7 +12,6 @@ import { CardComponent } from '../../shared/components/card/card.component';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { CategoryTagComponent } from '../../shared/components/category-tag/category-tag.component';
-import { CategoryIconComponent } from '../../shared/components/category-icon/category-icon.component';
 
 @Component({
   selector: 'app-quick-add',
@@ -24,8 +22,7 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
     ReactiveFormsModule,
     BreadcrumbsComponent,
     IconComponent,
-    CategoryTagComponent,
-    CategoryIconComponent
+    CategoryTagComponent
   ],
   template: `
     <div class="space-y-6">
@@ -42,112 +39,12 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
             Log Transaction
           </h2>
           <p class="text-xs sm:text-sm font-medium text-[var(--color-text-muted)]">
-            Enter spending with natural text or use manual details.
+            Enter spending with manual transaction details.
           </p>
         </div>
       </div>
 
-      <!-- 1. Smart Conversational Input Card -->
-      <div class="card-brutal p-5 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs">
-        <div class="flex items-center gap-2 mb-3">
-          <span class="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-            <app-icon name="sparkles" [size]="12" strokeWidth="1.5"></app-icon>
-            Smart Assist
-          </span>
-          <span class="text-xs text-[var(--color-text-muted)]">
-            Auto-categorize
-          </span>
-        </div>
-
-        <!-- Conversational Input Field -->
-        <div class="relative">
-          <input
-            type="text"
-            [(ngModel)]="conversationalInput"
-            (ngModelChange)="onConversationalInput($event)"
-            placeholder="Type what happened… e.g. 'Campus dining lunch $14.50' or 'Uber ride $8.20'"
-            class="input-brutal text-sm sm:text-base font-normal pr-10 rounded-lg py-2.5 px-3.5"
-          />
-          @if (conversationalInput) {
-            <button
-              type="button"
-              (click)="clearConversationalInput()"
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer"
-            >
-              ✕
-            </button>
-          }
-        </div>
-
-        <!-- Real-Time AI Suggestion Chip -->
-        @if (aiResult && conversationalInput.trim().length > 2) {
-          <div class="mt-4 p-3.5 bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700 rounded-lg flex flex-wrap items-center justify-between gap-3 animate-fade-in">
-            <div class="flex items-center gap-2.5">
-              <span class="text-xs font-medium text-[var(--color-text-muted)]">Suggested:</span>
-              @if (aiResult.suggestedCategory) {
-                <div class="flex items-center gap-2">
-                  <app-category-icon
-                    [name]="aiResult.suggestedCategory.name"
-                    [icon]="aiResult.suggestedCategory.icon"
-                    [color]="aiResult.suggestedCategory.color"
-                    size="sm"
-                  ></app-category-icon>
-                  <span class="text-xs font-medium text-neutral-800 dark:text-neutral-200">
-                    {{ aiResult.suggestedCategory.name }}
-                  </span>
-                </div>
-              }
-
-              @if (aiResult.extractedAmount) {
-                <span class="text-xs font-mono font-semibold bg-white dark:bg-neutral-800 px-2 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100">
-                  \${{ aiResult.extractedAmount }}
-                </span>
-              }
-            </div>
-
-            <!-- Affordances: Accept or Change -->
-            <div class="flex items-center gap-2">
-              <button
-                type="button"
-                (click)="applyAiSuggestion()"
-                class="bg-amber-500 hover:bg-amber-600 text-neutral-950 font-medium text-xs py-1 px-3 rounded-md shadow-xs transition-colors cursor-pointer"
-              >
-                Use suggestion
-              </button>
-              <button
-                type="button"
-                (click)="showCategoryPicker = !showCategoryPicker"
-                class="text-xs text-[var(--color-text-muted)] hover:text-neutral-900 dark:hover:text-neutral-100 underline cursor-pointer"
-              >
-                Change category
-              </button>
-            </div>
-          </div>
-
-          <!-- Quick Category Switcher Panel if user says 'not right' -->
-          @if (showCategoryPicker) {
-            <div class="mt-3 p-3 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg flex flex-wrap gap-2">
-              @for (cat of categories; track cat.id) {
-                <button
-                  type="button"
-                  (click)="selectCategoryOverride(cat)"
-                  class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-750 transition-colors cursor-pointer"
-                >
-                  <app-category-icon
-                    [name]="cat.name"
-                    [icon]="cat.icon"
-                    [color]="cat.color"
-                    size="sm"
-                  ></app-category-icon>
-                  <span class="text-xs font-medium text-neutral-700 dark:text-neutral-300">{{ cat.name }}</span>
-                </button>
-              }
-            </div>
-          }
-        }
-      </div>
-
-      <!-- 2. Full Manual Entry Form (Fallback & Explicit Control) -->
+      <!-- Manual Entry Form -->
       <div class="card-brutal p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs">
         <h3 class="font-semibold text-lg text-neutral-900 dark:text-neutral-50 mb-4 pb-2 border-b border-neutral-200 dark:border-neutral-800 tracking-tight">
           Transaction Details
@@ -409,13 +306,8 @@ export class QuickAddComponent implements OnInit {
   private fb = inject(FormBuilder);
   private txService = inject(TransactionService);
   private categoryService = inject(CategoryService);
-  private aiService = inject(AiCategorizationService);
   private mascotService = inject(MascotService);
   private router = inject(Router);
-
-  conversationalInput = '';
-  aiResult: AiParseResult | null = null;
-  showCategoryPicker = false;
 
   categories: Category[] = [];
   filteredCategories: Category[] = [];
@@ -458,44 +350,7 @@ export class QuickAddComponent implements OnInit {
   private filterCategoriesByType(type: TransactionType): void {
     this.filteredCategories = this.categories.filter(c => c.type === type);
     if (this.filteredCategories.length > 0 && !this.txForm.get('categoryId')?.value) {
-      this.txForm.patchValue({ categoryId: this.filteredCategories[0].id });
-    }
-  }
-
-  onConversationalInput(text: string): void {
-    if (!text || text.trim().length < 3) {
-      this.aiResult = null;
-      return;
-    }
-
-    this.aiResult = this.aiService.parseNaturalLanguage(text);
-    this.mascotService.onQuickAddTyping();
-  }
-
-  clearConversationalInput(): void {
-    this.conversationalInput = '';
-    this.aiResult = null;
-  }
-
-  applyAiSuggestion(): void {
-    if (!this.aiResult) return;
-
-    this.txForm.patchValue({
-      description: this.aiResult.cleanedDescription,
-      amount: this.aiResult.extractedAmount || this.txForm.get('amount')?.value,
-      categoryId: this.aiResult.suggestedCategory?.id || this.txForm.get('categoryId')?.value,
-      type: this.aiResult.suggestedCategory?.type || 'EXPENSE'
-    });
-
-    this.filterCategoriesByType(this.aiResult.suggestedCategory?.type || 'EXPENSE');
-    this.conversationalInput = '';
-    this.aiResult = null;
-  }
-
-  selectCategoryOverride(cat: Category): void {
-    if (this.aiResult) {
-      this.aiResult.suggestedCategory = cat;
-      this.showCategoryPicker = false;
+      this.txForm.patchValue({ categoryId: String(this.filteredCategories[0].id) });
     }
   }
 
@@ -507,20 +362,14 @@ export class QuickAddComponent implements OnInit {
 
     this.isSubmitting = true;
     const val = this.txForm.value;
-    const cat = this.categories.find(c => c.id === val.categoryId);
+    const cat = this.categories.find(c => String(c.id) === String(val.categoryId));
 
     const payload = {
-      userId: 'user-001',
-      type: val.type as TransactionType,
+      categoryId: String(val.categoryId),
       amount: Number(val.amount),
+      txnDate: val.date as string,
       date: val.date as string,
-      categoryId: val.categoryId as string,
-      categoryName: cat?.name || 'Uncategorized',
-      categoryIcon: cat?.icon || 'tag',
-      categoryColor: cat?.color || '#EAB308',
-      description: val.description as string,
-      recurringFrequency: (val.recurringFrequency || 'NONE') as any,
-      note: val.note || ''
+      description: val.description as string
     };
 
     if (this.editingTxId) {
@@ -534,8 +383,9 @@ export class QuickAddComponent implements OnInit {
           this.mascotService.onTransactionLogged();
           setTimeout(() => this.successMessage = '', 3500);
         },
-        error: () => {
+        error: (err) => {
           this.isSubmitting = false;
+          alert(err.error?.message || 'Failed to update transaction');
         }
       });
     } else {
@@ -548,20 +398,21 @@ export class QuickAddComponent implements OnInit {
           this.mascotService.onTransactionLogged();
           setTimeout(() => this.successMessage = '', 3500);
         },
-        error: () => {
+        error: (err) => {
           this.isSubmitting = false;
+          alert(err.error?.message || 'Failed to record transaction');
         }
       });
     }
   }
 
   startEdit(tx: Transaction): void {
-    this.editingTxId = tx.id;
+    this.editingTxId = String(tx.id);
     this.txForm.patchValue({
       type: tx.type,
       amount: tx.amount,
-      date: tx.date,
-      categoryId: tx.categoryId,
+      date: tx.date || tx.txnDate,
+      categoryId: String(tx.categoryId),
       description: tx.description,
       recurringFrequency: tx.recurringFrequency || 'NONE',
       note: tx.note || ''
@@ -575,7 +426,7 @@ export class QuickAddComponent implements OnInit {
     this.resetForm();
   }
 
-  onDelete(id: string): void {
+  onDelete(id: string | number): void {
     this.txService.deleteTransaction(id).subscribe(() => {
       this.loadRecent();
     });
@@ -586,7 +437,7 @@ export class QuickAddComponent implements OnInit {
       type: 'EXPENSE',
       amount: null,
       date: '2026-09-24',
-      categoryId: this.filteredCategories[0]?.id || '',
+      categoryId: this.filteredCategories[0]?.id ? String(this.filteredCategories[0].id) : '',
       recurringFrequency: 'NONE',
       note: ''
     });

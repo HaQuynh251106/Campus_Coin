@@ -1,8 +1,9 @@
-import { Injectable, signal, computed } from '@angular/core';
-import { Observable, of, throwError } from 'rxjs';
-import { delay } from 'rxjs/operators';
+import { Injectable, inject, signal, computed } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable, tap, map, of, catchError } from 'rxjs';
+import { environment } from '../../../environments/environment';
 import { Transaction, TransactionType } from '../models/transaction.model';
-import { MOCK_TRANSACTIONS } from '../../mock-data/transactions.mock';
+import { ReportResponse, SpendingReportResponse } from '../models/report.model';
 
 export interface MonthlyBalance {
   income: number;
@@ -33,97 +34,136 @@ export interface MonthlyTrendItem {
   providedIn: 'root'
 })
 export class TransactionService {
+  private http = inject(HttpClient);
+  private baseUrl = `${environment.apiUrl}/v1`;
+
   // Master transactions list signal
-  private transactions = signal<Transaction[]>([...MOCK_TRANSACTIONS]);
+  private transactions = signal<Transaction[]>([]);
 
   // Active (non-deleted) transactions
   readonly activeTransactions = computed(() =>
     this.transactions().filter(t => !t.isDeleted)
   );
 
+  private mapBackendTx(raw: any): Transaction {
+    const txnDate = raw.txnDate || raw.date || new Date().toISOString().split('T')[0];
+    const type: TransactionType = raw.categoryType || raw.type || 'EXPENSE';
+    return {
+      id: raw.id,
+      userId: raw.userId,
+      type,
+      categoryType: type,
+      amount: Number(raw.amount),
+      categoryId: raw.categoryId,
+      categoryName: raw.categoryName || 'General',
+      categoryIcon: raw.categoryIcon || 'tag',
+      categoryColor: raw.categoryColor || '#EAB308',
+      date: txnDate,
+      txnDate: txnDate,
+      description: raw.description || '',
+      source: raw.source || 'MANUAL',
+      recurringRuleId: raw.recurringRuleId,
+      isDeleted: raw.isDeleted || false,
+      deletedAt: raw.deletedAt,
+      createdAt: raw.createdAt,
+      recurringFrequency: raw.recurringFrequency || 'NONE'
+    };
+  }
+
   getTransactions(filter?: {
     type?: TransactionType;
-    categoryId?: string;
+    categoryId?: string | number;
+    from?: string;
+    to?: string;
     dateFrom?: string;
     dateTo?: string;
+    includeDeleted?: boolean;
   }): Observable<Transaction[]> {
-    let list = this.activeTransactions();
+    let params = new HttpParams();
+    const from = filter?.from || filter?.dateFrom;
+    const to = filter?.to || filter?.dateTo;
+    if (from) params = params.set('from', from);
+    if (to) params = params.set('to', to);
+    if (filter?.includeDeleted) params = params.set('includeDeleted', 'true');
 
-    if (filter) {
-      if (filter.type) {
-        list = list.filter(t => t.type === filter.type);
-      }
-      if (filter.categoryId && filter.categoryId !== 'ALL') {
-        list = list.filter(t => t.categoryId === filter.categoryId);
-      }
-      if (filter.dateFrom) {
-        list = list.filter(t => t.date >= filter.dateFrom!);
-      }
-      if (filter.dateTo) {
-        list = list.filter(t => t.date <= filter.dateTo!);
-      }
-    }
-
-    // Sort descending by date
-    const sorted = [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    return of(sorted);
+    return this.http.get<any[]>(`${this.baseUrl}/transactions`, { params }).pipe(
+      map(rawList => rawList.map(raw => this.mapBackendTx(raw))),
+      tap(txs => this.transactions.set(txs))
+    );
   }
 
   getRecentTransactions(limit = 10): Observable<Transaction[]> {
-    const sorted = [...this.activeTransactions()]
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, limit);
-    return of(sorted);
+    return this.getTransactions().pipe(
+      map(txs => txs.slice(0, limit))
+    );
   }
 
-  addTransaction(data: Omit<Transaction, 'id' | 'createdAt'>): Observable<Transaction> {
-    const newTx: Transaction = {
-      ...data,
-      id: `tx-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      isDeleted: false
+  getTransactionById(id: string | number): Observable<Transaction> {
+    return this.http.get<any>(`${this.baseUrl}/transactions/${id}`).pipe(
+      map(raw => this.mapBackendTx(raw))
+    );
+  }
+
+  addTransaction(data: {
+    categoryId: string | number;
+    amount: number;
+    date?: string;
+    txnDate?: string;
+    description: string;
+  }): Observable<Transaction> {
+    const payload = {
+      categoryId: Number(data.categoryId),
+      amount: Number(data.amount),
+      txnDate: data.txnDate || data.date || new Date().toISOString().split('T')[0],
+      description: data.description
     };
 
-    this.transactions.update(prev => [newTx, ...prev]);
-    return of(newTx);
-  }
-
-  updateTransaction(id: string, updates: Partial<Transaction>): Observable<Transaction> {
-    const list = this.transactions();
-    const idx = list.findIndex(t => t.id === id);
-    if (idx === -1) {
-      return throwError(() => new Error('Transaction not found'));
-    }
-
-    const updated: Transaction = { ...list[idx], ...updates };
-    this.transactions.update(prev => prev.map(t => t.id === id ? updated : t));
-    return of(updated);
-  }
-
-  /**
-   * Soft-deletes a transaction from visual presentation.
-   * NOTE: The record remains in audit history with `isDeleted: true`
-   * rather than a destructive hard SQL delete.
-   */
-  deleteTransaction(id: string): Observable<boolean> {
-    const list = this.transactions();
-    const target = list.find(t => t.id === id);
-    if (!target) {
-      return throwError(() => new Error('Transaction not found'));
-    }
-
-    // Mark as deleted in state
-    this.transactions.update(prev =>
-      prev.map(t => t.id === id ? { ...t, isDeleted: true } : t)
+    return this.http.post<any>(`${this.baseUrl}/transactions`, payload).pipe(
+      map(raw => this.mapBackendTx(raw)),
+      tap(newTx => this.transactions.update(prev => [newTx, ...prev]))
     );
-    return of(true);
   }
 
-  /**
-   * Computes balance for a given month (default: current month 2026-09)
-   */
+  updateTransaction(id: string | number, updates: {
+    categoryId?: string | number;
+    amount?: number;
+    date?: string;
+    txnDate?: string;
+    description?: string;
+  }): Observable<Transaction> {
+    const payload: any = {};
+    if (updates.categoryId !== undefined) payload.categoryId = Number(updates.categoryId);
+    if (updates.amount !== undefined) payload.amount = Number(updates.amount);
+    if (updates.txnDate || updates.date) payload.txnDate = updates.txnDate || updates.date;
+    if (updates.description !== undefined) payload.description = updates.description;
+
+    return this.http.patch<any>(`${this.baseUrl}/transactions/${id}`, payload).pipe(
+      map(raw => this.mapBackendTx(raw)),
+      tap(updated => {
+        this.transactions.update(prev => prev.map(t => String(t.id) === String(id) ? updated : t));
+      })
+    );
+  }
+
+  deleteTransaction(id: string | number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/transactions/${id}`).pipe(
+      tap(() => {
+        this.transactions.update(prev => prev.filter(t => String(t.id) !== String(id)));
+      })
+    );
+  }
+
+  restoreTransaction(id: string | number): Observable<Transaction> {
+    return this.http.post<any>(`${this.baseUrl}/transactions/${id}/restore`, {}).pipe(
+      map(raw => this.mapBackendTx(raw)),
+      tap(restored => {
+        this.transactions.update(prev => [restored, ...prev]);
+      })
+    );
+  }
+
   getMonthlyBalance(periodCode = '2026-09'): MonthlyBalance {
-    const monthTxs = this.activeTransactions().filter(t => t.date.startsWith(periodCode));
+    const monthTxs = this.activeTransactions().filter(t => (t.date || t.txnDate || '').startsWith(periodCode));
     let income = 0;
     let expense = 0;
 
@@ -140,115 +180,58 @@ export class TransactionService {
     return { income: roundedIncome, expense: roundedExpense, net, savingsRate };
   }
 
-  /**
-   * Computes category expense breakdown for donut/pie charts
-   */
   getCategoryBreakdown(periodCode?: string): Observable<CategoryBreakdownItem[]> {
-    let txs = this.activeTransactions().filter(t => t.type === 'EXPENSE');
-    if (periodCode) {
-      txs = txs.filter(t => t.date.startsWith(periodCode));
+    let params = new HttpParams();
+    if (periodCode && periodCode !== 'ALL_6M') {
+      params = params.set('month', periodCode);
     }
-
-    const totalExpense = txs.reduce((sum, t) => sum + t.amount, 0);
-    const categoryMap = new Map<string, CategoryBreakdownItem>();
-
-    for (const t of txs) {
-      if (!categoryMap.has(t.categoryId)) {
-        categoryMap.set(t.categoryId, {
-          categoryId: t.categoryId,
-          categoryName: t.categoryName,
-          categoryIcon: t.categoryIcon,
-          categoryColor: t.categoryColor,
-          total: 0,
-          percentage: 0,
-          transactionCount: 0
-        });
-      }
-      const item = categoryMap.get(t.categoryId)!;
-      item.total += t.amount;
-      item.transactionCount += 1;
-    }
-
-    const breakdown = Array.from(categoryMap.values()).map(item => ({
-      ...item,
-      total: Math.round(item.total * 100) / 100,
-      percentage: totalExpense > 0 ? Math.round((item.total / totalExpense) * 100) : 0
-    })).sort((a, b) => b.total - a.total);
-
-    return of(breakdown);
-  }
-
-  /**
-   * Computes 6-Month Income vs Expense Trend
-   */
-  get6MonthTrend(): Observable<MonthlyTrendItem[]> {
-    const months = [
-      { code: '2026-04', label: 'Apr 26' },
-      { code: '2026-05', label: 'May 26' },
-      { code: '2026-06', label: 'Jun 26' },
-      { code: '2026-07', label: 'Jul 26' },
-      { code: '2026-08', label: 'Aug 26' },
-      { code: '2026-09', label: 'Sep 26' }
-    ];
-
-    const result: MonthlyTrendItem[] = months.map(m => {
-      const txs = this.activeTransactions().filter(t => t.date.startsWith(m.code));
-      const income = txs.filter(t => t.type === 'INCOME').reduce((acc, t) => acc + t.amount, 0);
-      const expense = txs.filter(t => t.type === 'EXPENSE').reduce((acc, t) => acc + t.amount, 0);
-      return {
-        periodCode: m.code,
-        monthLabel: m.label,
-        income: Math.round(income),
-        expense: Math.round(expense),
-        net: Math.round(income - expense)
-      };
-    });
-
-    return of(result);
-  }
-
-  /**
-   * Computes daily spending for current month bar chart
-   */
-  getDailySpending(periodCode = '2026-09'): Observable<Array<{ day: string; amount: number }>> {
-    const txs = this.activeTransactions().filter(
-      t => t.date.startsWith(periodCode) && t.type === 'EXPENSE'
+    return this.http.get<ReportResponse>(`${this.baseUrl}/reports`, { params }).pipe(
+      map(rep => {
+        return (rep.categoryBreakdown || []).map(cb => ({
+          categoryId: String(cb.categoryId),
+          categoryName: cb.categoryName,
+          categoryIcon: cb.categoryIcon || 'tag',
+          categoryColor: cb.categoryColor || '#0EA5E9',
+          total: Number(cb.totalAmount),
+          percentage: cb.percentage ?? 0,
+          transactionCount: cb.txnCount
+        }));
+      }),
+      catchError(() => of([]))
     );
-
-    const dailyMap = new Map<string, number>();
-    for (let day = 1; day <= 24; day++) {
-      const dayStr = day < 10 ? `0${day}` : `${day}`;
-      dailyMap.set(dayStr, 0);
-    }
-
-    for (const t of txs) {
-      const dayPart = t.date.split('-')[2];
-      if (dailyMap.has(dayPart)) {
-        dailyMap.set(dayPart, (dailyMap.get(dayPart) || 0) + t.amount);
-      }
-    }
-
-    const res = Array.from(dailyMap.entries()).map(([day, amount]) => ({
-      day: `Sep ${day}`,
-      amount: Math.round(amount * 100) / 100
-    }));
-
-    return of(res);
   }
 
-  /**
-   * Batch imports parsed transactions from CSV
-   */
-  importBatch(importedList: Omit<Transaction, 'id' | 'createdAt'>[]): Observable<number> {
-    const now = Date.now();
-    const formatted: Transaction[] = importedList.map((item, index) => ({
-      ...item,
-      id: `tx-csv-${now}-${index}`,
-      createdAt: new Date().toISOString(),
-      isDeleted: false
-    }));
+  get6MonthTrend(): Observable<MonthlyTrendItem[]> {
+    return this.http.get<ReportResponse>(`${this.baseUrl}/reports`).pipe(
+      map(rep => {
+        return (rep.sixMonthTrend || []).map(st => {
+          const parts = st.periodMonth.split('-');
+          const monthNum = parseInt(parts[1], 10);
+          const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const label = `${monthNames[monthNum]} ${parts[0].slice(2)}`;
+          return {
+            periodCode: st.periodMonth,
+            monthLabel: label,
+            income: Math.round(st.totalIncome),
+            expense: Math.round(st.totalExpense),
+            net: Math.round(st.netAmount)
+          };
+        });
+      }),
+      catchError(() => of([]))
+    );
+  }
 
-    this.transactions.update(curr => [...formatted, ...curr]);
-    return of(formatted.length);
+  getDailySpending(periodCode = '2026-09'): Observable<Array<{ day: string; amount: number }>> {
+    let params = new HttpParams().set('type', 'DAILY');
+    return this.http.get<SpendingReportResponse>(`${this.baseUrl}/reports/spending`, { params }).pipe(
+      map(res => {
+        return (res.points || []).map(p => ({
+          day: p.label,
+          amount: Number(p.totalExpense)
+        }));
+      }),
+      catchError(() => of([]))
+    );
   }
 }

@@ -159,25 +159,36 @@ export class ForgotPasswordComponent {
   private route = inject(ActivatedRoute);
 
   step: ResetStep = 'request';
-  userEmail = 'alex.morgan@campus.edu';
-  token = 'token-mock-8842';
+  userEmail = 'an.nguyen@student.campuscoin.edu';
+  token = '';
   isLoading = false;
   resetSuccess = false;
+  errorMessage = '';
 
   requestForm = this.fb.group({
-    email: ['alex.morgan@campus.edu', [Validators.required, Validators.email]]
+    email: ['an.nguyen@student.campuscoin.edu', [Validators.required, Validators.email]]
   });
 
   resetForm = this.fb.group({
-    newPassword: ['', [Validators.required, Validators.minLength(6)]],
-    confirmNewPassword: ['', [Validators.required, Validators.minLength(6)]]
+    newPassword: ['', [Validators.required, Validators.minLength(8)]],
+    confirmNewPassword: ['', [Validators.required, Validators.minLength(8)]]
   });
 
   constructor() {
     this.route.queryParams.subscribe(params => {
       if (params['token']) {
         this.token = params['token'];
-        this.step = 'reset-token';
+        this.isLoading = true;
+        this.auth.verifyResetToken(this.token).subscribe({
+          next: () => {
+            this.isLoading = false;
+            this.step = 'reset-token';
+          },
+          error: (err) => {
+            this.isLoading = false;
+            this.errorMessage = err.error?.message || 'Invalid or expired reset token';
+          }
+        });
       }
     });
   }
@@ -187,9 +198,15 @@ export class ForgotPasswordComponent {
     this.isLoading = true;
     this.userEmail = this.requestForm.value.email!;
 
-    this.auth.requestPasswordReset(this.userEmail).subscribe(() => {
-      this.isLoading = false;
-      this.step = 'sent';
+    this.auth.requestPasswordReset(this.userEmail).subscribe({
+      next: () => {
+        this.isLoading = false;
+        this.step = 'sent';
+      },
+      error: () => {
+        this.isLoading = false;
+        this.step = 'sent';
+      }
     });
   }
 
@@ -201,13 +218,20 @@ export class ForgotPasswordComponent {
   onResetSubmit(): void {
     if (this.resetForm.invalid) return;
     this.isLoading = true;
+    const { newPassword, confirmNewPassword } = this.resetForm.value;
 
-    this.auth.resetPassword(this.token, this.resetForm.value.newPassword!).subscribe(() => {
-      this.isLoading = false;
-      this.resetSuccess = true;
-      setTimeout(() => {
-        this.router.navigate(['/auth/login']);
-      }, 1500);
+    this.auth.completePasswordReset(this.token, newPassword!, confirmNewPassword!).subscribe({
+      next: () => {
+        this.isLoading = false;
+        this.resetSuccess = true;
+        setTimeout(() => {
+          this.router.navigate(['/auth/login']);
+        }, 1500);
+      },
+      error: (err) => {
+        this.isLoading = false;
+        alert(err.error?.message || 'Password reset failed');
+      }
     });
   }
 }

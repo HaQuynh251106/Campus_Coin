@@ -7,6 +7,7 @@ export interface Category {
   icon: string;
   color: string;
   isDefault: boolean;
-  userId?: string;
+  userId?: string | null;
   description?: string;
+  isActive?: boolean;
 }

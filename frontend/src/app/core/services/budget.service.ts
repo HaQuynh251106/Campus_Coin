@@ -1,10 +1,8 @@
-import { Injectable, signal, inject } from '@angular/core';
-import { Observable, of, throwError } from 'rxjs';
-import { delay } from 'rxjs/operators';
+import { Injectable, inject, signal } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable, tap, map } from 'rxjs';
+import { environment } from '../../../environments/environment';
 import { Budget, BudgetAlertStatus } from '../models/budget.model';
-import { MOCK_BUDGETS } from '../../mock-data/budgets.mock';
-import { TransactionService } from './transaction.service';
-import { CategoryService } from './category.service';
 
 export interface BudgetAlertNotification {
   budgetId: string;
@@ -20,108 +18,122 @@ export interface BudgetAlertNotification {
   providedIn: 'root'
 })
 export class BudgetService {
-  private transactionService = inject(TransactionService);
-  private categoryService = inject(CategoryService);
+  private http = inject(HttpClient);
+  private baseUrl = `${environment.apiUrl}/v1/budgets`;
 
-  private budgetsList = signal<Budget[]>([...MOCK_BUDGETS]);
+  readonly budgets = signal<Budget[]>([]);
 
-  getBudgets(periodCode = '2026-09'): Observable<Budget[]> {
-    // Recompute live spent amount from transactions
-    const activeTxs = this.transactionService.activeTransactions();
-    const currentMonthTxs = activeTxs.filter(t => t.date.startsWith(periodCode) && t.type === 'EXPENSE');
-
-    const updated = this.budgetsList().map(b => {
-      const categorySpent = currentMonthTxs
-        .filter(t => t.categoryId === b.categoryId)
-        .reduce((sum, t) => sum + t.amount, 0);
-
-      const spent = Math.round(categorySpent * 100) / 100;
-      const ratio = b.monthlyLimit > 0 ? (spent / b.monthlyLimit) : 0;
-
-      let alertStatus: BudgetAlertStatus = 'SAFE';
-      if (ratio >= 1.0) {
-        alertStatus = 'DANGER';
-      } else if (ratio >= 0.8) {
-        alertStatus = 'WARNING';
-      }
-
-      return {
-        ...b,
-        spent,
-        alertStatus
-      };
-    });
-
-    return of(updated);
-  }
-
-  updateBudgetLimit(budgetId: string, newLimit: number): Observable<Budget> {
-    const list = this.budgetsList();
-    const target = list.find(b => b.id === budgetId);
-    if (!target) {
-      return throwError(() => new Error('Budget not found'));
+  private mapBackendBudget(raw: any): Budget {
+    let alertStatus: BudgetAlertStatus = 'SAFE';
+    if (raw.consumptionStatus === 'EXCEEDED' || raw.consumedPct >= 100) {
+      alertStatus = 'DANGER';
+    } else if (raw.consumptionStatus === 'WARNING' || raw.consumedPct >= 80) {
+      alertStatus = 'WARNING';
     }
 
-    const updated: Budget = {
-      ...target,
-      monthlyLimit: newLimit
+    return {
+      id: raw.id,
+      categoryId: raw.categoryId,
+      categoryName: raw.categoryName || 'Category',
+      categoryIcon: raw.categoryIcon || 'tag',
+      categoryColor: raw.categoryColor || '#0EA5E9',
+      categoryIsActive: raw.categoryIsActive,
+      monthlyLimit: Number(raw.limitAmount ?? raw.monthlyLimit ?? 0),
+      limitAmount: Number(raw.limitAmount ?? raw.monthlyLimit ?? 0),
+      spent: Number(raw.spentAmount ?? raw.spent ?? 0),
+      spentAmount: Number(raw.spentAmount ?? raw.spent ?? 0),
+      remainingAmount: Number(raw.remainingAmount ?? 0),
+      consumedPct: Number(raw.consumedPct ?? 0),
+      period: raw.periodMonth || raw.period || '2026-09',
+      periodMonth: raw.periodMonth || raw.period || '2026-09',
+      alertStatus,
+      consumptionStatus: raw.consumptionStatus || alertStatus,
+      createdAt: raw.createdAt
     };
-
-    this.budgetsList.update(curr => curr.map(b => b.id === budgetId ? updated : b));
-    return of(updated);
   }
 
-  addBudget(categoryId: string, monthlyLimit: number, periodCode = '2026-09'): Observable<Budget> {
-    const cat = this.categoryService.getCategoryById(categoryId);
-    const newBudget: Budget = {
-      id: `bgt-${Date.now()}`,
-      categoryId,
-      categoryName: cat?.name || 'Category',
-      categoryIcon: cat?.icon || 'tag',
-      categoryColor: cat?.color || '#0EA5E9',
-      monthlyLimit,
-      spent: 0,
-      period: periodCode,
-      alertStatus: 'SAFE'
-    };
+  getBudgets(periodMonth = '2026-09'): Observable<Budget[]> {
+    let params = new HttpParams();
+    if (periodMonth) {
+      params = params.set('month', periodMonth);
+    }
 
-    this.budgetsList.update(curr => [...curr, newBudget]);
-    return of(newBudget);
+    return this.http.get<any[]>(this.baseUrl, { params }).pipe(
+      map(rawList => rawList.map(raw => this.mapBackendBudget(raw))),
+      tap(list => this.budgets.set(list))
+    );
   }
 
-  getBudgetAlerts(periodCode = '2026-09'): Observable<BudgetAlertNotification[]> {
-    return new Observable(subscriber => {
-      this.getBudgets(periodCode).subscribe(budgets => {
+  getBudgetById(id: string | number): Observable<Budget> {
+    return this.http.get<any>(`${this.baseUrl}/${id}`).pipe(
+      map(raw => this.mapBackendBudget(raw))
+    );
+  }
+
+  addBudget(categoryId: string | number, limitAmount: number, periodMonth = '2026-09'): Observable<Budget> {
+    const payload = {
+      categoryId: Number(categoryId),
+      periodMonth,
+      limitAmount: Number(limitAmount)
+    };
+
+    return this.http.post<any>(this.baseUrl, payload).pipe(
+      map(raw => this.mapBackendBudget(raw)),
+      tap(newBgt => this.budgets.update(curr => [...curr, newBgt]))
+    );
+  }
+
+  updateBudgetLimit(budgetId: string | number, limitAmount: number): Observable<Budget> {
+    const payload = {
+      limitAmount: Number(limitAmount)
+    };
+
+    return this.http.patch<any>(`${this.baseUrl}/${budgetId}`, payload).pipe(
+      map(raw => this.mapBackendBudget(raw)),
+      tap(updated => {
+        this.budgets.update(curr => curr.map(b => String(b.id) === String(budgetId) ? updated : b));
+      })
+    );
+  }
+
+  deleteBudget(id: string | number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`).pipe(
+      tap(() => {
+        this.budgets.update(curr => curr.filter(b => String(b.id) !== String(id)));
+      })
+    );
+  }
+
+  getBudgetAlerts(periodMonth = '2026-09'): Observable<BudgetAlertNotification[]> {
+    return this.getBudgets(periodMonth).pipe(
+      map(budgets => {
         const alerts: BudgetAlertNotification[] = [];
-
         for (const b of budgets) {
-          const percent = Math.round((b.spent / b.monthlyLimit) * 100);
+          const percent = Math.round(b.consumedPct || (b.monthlyLimit > 0 ? (b.spent / b.monthlyLimit) * 100 : 0));
           if (b.alertStatus === 'DANGER') {
             alerts.push({
-              budgetId: b.id,
-              categoryName: b.categoryName,
+              budgetId: String(b.id),
+              categoryName: b.categoryName || 'Category',
               monthlyLimit: b.monthlyLimit,
               spent: b.spent,
               percent,
               status: 'DANGER',
-              message: `Over budget! You have spent $${b.spent} of your $${b.monthlyLimit} limit (${percent}%) on ${b.categoryName}.`
+              message: `Exceeded ${b.categoryName} budget! Spent $${b.spent} of $${b.monthlyLimit}`
             });
           } else if (b.alertStatus === 'WARNING') {
             alerts.push({
-              budgetId: b.id,
-              categoryName: b.categoryName,
+              budgetId: String(b.id),
+              categoryName: b.categoryName || 'Category',
               monthlyLimit: b.monthlyLimit,
               spent: b.spent,
               percent,
               status: 'WARNING',
-              message: `Heads up: You have reached ${percent}% of your monthly ${b.categoryName} budget ($${b.spent}/$${b.monthlyLimit}).`
+              message: `Approaching limit for ${b.categoryName}: ${percent}% spent ($${b.spent} of $${b.monthlyLimit})`
             });
           }
         }
-
-        subscriber.next(alerts);
-        subscriber.complete();
-      });
-    });
+        return alerts;
+      })
+    );
   }
 }

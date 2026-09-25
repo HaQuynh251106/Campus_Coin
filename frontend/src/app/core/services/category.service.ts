@@ -1,21 +1,53 @@
-import { Injectable, signal } from '@angular/core';
-import { Observable, of, throwError } from 'rxjs';
-import { delay, map } from 'rxjs/operators';
+import { Injectable, inject, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable, tap, map } from 'rxjs';
+import { environment } from '../../../environments/environment';
 import { Category, CategoryType } from '../models/category.model';
-import { MOCK_CATEGORIES } from '../../mock-data/categories.mock';
 
 @Injectable({
   providedIn: 'root'
 })
 export class CategoryService {
-  private categories = signal<Category[]>([...MOCK_CATEGORIES]);
+  private http = inject(HttpClient);
+  private baseUrl = `${environment.apiUrl}/v1/categories`;
+
+  readonly categories = signal<Category[]>([]);
+
+  private mapCategory(raw: any): Category {
+    return {
+      id: String(raw.id),
+      name: raw.name || 'Category',
+      type: raw.type,
+      icon: raw.icon || 'tag',
+      color: raw.color || '#EAB308',
+      isDefault: raw.isDefault || false,
+      userId: raw.userId ? String(raw.userId) : null,
+      description: raw.description,
+      isActive: raw.isActive !== false
+    };
+  }
 
   getCategories(): Observable<Category[]> {
-    return of(this.categories());
+    return this.http.get<any[]>(this.baseUrl).pipe(
+      map(list => list.map(raw => this.mapCategory(raw))),
+      tap(cats => this.categories.set(cats))
+    );
+  }
+
+  getCategoryById(id: string | number): Category | undefined {
+    return this.categories().find(c => String(c.id) === String(id));
+  }
+
+  fetchCategoryById(id: string | number): Observable<Category> {
+    return this.http.get<any>(`${this.baseUrl}/${id}`).pipe(
+      map(raw => this.mapCategory(raw))
+    );
   }
 
   getCategoriesByType(type: CategoryType): Observable<Category[]> {
-    return of(this.categories().filter(c => c.type === type));
+    return this.getCategories().pipe(
+      map(cats => cats.filter(c => c.type === type && c.isActive !== false))
+    );
   }
 
   getExpenseCategories(): Observable<Category[]> {
@@ -26,43 +58,38 @@ export class CategoryService {
     return this.getCategoriesByType('INCOME');
   }
 
-  getCategoryById(id: string): Category | undefined {
-    return this.categories().find(c => c.id === id);
+  addCategory(payload: {
+    name: string;
+    type: CategoryType;
+    icon?: string;
+    color?: string;
+    description?: string;
+  }): Observable<Category> {
+    return this.http.post<any>(this.baseUrl, payload).pipe(
+      map(raw => this.mapCategory(raw)),
+      tap(newCat => this.categories.update(curr => [...curr, newCat]))
+    );
   }
 
-  addCategory(categoryData: Omit<Category, 'id'>): Observable<Category> {
-    const newCategory: Category = {
-      ...categoryData,
-      id: `cat-usr-${Date.now()}`,
-      isDefault: false
-    };
-
-    this.categories.update(current => [...current, newCategory]);
-    return of(newCategory);
+  updateCategory(id: string | number, updates: {
+    name?: string;
+    icon?: string;
+    color?: string;
+    description?: string;
+  }): Observable<Category> {
+    return this.http.patch<any>(`${this.baseUrl}/${id}`, updates).pipe(
+      map(raw => this.mapCategory(raw)),
+      tap(updated => {
+        this.categories.update(curr => curr.map(c => String(c.id) === String(id) ? updated : c));
+      })
+    );
   }
 
-  updateCategory(id: string, updates: Partial<Category>): Observable<Category> {
-    const current = this.categories().find(c => c.id === id);
-    if (!current) {
-      return throwError(() => new Error('Category not found'));
-    }
-
-    const updated: Category = { ...current, ...updates };
-    this.categories.update(list => list.map(c => c.id === id ? updated : c));
-    return of(updated);
-  }
-
-  deleteCategory(id: string): Observable<boolean> {
-    const target = this.categories().find(c => c.id === id);
-    if (!target) {
-      return throwError(() => new Error('Category not found'));
-    }
-
-    if (target.isDefault) {
-      return throwError(() => new Error('Default system categories cannot be deleted'));
-    }
-
-    this.categories.update(list => list.filter(c => c.id !== id));
-    return of(true);
+  deleteCategory(id: string | number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`).pipe(
+      tap(() => {
+        this.categories.update(curr => curr.filter(c => String(c.id) !== String(id)));
+      })
+    );
   }
 }

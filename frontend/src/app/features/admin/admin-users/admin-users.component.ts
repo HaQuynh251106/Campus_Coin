@@ -1,7 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AuthService } from '../../../core/services/auth.service';
+import { AdminService } from '../../../core/services/admin.service';
 import { User } from '../../../core/models/user.model';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 
@@ -215,7 +215,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
   `
 })
 export class AdminUsersComponent implements OnInit {
-  private auth = inject(AuthService);
+  private adminService = inject(AdminService);
 
   users: User[] = [];
   searchQuery = '';
@@ -226,7 +226,7 @@ export class AdminUsersComponent implements OnInit {
     return this.users.filter(u => {
       const matchSearch =
         u.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-        u.studentId.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+        (u.studentId || '').toLowerCase().includes(this.searchQuery.toLowerCase()) ||
         u.email.toLowerCase().includes(this.searchQuery.toLowerCase());
 
       const matchStatus =
@@ -237,8 +237,27 @@ export class AdminUsersComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.auth.getAllUsers().subscribe(list => {
-      this.users = list;
+    this.loadUsers();
+  }
+
+  loadUsers(): void {
+    this.adminService.getUsers().subscribe(list => {
+      this.users = list.map(u => ({
+        id: u.id,
+        studentId: `STU-${u.id}`,
+        name: u.fullName,
+        email: u.email,
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
+        role: u.role,
+        university: 'Campus University',
+        major: 'General Studies',
+        academicYear: u.academicYear || 'Undergraduate',
+        monthlyAllowance: 0,
+        savingsGoal: 0,
+        settings: { darkMode: false, fontSize: 'medium', currency: '$' },
+        status: u.status,
+        joinedDate: u.createdAt ? u.createdAt.split('T')[0] : '2026-09-01'
+      }));
     });
   }
 
@@ -251,16 +270,26 @@ export class AdminUsersComponent implements OnInit {
     const actionLabel = nextStatus === 'DISABLED' ? 'disable' : 'activate';
 
     if (confirm(`Are you sure you want to ${actionLabel} account for ${user.name}?`)) {
-      this.auth.setUserStatus(user.id, nextStatus).subscribe(updated => {
-        user.status = updated.status;
+      this.adminService.setUserStatus(user.id, nextStatus).subscribe({
+        next: (updated) => {
+          user.status = updated.status;
+        },
+        error: (err) => {
+          alert(err.error?.message || 'Failed to update user status');
+        }
       });
     }
   }
 
   triggerPasswordReset(user: User): void {
-    if (confirm(`Send password reset security token to ${user.email}?`)) {
-      this.auth.requestPasswordReset(user.email).subscribe(() => {
-        alert(`Reset token successfully dispatched to ${user.email}`);
+    if (confirm(`Send password reset security link for ${user.email}?`)) {
+      this.adminService.sendPasswordReset(user.id).subscribe({
+        next: (res) => {
+          alert(res.message || `Password reset link dispatched for ${user.email}`);
+        },
+        error: (err) => {
+          alert(err.error?.message || 'Failed to send password reset');
+        }
       });
     }
   }

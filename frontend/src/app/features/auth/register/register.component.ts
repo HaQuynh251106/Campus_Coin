@@ -152,11 +152,11 @@ export class RegisterComponent {
   errorMessage = '';
 
   registerForm = this.fb.group({
-    name: ['', [Validators.required]],
+    name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
     email: ['', [Validators.required, Validators.email]],
     academicYear: ['Freshman (1st Year)', [Validators.required]],
     major: ['', [Validators.required]],
-    password: ['', [Validators.required, Validators.minLength(6)]],
+    password: ['', [Validators.required, Validators.minLength(8), Validators.maxLength(72)]],
     confirmPassword: ['', [Validators.required]]
   }, { validators: passwordMatchValidator });
 
@@ -171,19 +171,27 @@ export class RegisterComponent {
 
     const val = this.registerForm.value;
     this.auth.register({
-      name: val.name!,
+      fullName: val.name!,
       email: val.email!,
-      academicYear: val.academicYear!,
-      major: val.major!,
-      password: val.password!
+      password: val.password!,
+      confirmPassword: val.confirmPassword!
     }).subscribe({
       next: () => {
-        this.isLoading = false;
-        this.router.navigate(['/app/home']);
+        // Auto sign-in after successful registration
+        this.auth.login(val.email!, val.password!).subscribe({
+          next: () => {
+            this.isLoading = false;
+            this.router.navigate(['/app/home']);
+          },
+          error: () => {
+            this.isLoading = false;
+            this.router.navigate(['/auth/login']);
+          }
+        });
       },
       error: (err) => {
         this.isLoading = false;
-        this.errorMessage = err.message || 'Registration failed.';
+        this.errorMessage = err.error?.message || err.message || 'Registration failed. Check requirements (password min 8 chars with uppercase, lowercase and digit).';
       }
     });
   }

@@ -15,7 +15,6 @@ export const STUDENT_NAV_ITEMS: NavItem[] = [
 ];
 
 export const STUDENT_SIDEBAR_EXTRA_ITEMS: NavItem[] = [
-  { label: 'AI Insights', route: '/app/insights', icon: 'insights', badge: 'New' },
   { label: 'Categories', route: '/app/categories', icon: 'categories' },
   { label: 'Sitemap', route: '/sitemap', icon: 'map' }
 ];

@@ -307,12 +307,16 @@ export class CategoriesComponent implements OnInit {
     if (this.editingCategory) {
       this.categoryService.updateCategory(this.editingCategory.id, {
         name: this.modalName.trim(),
-        type: this.modalType,
         color: this.modalColor,
         description: this.modalDesc.trim()
-      }).subscribe(() => {
-        this.loadCategories();
-        this.closeModal();
+      }).subscribe({
+        next: () => {
+          this.loadCategories();
+          this.closeModal();
+        },
+        error: (err) => {
+          alert(err.error?.message || 'Failed to update category');
+        }
       });
     } else {
       this.categoryService.addCategory({
@@ -320,20 +324,24 @@ export class CategoriesComponent implements OnInit {
         type: this.modalType,
         icon: 'tag',
         color: this.modalColor,
-        description: this.modalDesc.trim(),
-        isDefault: false
-      }).subscribe(() => {
-        this.loadCategories();
-        this.closeModal();
+        description: this.modalDesc.trim()
+      }).subscribe({
+        next: () => {
+          this.loadCategories();
+          this.closeModal();
+        },
+        error: (err) => {
+          alert(err.error?.message || 'Failed to create category');
+        }
       });
     }
   }
 
-  deleteCategory(id: string): void {
+  deleteCategory(id: string | number): void {
     if (confirm('Are you sure you want to remove this category?')) {
       this.categoryService.deleteCategory(id).subscribe({
         next: () => this.loadCategories(),
-        error: (err) => alert(err.message)
+        error: (err) => alert(err.error?.message || err.message)
       });
     }
   }

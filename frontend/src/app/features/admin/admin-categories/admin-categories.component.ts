@@ -247,7 +247,6 @@ import { CategoryIconComponent } from '../../../shared/components/category-icon/
   `
 })
 export class AdminCategoriesComponent implements OnInit {
-  private categoryService = inject(CategoryService);
   private adminService = inject(AdminService);
 
   defaultCategories: Category[] = [];
@@ -260,8 +259,8 @@ export class AdminCategoriesComponent implements OnInit {
   newTipContent = '';
 
   ngOnInit(): void {
-    this.categoryService.getCategories().subscribe(cats => {
-      this.defaultCategories = cats.filter(c => c.isDefault);
+    this.adminService.getDefaultCategories().subscribe(cats => {
+      this.defaultCategories = cats;
     });
 
     this.adminService.getTipTemplates().subscribe(tips => {
@@ -298,9 +297,9 @@ export class AdminCategoriesComponent implements OnInit {
     });
   }
 
-  deleteTip(id: string): void {
-    if (confirm('Delete this tip template?')) {
-      this.adminService.deleteTipTemplate(id).subscribe(() => {
+  deleteTip(id: string | number): void {
+    if (confirm('Deactivate this tip template?')) {
+      this.adminService.updateTipTemplate(id, { isActive: false }).subscribe(() => {
         this.adminService.getTipTemplates().subscribe(t => (this.tipTemplates = t));
       });
     }
