@@ -3,6 +3,7 @@ package com.campuscoin.recurring.mapper;
 import org.springframework.stereotype.Component;
 
 import com.campuscoin.category.entity.Category;
+import com.campuscoin.common.crypto.EncryptionService;
 import com.campuscoin.recurring.dto.RecurringRuleResponse;
 import com.campuscoin.recurring.entity.RecurringRule;
 
@@ -18,9 +19,18 @@ import com.campuscoin.recurring.entity.RecurringRule;
  * as in {@code TransactionMapper}. {@code type} is read from {@link Category#getType()} rather than
  * from the rule's own copy of it, so the response describes the category's current type - which is
  * what BR-05 makes authoritative, and what the two triggers keep the copy in step with.
+ *
+ * <p><b>{@code description} is decrypted here</b> - the same boundary as {@code TransactionMapper},
+ * and the same tolerant read, so a rule written before encryption was enabled still reads back.
  */
 @Component
 public class RecurringRuleMapper {
+
+    private final EncryptionService encryptionService;
+
+    public RecurringRuleMapper(EncryptionService encryptionService) {
+        this.encryptionService = encryptionService;
+    }
 
     /**
      * UC-09: one rule as the client sees it.
@@ -38,7 +48,7 @@ public class RecurringRuleMapper {
                 category.getColor(),
                 category.getType(),
                 rule.getAmount(),
-                rule.getDescription(),
+                encryptionService.decryptStored(rule.getDescription()),
                 rule.getFrequency(),
                 rule.getIntervalCount(),
                 rule.getStartDate(),

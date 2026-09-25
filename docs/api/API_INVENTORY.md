@@ -495,6 +495,228 @@ admitting the role would let it read a named student's figures through a route n
 anyone — the same reasoning that guards `/api/v1/dashboard/**`. Administrator work on tip *templates*
 (UC-20) is a different table and lives under `/api/v1/admin/**` in module 11.
 
+## Module 10 — Bookmarks / Notes
+
+| # | Method | Endpoint | UC | Auth | Success | Module |
+|---|--------|----------|----|------|---------|--------|
+| 42 | GET | `/api/v1/bookmarks` | UC-19 | Bearer token, role `STUDENT` | `200` the saved items, newest first | Bookmarks / Notes |
+| 43 | POST | `/api/v1/bookmarks` | UC-19 | Bearer token, role `STUDENT` | `201` the saved item | Bookmarks / Notes |
+| 44 | PATCH | `/api/v1/bookmarks/{id}` | UC-19 | Bearer token, role `STUDENT` | `200` the saved item, with its note | Bookmarks / Notes |
+| 45 | DELETE | `/api/v1/bookmarks/{id}` | UC-19 | Bearer token, role `STUDENT` | `204` no body | Bookmarks / Notes |
+
+**Total: 4 endpoints.** No duplicates: no `/{id}` read, no `/note` sub-resource, and no change of
+target.
+
+The decisions worth recording, because each is the kind that quietly becomes a duplicate later:
+
+- **There are four endpoints because UC-19 has four acts in it** — B1 save, B2 note it, B3/B4 read the
+  list, B4 let it go — and no two of them is a restatement of another. `POST` and `GET` share one URL
+  because saving and listing are two views of one collection, exactly as `/categories` and `/budgets`
+  do. `PATCH /{id}` and `DELETE /{id}` share one URL because they are two different writes to one row.
+- **"Un-mark" is `DELETE`, not a flag.** UC-19 B4 is "let it go when it is no longer needed", and the
+  row's disappearance is that. A `PATCH {"isDeleted": true}` would add a column the schema does not
+  have and a state the list would then have to remember to filter.
+- **There is no `/bookmarks/{id}` read.** A saved entry is only ever shown as part of the list, which
+  the module orders by when things were saved (UC-19's postcondition is that the list is there later
+  and in the order the student made it). A bare `/{id}` would return the same row with none of the
+  ordering that gives it meaning — the same reasoning that keeps `/tips/{id}` out of module 9.
+- **There is no `/pin`, `/unpin` or `/star`.** VĐ-03 settled that "pin" and "bookmark" are different
+  acts on different rows: pinning is `user_tips.state = 'PINNED'`, it controls display order, and it
+  lives under `POST /api/v1/tips/{id}/state`. Bookmarking is this collection, it saves an item for
+  later, and it is removed here. Adding either act to the other's URL would be the overlap VĐ-03
+  exists to prevent.
+- **The note is edited with `PATCH`, not by removing and saving again.** Re-creating the entry would
+  give it a new `created_at`, move it to the top of a list ordered by when things were saved, and
+  re-fire `trg_bookmarks_before_update`, whose job is to make a bookmark's target unchangeable.
+  Verified by `BookmarksApiIT#editingANoteKeepsTheSavedTimeAndPlace`.
+- **A bookmark's target cannot be changed, and the request says so.** `UpdateBookmarkNoteRequest` has
+  exactly one field. `trg_bookmarks_before_update` re-checks that the target is the caller's, so a
+  route promising to re-point a bookmark would promise something the schema declines.
+- **Saving something already saved is `409 BOOKMARK_ALREADY_EXISTS`, not an idempotent success.**
+  `uk_bookmark_dedupe` makes it impossible; answering `201` with the existing row would tell the caller
+  a bookmark was made when none was, and would discard the `note` the request carried. The remedy is
+  named: the item is already in the list, and `PATCH` changes its note. The same treatment
+  `BudgetAlreadyExistsException` gives the same kind of collision for UC-13.
+- **Un-marking is idempotent (`204`, twice).** "It is not in my list" is the end state the caller
+  asked for, so a retry or two devices acting at once settle on it rather than reporting a failure —
+  the treatment a second logout gets. Verified by `BookmarksApiIT#unmarkingIsIdempotent`.
+- **A tip that is not the caller's answers the same `404` as a tip that does not exist.** BR-02 is the
+  trigger's (`trg_bookmarks_before_insert`), and its `45000` is reported exactly as the foreign key's
+  `23000` is, so the endpoint cannot be used to enumerate other students' tip identifiers one request
+  at a time (section 7.5). Verified by
+  `BookmarksApiIT#anotherStudentsTipIsIndistinguishableFromAMissingOne`.
+- **No endpoint takes a user id.** The account comes from the verified bearer token and every query is
+  bound with the caller's id, so reading another student's saved list is *impossible* rather than
+  refused (BR-02). Nothing on either write path loads a tip, so this module cannot make a second,
+  weaker decision about who owns the item it is saving.
+- **A dismissed tip stays in the saved list.** BR-14's dismissal rule is applied where the tips are
+  read; the saved list is a different question. Keeping an item and displaying it are different acts
+  (VĐ-03), and B4's remedy for an entry no longer wanted is un-marking it — which is a request only
+  the student can make. Filtering the row out here would remove something the student did not remove.
+  Verified by `BookmarksApiIT#aDismissedTipStaysInTheSavedList`.
+- **The `INSIGHT` branch is refused, not served, and the refusal names the reason.** `item_type` is
+  `ENUM('TIP','INSIGHT')` and UC-19 B1 says "a tip or an insight", but insights are **UC-17, inside
+  module 12, which is locked** — and `insights` has no read path anywhere in the repository: no view
+  in `db/02_views.sql`, no endpoint. `POST` therefore accepts `itemType` and answers `INSIGHT` with a
+  `400` field error naming UC-17, rather than exposing a locked module's contract or narrowing the
+  enum into a JSON parsing failure that would call a real column value "invalid". This is the same
+  treatment module 9 gives `LOW_SAVINGS_RATE`: the value exists in the schema and the module records
+  what it does not serve. Verified by `BookmarksApiIT#anInsightIsRefusedByName`; recorded as an open
+  blocker in [`OVERNIGHT_BLOCKERS.md`](../OVERNIGHT_BLOCKERS.md).
+- **The note is encrypted at rest.** `bookmarks.note` holds a Base64 AES-256-GCM envelope; the service
+  encrypts on write and the mapper decrypts on read, so a direct `SELECT` does not reveal what the
+  student typed. Verified at rest and through the API by
+  `BookmarksApiIT#aNoteIsCiphertextAtRestAndPlaintextThroughTheApi`, and against the log by
+  `#aNoteNeverReachesTheLog`. See [../SECURITY.md](../SECURITY.md) §12.
+
+**Administrators are refused here (`403`).** `/api/v1/bookmarks/**` requires the `STUDENT` role. A
+saved entry is the same readable prose about one student's spending that the tips rule protects, plus
+text the student typed, so admitting the role would let it reach a named student's private jottings
+through a route with no use case for them. There is no administrative counterpart at all — no view
+over `bookmarks` in `db/02_views.sql` and no UC-20…UC-23 operation on the table — so refusing the role
+costs nothing.
+
+See [bookmarks.md](bookmarks.md) for the full contract, including the frontend divergences.
+
+## Module 11 — Administration
+
+| # | Method | Endpoint | UC | Auth | Success | Module |
+|---|--------|----------|----|------|---------|--------|
+| 46 | GET | `/api/v1/admin/users` | UC-22 B1 | Bearer token, role `ADMIN` | `200` the accounts | Administration |
+| 47 | POST | `/api/v1/admin/users/{id}/status` | UC-22 B3 | Bearer token, role `ADMIN` | `200` the account, in its new state | Administration |
+| 48 | POST | `/api/v1/admin/users/{id}/password-reset` | UC-22 B4 | Bearer token, role `ADMIN` | `202` a message, never a token | Administration |
+| 49 | GET | `/api/v1/admin/categories` | UC-20 | Bearer token, role `ADMIN` | `200` the default categories | Administration |
+| 50 | POST | `/api/v1/admin/categories` | UC-20 | Bearer token, role `ADMIN` | `201` the category | Administration |
+| 51 | PATCH | `/api/v1/admin/categories/{id}` | UC-20 | Bearer token, role `ADMIN` | `200` the category | Administration |
+| 52 | GET | `/api/v1/admin/announcements` | UC-21 | Bearer token, role `ADMIN` | `200` every announcement | Administration |
+| 53 | POST | `/api/v1/admin/announcements` | UC-21 B1 | Bearer token, role `ADMIN` | `201` the announcement | Administration |
+| 54 | PATCH | `/api/v1/admin/announcements/{id}` | UC-21 B2 | Bearer token, role `ADMIN` | `200` the announcement, in its new state | Administration |
+| 55 | GET | `/api/v1/admin/tip-templates` | UC-21 | Bearer token, role `ADMIN` | `200` the templates | Administration |
+| 56 | POST | `/api/v1/admin/tip-templates` | UC-21 B3 | Bearer token, role `ADMIN` | `201` the template | Administration |
+| 57 | PATCH | `/api/v1/admin/tip-templates/{id}` | UC-21 B4 | Bearer token, role `ADMIN` | `200` the template | Administration |
+| 58 | GET | `/api/v1/admin/settings` | UC-23 / VĐ-05 | Bearer token, role `ADMIN` | `200` every setting | Administration |
+| 59 | PATCH | `/api/v1/admin/settings/{key}` | UC-23 / VĐ-05 | Bearer token, role `ADMIN` | `200` the setting, with its new value | Administration |
+| 60 | GET | `/api/v1/admin/stats` | UC-23 | Bearer token, role `ADMIN` | `200` one aggregate row | Administration |
+| 61 | GET | `/api/v1/admin/stats/top-categories` | UC-23 | Bearer token, role `ADMIN` | `200` the ranked categories | Administration |
+
+**Total: 16 endpoints.** No duplicates: no `PUT` and no `DELETE` anywhere, no `GET /admin/users/{id}`,
+no `/admin/audit-log`, no per-state `/activate` or `/deactivate` sub-resources, no search or filter
+parameters on 46, and no `/admin/insights/**`, `/admin/anomalies/**` or `/admin/ai/**`.
+
+The decisions worth recording, because each is the kind that quietly becomes a duplicate later:
+
+- **The database was already complete for this module, and that shapes every choice below.** All
+  eight administrative procedures exist, each calling `sp_require_admin` as its single authorisation
+  gate and writing its own `admin_audit_log` row; the four admin views exist. Module 11 adds **no
+  table, view, procedure or trigger** — the work is the endpoint set, the refusal classification, and
+  the "what must never leave the server" boundary. `git diff --stat -- db/` is empty, and that is a
+  review line rather than an accident.
+- **Every write is a `CALL`, never a `save`.** The application account holds direct table grants, so a
+  `JpaRepository#save` on `users` or `categories` would write the row while **bypassing
+  `sp_require_admin` and leaving no audit row**. `CategoryRepository`, `UserRepository` and
+  `SystemSettingRepository` are therefore read-only in this module, and each administrative write has
+  a `*ProcedureDao`. (`CategoryService` still legitimately uses `save` for *personal* rows — UC-20's
+  row belongs to nobody, which is what BR-06 guards.) This is also what preserves OB-005's claim: no
+  unaudited write path exists in the API.
+- **47 is `POST .../{id}/status`, not `PATCH .../{id} {status}`.** The write is a *transition* whose
+  side effects exceed the named column: `sp_set_user_status` revokes every open session with
+  `revoked_reason = 'ADMIN_DISABLE'` and bumps `token_version`, so a token issued before the disable
+  stops working immediately (BR-06). This is the shape `POST /notifications/{id}/read` and
+  `POST /tips/{id}/state` already use. It returns the account in its new state, which is why there is
+  no `GET /admin/users/{id}`.
+- **48 is not a duplicate of `POST /auth/password-reset/request`.** That one is public, addressed by
+  *email*, and answers identically whether the address exists (BR-04 anti-enumeration). This one is
+  ADMIN-only, addressed by *id*, answers `404` for a missing target (the caller is entitled to know),
+  and leaves an audit row. Same table, two use cases, two disclosure policies. The response never
+  carries the token: the raw link goes only to the notifier port, and the row stores a 64-hex
+  `token_hash`, exactly as the public route does.
+- **Reading a user list discloses whether an id exists, and that is intended here.** `404` on 47 and
+  48 tells an administrator which ids are real. Module 10 deliberately makes "not yours" and "does not
+  exist" look identical; the difference is who is asking. The disclosure is safe *only* while the
+  `hasRole("ADMIN")` rule stands ahead of every other rule in `SecurityConfig` — which is what
+  `AdminSecurityIT` asserts on all 16 routes.
+- **49 exists because no other route can serve it.** `GET /api/v1/categories` is `STUDENT`-only and
+  its `findVisibleToUser` merges the caller's own rows with the defaults; an administrator needs
+  exactly `user_id IS NULL`, which no student route returns.
+- **52 is not the dashboard's announcement slice.** `DashboardViewDao` reads
+  `v_active_announcements`, adds an `audience IN ('ALL','STUDENTS')` filter and drops `audience`. An
+  administrator must see `ADMINS` rows, inactive rows and out-of-window rows in order to toggle 54 —
+  reusing the view would be a duplicate capability with a wrong answer. 52 reads the table.
+- **54 writes `isActive` only.** `announcements` has no content-update procedure, while
+  `tip_templates` does have an upsert — the asymmetry is deliberate. Content is create-once; a typo is
+  fixed by posting a corrected notice and deactivating the old one. `UpdateAnnouncementRequest` has
+  exactly one field. This is also what keeps *every* administrative write on a procedure, and so
+  always behind `sp_require_admin` with an audit row.
+- **Tip-template `code` is immutable, and the silent path was the dangerous one.**
+  `sp_admin_upsert_tip_template`'s UPDATE branch does not touch `code`, so a `PATCH` carrying a
+  different one would **succeed and silently ignore it** — a client told "saved" while nothing moved.
+  The service loads the row first: a different code is `409 TIP_TEMPLATE_CODE_IMMUTABLE`; an equal one
+  is accepted as a no-op so a client can round-trip a full representation. A duplicate code on insert
+  is `409 TIP_TEMPLATE_CODE_TAKEN`, classified from `uk_tip_template_code` by constraint name.
+  Verified by `AdminTipTemplateApiIT#aDifferentCodeIsRefusedAndTheStoredCodeIsUnchanged`.
+- **`condition_params` is deliberately not exposed.** The schema does not document its meaning and
+  nothing in this build reads it; four of the seven seeded templates carry one. Publishing a JSON blob
+  nothing interprets would invite a client to depend on it. Recorded as a follow-up rather than
+  guessed at, and asserted absent at every depth by `AdminTipTemplateApiIT#theListPublishesExactlyTheDocumentedFields`.
+- **59 puts the key in the path, not the body**, so one setting occupies one URL and the allow-list is
+  discoverable from the routes alone. Six keys are adjustable
+  (`budget.near_threshold_pct`, `budget.exceeded_threshold_pct`, `insight.spike_threshold_pct`,
+  `insight.spike_baseline_months`, `tips.max_dashboard`, `auth.reset_token_ttl_minutes`); the other ten
+  answer `409 THRESHOLD_NOT_ADJUSTABLE`, and every row says which it is through its `adjustable` flag.
+  The range and shape checks are Java's; `sp_admin_set_threshold` keeps the authoritative allow-list.
+- **The two `insight.*` keys are adjustable, not locked.** An earlier reading held them to be
+  module-12 surfaces. They are not: `sp_generate_tips` reads `insight.spike_threshold_pct` to decide
+  BR-15's category-spike tip, and `v_category_spend_trend` joins both keys — that is UC-25/BR-15 spike
+  detection, **shipped in module 9** and pinned by `TipsRuleCoverageIT`. Refusing them would leave a
+  shipped behaviour permanently untunable, against VĐ-05. Module 12's own surfaces — the `insights`
+  table, UC-17 — have no settings key and no route here, and
+  `AdminStatsApiIT#theInsightsFigureIsTheTablesOwnCount` pins that: the statistic is the table's own
+  row count (three on a seeded database, because `db/06_demo.sql` calls `sp_generate_monthly_insight`
+  for three demo months) and nothing in this module moves it.
+- **60 and 61 stay separate** because they are two views of two shapes: `v_admin_usage_stats` is one
+  scalar aggregate row, `v_admin_top_categories` is a ranked list of every category. Merging would
+  nest a list in a scalar row or drop `category_id`. Both come from views; nothing is counted in Java.
+- **`v_admin_top_categories` has no `ORDER BY`, so the DAO supplies a total order** —
+  `txn_count DESC, total_amount DESC, category_id ASC`, with the id as final tie-break, or two equal
+  categories could swap between two identical calls. **No `LIMIT`**: the view's definition is every
+  category, unused ones included, which is the more useful answer for a review screen. Verified by
+  `AdminStatsApiIT#twoIdenticalCallsReturnTheSameOrder` and `#anUnusedCategoryStillAppears`.
+- **Reading is not a write here either.** 46, 49, 52, 55, 58, 60 and 61 are
+  `@Transactional(readOnly = true)` and touch only views, tables and the already-mapped
+  `SystemSetting` entity. Every `CALL` is plain `@Transactional`, because MySQL refuses any `CALL` on a
+  read-only connection.
+- **`AdminUserResponse` publishes eight fields and no more**: `id`, `email`, `fullName`, `role`,
+  `status`, `academicYear`, `lastLoginAt`, `createdAt`. `email` is published because the admin screens
+  list and search by it and the reset flow is addressed to it. `lastLoginAt` answers UC-23's notion of
+  an active user. `password_hash` (BR-01) and **`token_version`** are excluded structurally: the
+  projection record has no component for either. `token_version` is the entire security meaning of a
+  JWT's `tv` claim — publishing it would let an attacker decide whether a stolen token is still live.
+  `AdminSecurityIT` scans the raw JSON of every response for the forbidden key set.
+- **No response in this module carries a monetary amount or a student's own figures.** The two
+  statistics endpoints return `SUM`s over many students; 46 returns account metadata. Nothing here
+  is a per-student money read. See OB-013 for the plaintext-aggregate exposure those `SUM`s rest on —
+  a deferred decision this module serves rather than hides.
+- **`DELETE` is absent from the whole module, and each absence has a named reason.** There is no
+  `DELETE /admin/users/{id}` (VĐ-06: an administrator only *sends* a reset link; no procedure, no use
+  case), no delete for categories (retirement is `PATCH {isActive: false}`, the same answer BR-07 gets
+  in module 3), and no delete for announcements or tip templates (no procedures, and
+  `user_tips.tip_template_id` is `ON DELETE RESTRICT` — `LOW_SAVINGS_RATE` is legitimately
+  seeded-but-unused).
+- **`GET /admin/audit-log` does not exist.** UC-22 B5 requires the administrator to *log*, not to
+  view; there is no view over `admin_audit_log` in `db/02_views.sql` and no endpoint. The audit trail
+  is write-only from the application's side, and this is the owner decision recorded in the module
+  report.
+
+**Administrators are admitted, students are refused (`403`).** `/api/v1/admin/**` requires the
+`ADMIN` role, and `SecurityConfig`'s rule sits ahead of the student routes so a new endpoint added
+under this prefix inherits it. `AdminSecurityIT` asserts both directions — student token →
+`403 ACCESS_DENIED`, no token → `401 UNAUTHENTICATED` — over all 16 method+path pairs, so an endpoint
+added outside the rule fails a test rather than shipping an unguarded surface. `sp_require_admin`
+checks the role **and** an `ACTIVE` status in `users` on every write, so a token held by an
+administrator disabled after it was issued is refused by the database as well as by the filter.
+
+See [administration.md](administration.md) for the full contract.
+
 ### Non-API paths
 
 These are served for development and operations. They are not part of the application contract and
@@ -508,6 +730,11 @@ no frontend depends on them.
 
 ## Related documentation
 
+- [FRONTEND_API_GUIDE.md](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for a
+  frontend developer: base URL and environments, authentication, the Angular interceptors to
+  install, the common error contract, the data ownership rule, the full enum reference, the
+  per-module endpoint reference, the integration flows and the master quick-reference table of all
+  61 operations.
 - [authentication.md](authentication.md) — request and response contract for endpoints 1–7,
   including Angular integration notes.
 - [profile.md](profile.md) — request and response contract for endpoints 8–10, including Angular
@@ -532,4 +759,9 @@ no frontend depends on them.
   gets wrong.
 - [tips.md](tips.md) — request and response contract for endpoints 38–41, how a tip comes to exist and
   why reading never generates one, and the three rules the six templates apply.
+- [bookmarks.md](bookmarks.md) — request and response contract for endpoints 42–45, the VĐ-03
+  distinction between pinning and bookmarking, and why an insight is refused rather than saved.
+- [administration.md](administration.md) — request and response contract for endpoints 46–61, why
+  every write is a `CALL` to a procedure that audits itself, and the fields that must never leave the
+  server.
 - [../SECURITY.md](../SECURITY.md) — the security decisions behind these endpoints.

@@ -85,7 +85,7 @@ The response of every endpoint, and the request fields of the two write endpoint
 | `type` | string enum | **never accepted** | — | `categories.type` — derived, see §4 |
 | `amount` | number | required on create, optional on update | strictly greater than zero, at most two decimal places, at most 13 digits before the point | `transactions.amount` |
 | `txnDate` | string `YYYY-MM-DD` | required on create, optional on update | not in the future (BR-08) | `transactions.txn_date` |
-| `description` | string | optional | at most 255 characters after trimming, newlines permitted | `transactions.description` |
+| `description` | string | optional | at most 255 characters after trimming, newlines permitted | `transactions.description` — stored **encrypted**, see §14 |
 | `source` | string enum | **never accepted** | — | `transactions.source` — always `MANUAL` here |
 | `isDeleted` | boolean | **never accepted** | — | `transactions.is_deleted` |
 | `deletedAt` | string date-time | **never accepted** | — | `transactions.deleted_at` |
@@ -785,6 +785,8 @@ already returns them in the right order.
 | **No client-supplied flags** | The anomaly flags (UC-24) are unmapped on the entity, so no statement this module builds can write them. A client able to set `flagType` could mark its own record as reviewed |
 | **Role enforced server-side** | `/api/v1/transactions/**` requires `hasRole("STUDENT")`. An administrator is refused with `403`: the administrative read path is UC-21/UC-22 under `/api/v1/admin/**`, and letting an administrator through here would create a transaction owned by that administrator |
 | **No sensitive fields** | `TransactionMapper` is the single place that decides what leaves the server. `user_id`, the AI columns, the anomaly flags and the row timestamps are not mapped to the response |
+| **The description is encrypted at rest** | `TransactionService` writes `description` as a Base64 AES-256-GCM envelope and `TransactionMapper` decrypts it on the way out, so a direct `SELECT` on `transactions.description` reveals no text while the owner reads it normally. The **API contract is unchanged**: the request and response still carry plaintext, and no client ever sees or handles a key. `amount` is deliberately **not** encrypted — twelve of the fourteen views read it and MySQL cannot sum ciphertext — so a direct `SELECT` still reveals amounts (OB-013, `SECURITY.md` §12.5). The audit snapshot `transaction_history.new_values` inherits the ciphertext. Asserted by `descriptionIsCiphertextAtRestAndPlaintextThroughTheApi` and `plaintextDescriptionNeverReachesTheLog` |
+| **The plaintext description does not reach the log** | The service encrypts on the way in and the mapper decrypts on the way out, and neither logs a value. Asserted against the real log stream (the dev profile puts `com.campuscoin` at DEBUG) by `plaintextDescriptionNeverReachesTheLog`, which checks that neither the typed text nor the envelope appears |
 | **Disabled account** | Rejected by the token filter before the request reaches the controller, as `401 UNAUTHENTICATED` (BR-03) |
 | **Revoked session / stale token** | Rejected by the token filter on every request, as `401 UNAUTHENTICATED` (UC-02 B5) |
 | **No lost update** | `Transaction` is annotated `@DynamicUpdate`, so an UPDATE names only the changed columns. Without it a plain Hibernate UPDATE would also write back the `is_deleted` it read, silently un-deleting a record a concurrent request had just deleted |
@@ -847,6 +849,9 @@ leave it unverified.
 
 ## Related documentation
 
+- [FRONTEND_API_GUIDE.md](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for the
+  frontend: base URL, interceptors, the shared error contract, the enum reference and the master
+  table of all 61 operations
 - [API_INVENTORY.md](API_INVENTORY.md) — the authoritative endpoint list
 - [authentication.md](authentication.md) — how to obtain the token these endpoints need
 - [categories.md](categories.md) — module 3, whose `PATCH` semantics and `categoryId` rule this module follows

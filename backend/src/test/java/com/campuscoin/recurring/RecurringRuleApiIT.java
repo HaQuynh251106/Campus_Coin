@@ -1172,6 +1172,35 @@ class RecurringRuleApiIT extends AbstractMySqlIntegrationTest {
     }
 
     @Test
+    @DisplayName("UC-09: a posted transaction's description is readable through the API and still "
+            + "not plaintext on disk")
+    void postedTransactionDescriptionSurvivesTheScheduler() throws Exception {
+        String token = loginNewStudent();
+        Long categoryId = defaultCategoryId(DEFAULT_EXPENSE_NAME);
+        Long ruleId = createRule(token, categoryId, "12.00", "MONTHLY", today(),
+                optional("description", "Music streaming")).get("id").asLong();
+
+        postDue(today());
+        Long transactionId = generatedTransactionIds(ruleId).get(0);
+
+        // The scheduler runs inside MySQL, which cannot decrypt, so sp_post_recurring_transactions
+        // copies the RULE's envelope straight into the transaction rather than re-encrypting it.
+        // Two things must therefore hold at once:
+        //
+        //   1. it is still not plaintext - the procedure never had the plaintext to write; and
+        //   2. the student sees the right words, because the application decrypts the envelope
+        //      exactly once on the way out, whichever row it originated on.
+        //
+        // This is the OB-014 limitation and its repair, tested rather than asserted.
+        assertThat(columnInDatabase(transactionId, "transactions", "description"))
+                .isNotEqualTo("Music streaming");
+        assertThat(decryptField(columnInDatabase(transactionId, "transactions", "description")))
+                .isEqualTo("Music streaming");
+        assertThat(send(HttpMethod.GET, TRANSACTIONS_URL + "/" + transactionId, token, null)
+                .getBody()).contains("Music streaming");
+    }
+
+    @Test
     @DisplayName("BR-16: running the scheduler twice over the same period posts nothing the second time")
     void runningTwicePostsOneOccurrencePerPeriod() throws Exception {
         String token = loginNewStudent();

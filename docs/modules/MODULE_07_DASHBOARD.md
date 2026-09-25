@@ -428,7 +428,7 @@ non-determinism recorded under R above. No fixable security defect was left as a
 
 | Check | State |
 |---|---|
-| Endpoints match the inventory and Swagger | Yes — machine-checked by `OpenApiContractIT` (22 paths, 35 operations) |
+| Endpoints match the inventory and Swagger | Yes — machine-checked by `OpenApiContractIT` (22 paths, 35 operations, as the document stood when this module shipped; later modules add more) |
 | Every field traced to a documented requirement | Yes — §9, and [`docs/api/dashboard.md` §11](../api/dashboard.md#11-traceability) |
 | Validation with per-field errors using `field` | Not applicable — no input. Stated rather than omitted |
 | Ownership enforced server-side, structurally | Yes — no method at any layer takes a user id |

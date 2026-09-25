@@ -562,7 +562,7 @@ race. `readingAReportChangesNoState` covers idempotency — the property that do
 
 | Check | State |
 |---|---|
-| Endpoints match the inventory and Swagger | Yes — machine-checked by `OpenApiContractIT` (24 paths, 37 operations) |
+| Endpoints match the inventory and Swagger | Yes — machine-checked by `OpenApiContractIT` (24 paths, 37 operations, as the document stood when this module shipped; later modules add more) |
 | Every field traced to a documented requirement | Yes — §9, and [`docs/api/reports.md` §11](../api/reports.md#11-traceability) |
 | Validation with per-field errors using `field` | Yes — every refusal carries a field error naming the parameter, including all six of endpoint 37's |
 | Ownership enforced server-side, structurally | Yes — no method at any layer takes a user id |

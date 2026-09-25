@@ -128,4 +128,112 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
      * is the one already written in the trigger.
      */
     boolean existsByUserIdIsNullAndTypeAndName(CategoryType type, String name);
+
+    /**
+     * Every shared default category, for the administration screen (UC-20, module 11).
+     *
+     * <p>This is the one read in this interface written for an administrator rather than a student,
+     * and it lives here rather than in the administration package because it is a statement about
+     * {@code categories} and nothing else - the same reason {@link #findVisibleById} lives here. A
+     * second interface over the same table would be a second definition of the table's shape, and
+     * module 11 has no other reason to read {@code categories} in bulk.
+     *
+     * <p><b>Why UC-20 needs its own read.</b> {@link #findVisibleToUser} answers "what may this
+     * student choose from", which merges the shared rows with the caller's own. An administrator
+     * editing the shared ones needs exactly the opposite: only {@code user_id IS NULL}, with no
+     * caller's rows mixed in. Expressing that as a filter over the student read would be a
+     * duplicate capability with a different answer.
+     *
+     * <p>Retired rows are included, as in {@link #findVisibleToUser}: {@code is_active = false} is
+     * how BR-07 retires a category instead of deleting it, and a retired default is precisely one an
+     * administrator needs to find in order to bring back. The response carries {@code isActive}, so
+     * hiding them would make the flag unreachable.
+     *
+     * <p>Ordered by type, then {@code sort_order}, then id. The first two are the columns the
+     * student-facing list orders by, so both screens present the shared rows in the same sequence;
+     * id makes the order total, since {@code sort_order} is not unique and two equal rows could
+     * otherwise swap between two identical calls.
+     */
+    @Query("""
+            SELECT c FROM Category c
+             WHERE c.userId IS NULL
+             ORDER BY c.type ASC, c.sortOrder ASC, c.id ASC
+            """)
+    List<Category> findAllDefaults();
+
+    /**
+     * One shared default category, or empty when the id belongs to a student's own category or to
+     * nothing.
+     *
+     * <p>Used by UC-20's update path to read the row <em>back</em> after the write, so the response
+     * describes what the table holds rather than what the request asked for. That ordering matters:
+     * {@code sp_admin_upsert_default_category} writes through native SQL and Hibernate does not see
+     * it, so a category loaded from here <em>before</em> the call would be handed back unchanged
+     * afterwards - the persistence context returns the instance it already holds. The update path
+     * therefore pre-checks existence with {@link #findDefaultCategoryTypeById}, which answers a
+     * question rather than loading the row, and reaches this method only once the write has landed.
+     *
+     * <p>{@code user_id IS NULL} is the whole filter, and it is the authorisation-relevant part: an
+     * id belonging to a student's own category returns empty, so this method cannot be used to read
+     * a row that is not a default. BR-06 is what that protects, and having the predicate in the query
+     * rather than in a caller's assertion is the version of it that cannot be forgotten.
+     *
+     * <p>Accepts a retired row, because BR-07's remedy for a retired category is to set
+     * {@code isActive} back to true, which means an administrator must be able to read one.
+     */
+    @Query("""
+            SELECT c FROM Category c
+             WHERE c.id = :id AND c.userId IS NULL
+            """)
+    Optional<Category> findDefaultById(@Param("id") Long id);
+
+    /**
+     * The type of a shared default category, or empty when the id belongs to a student's own category
+     * or to nothing.
+     *
+     * <p>A scalar projection, not an entity read, and that is the point: UC-20's update path needs two
+     * facts <em>before</em> the write - does this default category exist, and what type does it have -
+     * and it needs the row <em>after</em> the write, to describe what was stored. Loading the entity
+     * first would put it in the persistence context, and the read-back would then return that same
+     * stale instance, because the procedure's {@code UPDATE} is native SQL that Hibernate never sees.
+     * Selecting one column hydrates nothing, so the read-back is the first time this request loads the
+     * row, and one query answers both questions.
+     *
+     * <p>The type is needed because it decides how a refusal is reported. If the request changes it,
+     * {@code trg_categories_before_update} refuses the write when any transaction, budget or recurring
+     * rule references the category - and it raises the same SQLSTATE 45000 that {@code sp_require_admin}
+     * and the procedure itself raise. Comparing the stored type with the requested one lets the service
+     * tell that case apart without matching anyone's prose, and it needs the stored value to do it.
+     *
+     * <p>{@code user_id IS NULL} is in the query, so an id belonging to a student's own category takes
+     * the same path as an id belonging to nothing - BR-06, and neither answer says which it was.
+     */
+    @Query("""
+            SELECT c.type FROM Category c
+             WHERE c.id = :id AND c.userId IS NULL
+            """)
+    Optional<CategoryType> findDefaultCategoryTypeById(@Param("id") Long id);
+
+    /**
+     * The shared default category of this type with this name, or empty when there is none.
+     *
+     * <p>The natural-key read-back for UC-20's create path. The procedure has no OUT parameter and
+     * writes its {@code admin_audit_log} row after the category row, so {@code LAST_INSERT_ID()}
+     * after the call reports the audit row's id, not the created category's - the created row has to
+     * be located by something unique about it instead. This pair is unique among default rows because
+     * {@code uk_categories_scope_type_name} says so, which is the same index that refuses a duplicate
+     * name, so the read cannot match one row that the insert did not just make.
+     *
+     * <p>An explicit query rather than a derived name, because the two predicates are
+     * {@code user_id IS NULL} and a name, and the derived form for a null-check plus an ordering plus
+     * a limiting keyword is a method name long enough to be misread. The SQL says the same thing in
+     * one line.
+     */
+    @Query("""
+            SELECT c FROM Category c
+             WHERE c.userId IS NULL AND c.type = :type AND c.name = :name
+             ORDER BY c.id ASC
+            """)
+    List<Category> findDefaultsByTypeAndName(@Param("type") CategoryType type,
+                                             @Param("name") String name);
 }

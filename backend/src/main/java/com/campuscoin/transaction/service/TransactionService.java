@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.campuscoin.auth.security.AuthenticatedUser;
 import com.campuscoin.category.entity.Category;
 import com.campuscoin.category.repository.CategoryRepository;
+import com.campuscoin.common.crypto.EncryptionService;
 import com.campuscoin.common.exception.ApiError;
 import com.campuscoin.common.exception.DataConflictException;
 import com.campuscoin.common.exception.NotFoundException;
@@ -98,15 +99,18 @@ public class TransactionService {
     private final TransactionProcedureDao procedureDao;
     private final CategoryRepository categoryRepository;
     private final TransactionMapper transactionMapper;
+    private final EncryptionService encryptionService;
 
     public TransactionService(TransactionRepository transactionRepository,
                               TransactionProcedureDao procedureDao,
                               CategoryRepository categoryRepository,
-                              TransactionMapper transactionMapper) {
+                              TransactionMapper transactionMapper,
+                              EncryptionService encryptionService) {
         this.transactionRepository = transactionRepository;
         this.procedureDao = procedureDao;
         this.categoryRepository = categoryRepository;
         this.transactionMapper = transactionMapper;
+        this.encryptionService = encryptionService;
     }
 
     /**
@@ -207,7 +211,7 @@ public class TransactionService {
                 category,
                 request.amount(),
                 request.txnDate(),
-                trimToNull(request.description()));
+                encryptionService.encrypt(trimToNull(request.description())));
 
         try {
             transactionRepository.saveAndFlush(transaction);
@@ -264,7 +268,7 @@ public class TransactionService {
             transaction.setTxnDate(request.txnDate());
         }
         if (request.description() != null) {
-            transaction.setDescription(trimToNull(request.description()));
+            transaction.setDescription(encryptionService.encrypt(trimToNull(request.description())));
         }
 
         try {

@@ -627,7 +627,7 @@ idempotent, so a delayed run produces correct tips later rather than wrong ones 
 
 | Check | State |
 |---|---|
-| Endpoints match the inventory and Swagger | Yes — machine-checked by `OpenApiContractIT` (28 paths, 41 operations) |
+| Endpoints match the inventory and Swagger | Yes — machine-checked by `OpenApiContractIT` (28 paths, 41 operations, as the document stood when this module shipped; module 10 adds the four bookmark routes) |
 | Every field traced to a documented requirement | Yes — §9, and [`docs/api/tips.md` §12](../api/tips.md#12-traceability) |
 | Validation with per-field errors using `field` | Yes — the month and the state each name their parameter |
 | Ownership enforced server-side, structurally | Yes — no method at any layer takes a user id |

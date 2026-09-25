@@ -295,7 +295,7 @@ you have already used owner B for another test, register a fresh student with
 - `200 OK` — **not `404`**, and not an error. A student with nothing to show has a valid, empty report.
 - `periodMonth` equals the current month in `+07:00` (e.g. `"2026-09"`).
 - `currency` is the account's own currency (a freshly registered student's is `"USD"` by default, or
-  whatever `PATCH /api/v1/profile` set — it is **not** a request parameter).
+  whatever `PATCH /api/v1/profile/me` set — it is **not** a request parameter).
 - **`totals` is present but empty: `"totals": {}`, with no `income`, `expense`, `net` or
   `transactionCount` keys.** This is the module's most-misread field. It means "this month has no
   records", which is **not** the same as `"income": 0.00` — that would claim the records were examined
@@ -944,9 +944,9 @@ another month.
   identical** to the same request without them. An ignored parameter is the correct outcome; a `200`
   returning another student's data would be a critical finding.
 - The OpenAPI document at `/api-docs` lists **exactly two** reports operations. This is machine-checked
-  by `OpenApiContractIT` (24 distinct paths, 37 operations overall), and the path count is asserted
-  deliberately — adding a route without adding it to `docs/api/API_INVENTORY.md` fails that test on
-  purpose.
+  by `OpenApiContractIT` (24 distinct paths, 37 operations overall as of module 8; the count grows as
+  later modules add routes), and the path count is asserted deliberately — adding a route without
+  adding it to `docs/api/API_INVENTORY.md` fails that test on purpose.
 
 **Result:** [ ] Pass   [ ] Fail
 

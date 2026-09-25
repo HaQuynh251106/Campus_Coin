@@ -689,7 +689,8 @@ constraint name, a trigger name or a driver message. Clean up the category from 
   recurring-rule case (refused by `fk_recurring_category`) are the same `409 CATEGORY_IN_USE` and
   would need modules 5 and 6 to set up; both are documented in `categories.md` §10.
 - **Administering a default category.** Deliberately absent here — it is UC-20 under
-  `/api/v1/admin/**`, module 11, which is not implemented in this repository.
+  `/api/v1/admin/**` (`GET`/`POST`/`PATCH /api/v1/admin/categories`), module 11, covered by
+  `MODULE_11_MANUAL_TEST.md`. This procedure tests only the student-facing module 3 route.
 - **A type filter and a `PUT`.** Deliberately absent: the list is filtered by the client, and
   `PATCH` is the only update method. There is no endpoint to test.
 

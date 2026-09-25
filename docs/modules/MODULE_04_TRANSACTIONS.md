@@ -409,3 +409,24 @@ every statement it issues, including a `CALL` to the soft-delete procedure. The 
 placeholders and no data is exposed, and suppressing it would mean disabling Hibernate's SQL logging
 altogether. The module's own lines are clean and that bound is stated in §5.3, in `transactions.md`
 and in the test's Javadoc.
+
+**Added after this module closed — application-level field encryption:**
+
+- **`transactions.description` now holds ciphertext at rest.** It is a Base64 AES-256-GCM envelope
+  written by `TransactionService` and decrypted by `TransactionMapper`, so a direct `SELECT` reveals
+  no text while the owner still reads their own description through the API. The `amount` column is
+  deliberately **not** encrypted — twelve of the fourteen views read an amount and MySQL cannot sum
+  ciphertext — and that gap is recorded as **OB-013**, not hidden.
+- The column was widened to `VARCHAR(2048) CHARACTER SET ascii COLLATE ascii_bin` (the envelope's
+  worst case; `ascii_bin` because Base64 is case-sensitive and a case-insensitive collation would
+  break the trigger's changed-field comparison). The entity still declares `length = 255`, which
+  describes the plaintext. See `DB_DESIGN.md` §4.12 and `SECURITY.md` §12.
+- The audit snapshot the trigger writes now carries the ciphertext, with no change to the trigger:
+  it copies the column, and the column is already an envelope. BR-09 remains atomic in the database.
+- **A read is tolerant of the rows that predate this change.** A value that is not a well-formed
+  envelope is returned unchanged and warned about once, because the demo seed and any existing
+  database still hold plaintext and SQL cannot produce an envelope. A tampered ciphertext still fails
+  authentication — the leniency applies only to values this build did not write.
+- Pinned by `descriptionIsCiphertextAtRestAndPlaintextThroughTheApi` (at rest, through the API, in
+  the snapshot, and distinct ciphertext for equal plaintext) and by
+  `plaintextDescriptionNeverReachesTheLog`, plus M4-23 in the manual procedure.

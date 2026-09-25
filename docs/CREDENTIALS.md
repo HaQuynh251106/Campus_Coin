@@ -96,6 +96,19 @@ Passwords are not written in this document. Copy `.env.example` to `.env` and fi
 
 ---
 
+## Application secrets
+
+The backend also needs two secrets of its own. Neither is a database account, and neither is written into this document; both are listed empty in `.env.example` and are ignored by `.gitignore` when filled in `.env`.
+
+| Secret | Used for | How to generate |
+|---|---|---|
+| `JWT_SECRET` | HS256 signing of access tokens | `openssl rand -base64 48` |
+| `CAMPUSCOIN_ENCRYPTION_KEY` | Application-level field encryption (AES-256-GCM) of `transactions.description`, `recurring_rules.description` and `bookmarks.note` | `openssl rand -base64 32` — must decode to exactly 32 bytes |
+
+> **`CAMPUSCOIN_ENCRYPTION_KEY` is a symmetric secret, not a private key.** It is never written to MySQL, never placed in a JWT and never sent to Angular. **Back it up:** data encrypted with one key cannot be read by a build configured with a different one, and losing it makes every encrypted description and note permanently unreadable. Do not derive it from `JWT_SECRET`. See `SECURITY.md` §12.
+
+---
+
 ## Demo accounts with preloaded data
 
 The student **Alex Nguyen** (`an.nguyen@student.campuscoin.edu`) is preloaded with data in `db/06_demo.sql` for an immediate demonstration:

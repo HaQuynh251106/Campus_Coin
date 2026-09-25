@@ -48,6 +48,29 @@ public abstract class AbstractMySqlIntegrationTest {
     protected static final String SEEDED_ADMIN_EMAIL = "admin@campuscoin.edu";
 
     /**
+     * The field-encryption key the context is started with.
+     *
+     * <p>The Base64 of {@code "0123456789abcdef0123456789abcdef"}: 32 ASCII bytes, exactly what
+     * AES-256 needs. Fixed rather than random so a test can decrypt a value another test wrote, and
+     * so an assertion on ciphertext is reproducible across runs. Test-only; never a real key.
+     */
+    protected static final String TEST_ENCRYPTION_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+
+    /**
+     * Decrypts a value read straight from an encrypted column, so a test can assert on the
+     * plaintext a student would see rather than on the envelope the database holds.
+     *
+     * <p>This is the mirror of {@code EncryptionService.encrypt}: the tests use the same key the
+     * application was given, which is the only way to prove the round trip really happened in the
+     * database rather than in a mock.
+     */
+    protected static String decryptField(String stored) {
+        return new com.campuscoin.common.crypto.EncryptionService(
+                new com.campuscoin.common.crypto.EncryptionProperties(TEST_ENCRYPTION_KEY, 1))
+                .decrypt(stored);
+    }
+
+    /**
      * One container for all subclasses. Starting a fresh MySQL per test class would multiply the
      * suite's runtime by the number of classes for no extra isolation: each test creates the rows
      * it needs and does not depend on the seed data staying untouched.
@@ -130,6 +153,15 @@ public abstract class AbstractMySqlIntegrationTest {
         registry.add("spring.datasource.hikari.connection-init-sql", () -> "SET time_zone = '+07:00'");
         registry.add("campuscoin.security.jwt.secret",
                 () -> "test-only-signing-key-of-at-least-thirty-two-bytes");
+        // The field-encryption key. Supplied here so the suite runs without any setup; it is a
+        // test-only value and never reaches a real deployment. It MUST decode to exactly 32 bytes,
+        // which is what AES-256 requires - a shorter placeholder would make every context fail at
+        // start-up, which is the behaviour EncryptionServiceTest asserts deliberately.
+        //
+        // The value is the Base64 of "0123456789abcdef0123456789abcdef" (32 ASCII bytes). It is
+        // fixed rather than random so that a test may decrypt a value another test wrote, and so
+        // that the ciphertext an IT asserts on is reproducible across runs.
+        registry.add("campuscoin.encryption.key", () -> TEST_ENCRYPTION_KEY);
         // The reset sink is written to a temporary file the test can read, so the flow can be
         // completed end to end exactly as a developer would. It never goes to the log.
         registry.add("campuscoin.security.password-reset.sink-enabled", () -> "true");

@@ -685,6 +685,9 @@ leaving it to an integration test would leave it unverified.
 
 ## Related documentation
 
+- [FRONTEND_API_GUIDE.md](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for the
+  frontend: base URL, interceptors, the shared error contract, the enum reference and the master
+  table of all 61 operations
 - [API_INVENTORY.md](API_INVENTORY.md) — the authoritative endpoint list
 - [authentication.md](authentication.md) — how to obtain the token these endpoints need
 - [profile.md](profile.md) — module 2, whose `PATCH` semantics this module follows

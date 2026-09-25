@@ -236,6 +236,10 @@ The reason: BR-09 requires change history to be preserved. If the log recorded o
 
 A history record captures all 16 business fields: `categoryId`, `type`, `amount`, `description`, `txnDate`, `source`, `aiSuggestedCategoryId`, `aiConfidence`, `aiOverridden`, `recurringRuleId`, `importBatchId`, `isFlagged`, `flagType`, `flagNote`, `isDeleted`, `deletedAt`.
 
+> **Since application-level field encryption:** the `description` inside the snapshot is now that
+> column's **ciphertext** — the trigger copies the column value, and `transactions.description` holds
+> an envelope. The other fifteen fields are unchanged. See §4.12 and `docs/SECURITY.md` §12.4.
+
 ### 4.10 The password reset token is consumed in a single statement
 
 BR-04 requires the token to be usable **once only**. A separate check would be unsafe: if the procedure read the token to check it ("still valid, not used") and then wrote the used state in a later step, two requests sending the same token at the same time could both pass the check before either wrote.
@@ -275,6 +279,54 @@ CAST(YEARWEEK(t.txn_date, 3) MOD 100 AS UNSIGNED) AS iso_week
 `week_start` is the actual Monday of that ISO week (`WEEKDAY()` = 0 on Monday), and it **can fall outside the month under consideration** — this is correct: the reporting unit is the ISO week, and a month boundary must not be allowed to split a week in two.
 
 > **Verification note:** this bug (1055) only shows up when the view is **queried**, not when it is **created** — MySQL accepts the definition and only refuses when the data is read. The verification step must therefore `SELECT` from each view, not just count whether they exist.
+
+### 4.12 Three free-text columns hold application-level ciphertext
+
+Three columns no longer hold what was typed into them. `transactions.description`,
+`recurring_rules.description` and `bookmarks.note` hold a **Base64 AES-256-GCM envelope** written by
+the application, and the database cannot read them. Full account in `docs/SECURITY.md` §12; what
+matters at the schema level:
+
+```text
+envelope = format(1) || keyVersion(1) || iv(12) || ciphertext+tag(n), then Base64
+```
+
+All three columns are therefore `VARCHAR(2048) CHARACTER SET ascii COLLATE ascii_bin`:
+
+- **`VARCHAR`, not `VARBINARY`**, because the envelope is Base64 and therefore pure ASCII. A
+  character column maps directly onto the entity's `String` field, which keeps `ddl-auto=validate`
+  meaningful; a binary column would have to be mapped as `byte[]` and encoded in Java at every
+  boundary for no benefit.
+- **`ascii_bin`, not the table default**, because Base64 is case-sensitive. Under a
+  case-insensitive collation two envelopes differing only in case would compare equal, which would
+  break the trigger's `OLD.description <=> NEW.description` changed-field check and make a real
+  edit look like no change.
+- **2048 characters** is the envelope's worst case for a 255-character note: 2 bytes of header,
+  12 of IV, 16 of tag and up to 4 Base64 characters per input byte, rounded up. Sized to the
+  column, not to the plaintext. The entity still declares `length = 255`, which describes the
+  plaintext the column accepts.
+
+**The audit trail follows automatically, and the trigger was not changed.** `trg_transactions_after_insert`
+and `trg_transactions_after_update` copy `NEW.description` into `JSON_OBJECT(...)` for the
+`transaction_history` snapshot. They now copy the column's ciphertext. That is a consequence of the
+column already holding an envelope at the moment the trigger fires, not a decision the trigger
+makes — and it is the desired outcome, because a trigger cannot encrypt (that would need the key
+inside MySQL) and BR-09 must keep the snapshot atomic with the change. `transaction_history` is an
+audit table with no HTTP read path; a direct `SELECT` on it shows the same ciphertext the
+transaction row holds.
+
+One procedure had to change. `sp_post_recurring_transactions` copies a rule's description into the
+posted transaction through a local variable that was `VARCHAR(255)`; an envelope needs up to 2048
+characters, so at the old width the value was truncated on fetch and **every** run failed with
+`Data too long for column 'v_desc'`. It is now `VARCHAR(2048)` and the envelope is copied through
+unchanged. See OB-014.
+
+**What did not change, and why.** No amount column was encrypted. MySQL has no AES-GCM and cannot be
+given the key, and twelve of the fourteen views read an amount — most by joining
+`v_monthly_income_expense` or `v_category_month_totals` — as do five procedures. An encrypted amount
+could not be summed, compared or ordered, so that work means moving the reporting tier into Java
+first; it is recorded as OB-013. `insights` and `import_rows` likewise stay in plaintext because
+their only writers are procedures belonging to the locked module 12 (OB-012).
 
 ---
 

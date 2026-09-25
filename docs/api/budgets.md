@@ -876,6 +876,9 @@ test would leave it unverified.
 
 ## Related documentation
 
+- [FRONTEND_API_GUIDE.md](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for the
+  frontend: base URL, interceptors, the shared error contract, the enum reference and the master
+  table of all 61 operations
 - [API_INVENTORY.md](API_INVENTORY.md) — the authoritative endpoint list
 - [authentication.md](authentication.md) — how to obtain the token these endpoints need
 - [categories.md](categories.md) — module 3, whose `categoryId` rule and retired-category behaviour this module inherits

@@ -111,7 +111,8 @@ erDiagram
     bigint id PK
     bigint user_id FK
     bigint category_id FK
-    decimal amount "> 0 (BR-08)"
+    decimal amount "> 0 (BR-08); NOT encrypted — see OB-013"
+    varchar description "holds AES-256-GCM ciphertext, not the typed text"
     date txn_date "not in the future (BR-08)"
     enum source "MANUAL | CSV | RECURRING"
     bigint ai_suggested_category_id FK "BR-13: default category or the student's own only"
@@ -134,6 +135,8 @@ erDiagram
     bigint user_id FK
     enum frequency "DAILY..YEARLY"
     smallint interval_count "every 2 weeks = 2"
+    varchar description "holds AES-256-GCM ciphertext, not the typed text"
+    decimal amount "NOT encrypted — see OB-013"
     date next_run_date
     enum status "ACTIVE | PAUSED | ENDED"
   }
@@ -186,6 +189,8 @@ erDiagram
 **Why `transactions` does NOT have a `type` column:** a transaction's type is exactly the type of the category it points at. Keeping a single source of truth (`categories.type`) makes BR-05 — "transaction type must match category type" — **impossible to violate**, rather than merely something detected when someone checks. The `TRANSACTION` sample table in SRS §1.6 also has no such column.
 
 Mandatory consequence: changing the `type` of a category that already has transactions would silently rewrite the whole reporting history (an expense becomes income). `trg_categories_before_update` therefore blocks that operation. The rule "once it has data, the type cannot change" is not in the SRS/Use Cases — it is a **design decision** to protect the correctness of historical data; to genuinely change the type, create a new category and move the transactions over.
+
+**Why two columns above hold ciphertext rather than what was typed:** `transactions.description` and `recurring_rules.description` contain a Base64 AES-256-GCM envelope written by the application, so a direct `SELECT` does not reveal the student's note. `amount` is deliberately **not** encrypted: twelve of the fourteen views read an amount, mostly by joining `v_monthly_income_expense` or `v_category_month_totals`, and MySQL cannot sum ciphertext — see `DB_DESIGN.md` §4.12, `SECURITY.md` §12 and blockers OB-013/OB-014. `bookmarks.note` is the third encrypted column (Group 4). The audit snapshot in `transaction_history` inherits the ciphertext, because the trigger copies the column value.
 
 **Why `recurring_rules` still keeps a `type` column:** a recurring rule is a configuration template and can be set up before any transaction exists, so it needs a place to compare against `categories.type` **at the moment it is created** — `trg_recurring_rules_before_insert/update` does that (UC-09).
 
@@ -276,7 +281,7 @@ erDiagram
     enum item_type "TIP | INSIGHT"
     bigint tip_id FK
     bigint insight_id FK
-    varchar note "VĐ-02"
+    varchar note "VĐ-02; holds AES-256-GCM ciphertext, not the typed text"
   }
   tip_templates |o--o{ user_tips : ""
   user_tips |o--o{ bookmarks : ""

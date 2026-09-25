@@ -90,7 +90,7 @@ The response of every endpoint, and the request fields of the two write endpoint
 | `categoryColor` | string | read-only | — | `categories.color` |
 | `type` | string enum | **never accepted** | — | `categories.type` — derived, see §4 |
 | `amount` | number | required on create, optional on update | strictly greater than zero, at most two decimal places, at most 13 digits before the point | `recurring_rules.amount` |
-| `description` | string | optional | at most 255 characters after trimming, newlines permitted | `recurring_rules.description` |
+| `description` | string | optional | at most 255 characters after trimming, newlines permitted | `recurring_rules.description` — stored **encrypted**, see §15 |
 | `frequency` | string enum | required on create, optional on update | one of `DAILY`, `WEEKLY`, `MONTHLY`, `QUARTERLY`, `YEARLY` | `recurring_rules.frequency` |
 | `intervalCount` | number | optional | at least 1, at most 999; defaults to `1` | `recurring_rules.interval_count` |
 | `startDate` | string `YYYY-MM-DD` | required on create, **never on update** | — | `recurring_rules.start_date` |
@@ -963,6 +963,7 @@ normalise the two, so send what the student chose rather than converting.
 | **No client-supplied creation state** | `status` is ignored on create and fixed at `ACTIVE`. A rule cannot be created already stopped, and there is no way to create one `ENDED` to hide it from the list |
 | **Role enforced server-side** | `/api/v1/recurring-rules/**` requires `hasRole("STUDENT")`. An administrator is refused with `403`: the scheduler posts on students' behalf and the seeded rules are read by the students who own them, so letting an administrator through here would create a rule owned by that administrator |
 | **No sensitive fields** | `RecurringRuleMapper` is the single place that decides what leaves the server. `user_id`, `day_of_month`, `day_of_week` and the row timestamps are not mapped to the response |
+| **The description is encrypted at rest** | `RecurringRuleService` writes `description` as a Base64 AES-256-GCM envelope and `RecurringRuleMapper` decrypts it on the way out, so a direct `SELECT` on `recurring_rules.description` reveals no text while the owner reads it normally. The **API contract is unchanged**: requests and responses still carry plaintext, and no client sees a key. The rule's `amount` is deliberately **not** encrypted — the procedure reads it and the views aggregate the transactions it generates — so a direct `SELECT` still reveals amounts (OB-013). Note that the scheduler copies this envelope into the posted transaction rather than re-encrypting: **OB-014**, pinned by `postedTransactionDescriptionSurvivesTheScheduler` |
 | **Disabled account** | Rejected by the token filter before the request reaches the controller, as `401 UNAUTHENTICATED` (BR-03) |
 | **Revoked session / stale token** | Rejected by the token filter on every request, as `401 UNAUTHENTICATED` (UC-02 B5) |
 | **No lost update** | `RecurringRule` is annotated `@DynamicUpdate`, so an UPDATE names only the changed columns. Without it a plain Hibernate UPDATE would also write back the `next_run_date` and `last_run_date` it read, so an edit that changed only the amount could rewind the scheduler's cursor — re-posting periods already posted, or skipping ones that were due |
@@ -1041,6 +1042,9 @@ test would leave it unverified.
 
 ## Related documentation
 
+- [FRONTEND_API_GUIDE.md](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for the
+  frontend: base URL, interceptors, the shared error contract, the enum reference and the master
+  table of all 61 operations
 - [API_INVENTORY.md](API_INVENTORY.md) — the authoritative endpoint list
 - [authentication.md](authentication.md) — how to obtain the token these endpoints need
 - [categories.md](categories.md) — module 3, whose `categoryId` rule and retired-category behaviour this module inherits

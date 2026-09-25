@@ -125,6 +125,64 @@ public enum ErrorCode {
      */
     BUDGET_ALREADY_EXISTS(HttpStatus.CONFLICT),
 
+    /**
+     * The item is already saved, so there is nothing to bookmark. UC-19 B1.
+     *
+     * <p>{@code uk_bookmark_dedupe} is the guarantee - its {@code dedupe_key} is
+     * {@code user_id|item_type|tip_id}, so the same tip cannot be saved twice by one student. This code
+     * exists so the collision is answered with something the caller can act on: the item is already in
+     * their list, and the remedies are to read that list or to edit the note on the entry already
+     * there. See {@link BookmarkAlreadyExistsException}.
+     */
+    BOOKMARK_ALREADY_EXISTS(HttpStatus.CONFLICT),
+
+    /**
+     * An administrator asked to disable their own account, and the system refuses it. UC-22 B3.
+     *
+     * <p>Not a field error - the status the caller sent is a valid one - and not a generic conflict,
+     * because the remedy is specific: another administrator has to do it. The database refuses this
+     * too ({@code sp_set_user_status} signals it), but the service answers first, because that
+     * procedure raises SQLSTATE 45000 for all three of its refusals and this is the only one the
+     * caller can distinguish by their own input. See {@link SelfDisableForbiddenException}.
+     */
+    SELF_DISABLE_FORBIDDEN(HttpStatus.CONFLICT),
+
+    /**
+     * The setting exists but is not one this API may change. UC-23, VĐ-05.
+     *
+     * <p>{@code system_settings} holds sixteen rows and {@code sp_admin_set_threshold} permits six of
+     * them. The rest are set for the deployment, are read by Java rather than by that procedure, or
+     * belong to a capability this build does not have - so a client that offered to edit one would be
+     * offering an edit the database refuses. {@code GET /api/v1/admin/settings} marks each row
+     * {@code adjustable} using the same list, so this code answers a request that ignored the flag.
+     * See {@link ThresholdNotAdjustableException}.
+     */
+    THRESHOLD_NOT_ADJUSTABLE(HttpStatus.CONFLICT),
+
+    /**
+     * A saving-tip template already uses this code. UC-21 B3.
+     *
+     * <p>{@code uk_tip_template_code} is the guarantee - a template's code is its identity, and
+     * {@code sp_generate_tips} and the seeded data both refer to templates by it. The collision is
+     * answered with something the caller can act on: choose another code, or edit the template that
+     * already has this one. See {@link TipTemplateCodeTakenException}.
+     */
+    TIP_TEMPLATE_CODE_TAKEN(HttpStatus.CONFLICT),
+
+    /**
+     * A tip template's {@code code} was sent with a different value, and a code cannot be changed.
+     * UC-21 B4.
+     *
+     * <p><b>Reported rather than ignored, because ignoring it is what the database would do.</b>
+     * {@code sp_admin_upsert_tip_template}'s update branch writes every editable column and does not
+     * write {@code code} at all, so a {@code PATCH} carrying a new one would succeed, change nothing,
+     * and tell the client "saved" - leaving them with a code that never moved. The service compares
+     * the stored code with the one sent and answers here instead. Sending the stored code unchanged is
+     * accepted, so a client can round-trip a full representation.
+     * See {@link TipTemplateCodeImmutableException}.
+     */
+    TIP_TEMPLATE_CODE_IMMUTABLE(HttpStatus.CONFLICT),
+
     /** The requested resource does not exist. */
     NOT_FOUND(HttpStatus.NOT_FOUND),
 

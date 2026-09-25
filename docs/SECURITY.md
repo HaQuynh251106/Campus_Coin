@@ -20,7 +20,7 @@ weaker copy tends to be the one that ends up protecting the data.
 9. [Secrets and configuration](#9-secrets-and-configuration)
 10. [401 vs 403, and error disclosure](#10-401-vs-403-and-error-disclosure)
 11. [Brute-force and flood protection](#11-brute-force-and-flood-protection)
-12. [No field-level encryption](#12-no-field-level-encryption)
+12. [Application-Level Field Encryption using AES-256-GCM](#12-application-level-field-encryption-using-aes-256-gcm)
 
 ---
 
@@ -426,35 +426,157 @@ volume, which is a useful signal that an attack is in progress.
 
 ---
 
-## 12. No field-level encryption
+## 12. Application-Level Field Encryption using AES-256-GCM
 
-**The schema is not modified to add encrypted columns, and the requirements forbid doing so.**
+**What this is.** A student's free-text fields are encrypted in the application before they reach
+MySQL, so a direct `SELECT` — through Adminer, a backup file, a replica, or a stolen data directory
+— does not reveal what the student wrote. The key never enters the database, so the database on its
+own is not enough to read the data.
 
-The reasoning, recorded so it is not "fixed" later by mistake:
+**What this is not.** It is not "database encryption" and not "encryption at rest" in the storage
+sense. MySQL holds ciphertext in ordinary columns; there is no tablespace or TDE involvement, and
+MySQL itself cannot read the values. The distinction matters: this protects against the database
+file leaking, and does nothing for a request that reaches the running API with a valid token.
 
-- **Passwords and tokens are already hashed**, which is the correct treatment for values the
-  server must verify but never read (§4, §5). Encryption would be *weaker* here: it is reversible,
-  so a stolen key yields the plaintext.
-- **AES-encrypting ordinary fields would break the schema's own logic.** Day/week/month views,
-  budget aggregations, unique keys and the stored procedures all read those columns directly. An
-  encrypted `amount` cannot be summed by MySQL, and an encrypted `email` cannot carry
-  `uk_users_email`. The application would have to decrypt the whole dataset in Java to compute
-  anything — the opposite of what the database layer is for.
-- **It would break `ddl-auto=validate`** the moment a column's type changed, which the entity
-  mapping would then have to misrepresent.
-- **What actually protects data at rest** is disk or tablespace encryption (InnoDB tablespace
-  encryption, or an encrypted volume, both transparent to SQL and to the schema) together with the
-  access controls already in place: the application connects as a limited account, not root, and
-  exposed ports are not published in production.
+### 12.1 The mechanism
 
-Field-level encryption would therefore add complexity, break the database logic, and defend
-against a narrower threat than the mechanism already available at the storage layer.
+`EncryptionService` (`com.campuscoin.common.crypto`) is the only place that touches the cipher.
+
+| Property | Value |
+|---|---|
+| Algorithm | AES-256-GCM, authenticated encryption (`AES/GCM/NoPadding`) |
+| Key | 32 bytes from `CAMPUSCOIN_ENCRYPTION_KEY`, Base64 — a **symmetric secret**, not a private key |
+| IV | 12 bytes, drawn fresh from `SecureRandom` on **every** encrypt call |
+| Tag | 128-bit, verified on decrypt; a modified ciphertext throws instead of returning data |
+| Envelope | `format(1) ‖ keyVersion(1) ‖ iv(12) ‖ ciphertext+tag(n)`, Base64-encoded |
+
+**Why a fresh random IV each time is the security-critical part.** GCM fails catastrophically if a
+key/IV pair is ever reused: the keystream repeats and an attacker holding two ciphertexts under the
+same nonce can recover the XOR of their plaintexts and forge a tag. The IV is therefore never
+derived from the plaintext, the row id, or a counter, and is never accepted from a caller.
+`EncryptionServiceTest` asserts that two encryptions of the same value differ, and that 200
+encryptions yield 200 distinct IVs.
+
+**Why GCM and not CBC.** GCM authenticates as well as encrypts. A CBC value altered in the database
+would decrypt to attacker-influenced plaintext; here it fails authentication and throws.
+
+### 12.2 What is encrypted, and where
+
+The rule applied was *"encrypt free text that no SQL statement reads; leave everything MySQL has to
+reason about."* A column was encrypted only if no view, procedure or trigger filters, joins or
+aggregates it.
+
+| Column | Status | Why |
+|---|---|---|
+| `transactions.description` | **Encrypted** | Free text. No `WHERE`, `SUM` or `ORDER BY` anywhere. |
+| `recurring_rules.description` | **Encrypted** | Same. |
+| `bookmarks.note` (UC-19, M10) | **Encrypted** | Same; the module is implemented against the encrypted column. |
+| `transaction_history.old_values` / `new_values` | **Not encrypted — see 12.4** | The snapshot includes `amount`, which is not encrypted. |
+| `transactions.amount`, `recurring_rules.amount` | **Not encrypted — see 12.5** | Eleven views and six procedures aggregate them. |
+| `budget_alert_log.spent_amount` / `limit_amount` | **Not encrypted — see 12.5** | Written by `sp_check_budget_alerts` from `SUM(amount)`. |
+| `insights.summary_text` / `advice_text` / `flagged_categories`, `import_rows.parsed_description` | **Not encrypted — see 12.5** | Written only by procedures belonging to the locked M12 surface; no Java read path exists. |
+| `insights.total_income` / `total_expense` / `net_amount`, `import_rows.parsed_amount` | **Not encrypted — see 12.5** | Amounts, computed and compared by the procedures that write them. |
+| All identifiers, foreign keys, ownership columns, dates, enums, flags | **Not encrypted** | Deliberately. They are operational metadata that must stay queryable; encrypting them would break the keys and ownership checks the schema depends on. |
+| `categories.description`, `announcements.body`, `tip_templates.title_template` / `body_template` | **Not encrypted** | Not personal student data — content authored by the student or an administrator, and read by SQL that would otherwise have to move into Java. |
+
+Decision recorded as OB-013 (deferred amounts) and OB-012 (locked-module residual exposure).
+
+### 12.3 Where encryption happens
+
+Encryption sits at the **service boundary**, not on the entity:
+
+- **Write:** `TransactionService` / `RecurringRuleService` call `encryptionService.encrypt(...)`
+  immediately before the entity is stored. An entity therefore holds ciphertext for the span of one
+  request and nothing else can persist a plaintext value.
+- **Read:** `TransactionMapper` / `RecurringRuleMapper` call `decryptStored(...)` while building the
+  response, so plaintext exists only on the way out to the authenticated owner.
+- **No JPA `AttributeConverter`.** A converter would put the key inside the entity lifecycle and
+  silently affect every query, including the ones that must keep seeing raw column values. The
+  boundary is explicit instead, and a new read path that forgets to decrypt is visible in review
+  rather than hidden in a mapping.
+- **No decryption in Angular.** The browser never sees a key and never decrypts. It receives
+  plaintext over TLS for the values its owner is allowed to see — nothing more than before, and the
+  same authorization applies.
+
+### 12.4 The audit trail (BR-09)
+
+`transaction_history` is written by `trg_transactions_after_insert` / `..._after_update`, which run
+in MySQL. A trigger cannot encrypt — that would require the key inside the database, which is
+forbidden — so the triggers are left to copy the column values verbatim. Because
+`transactions.description` is already ciphertext at the point the trigger fires, the snapshot
+inherits the envelope with no change to the trigger at all.
+
+- **BR-09 still holds.** The history row is still written by the database, in the same transaction
+  as the change, so atomicity is unchanged.
+- **The snapshot does not leak the note.** A direct `SELECT` on `transaction_history` shows the same
+  ciphertext the transaction row holds.
+- `transaction_history` has **no HTTP read path**; it is an audit table, read by direct SQL only.
+  Were an endpoint added, it would decrypt through the same service.
+
+The columns were changed from `JSON` to a Base64 string inside `JSON` only in the sense that the
+*value* is now an envelope; the column type stayed `JSON`, and the envelope is a JSON string. This
+was chosen over `VARBINARY` because a character column maps directly onto the entity's `String`
+field, which keeps `ddl-auto=validate` meaningful.
+
+### 12.5 What is deliberately NOT encrypted (and why)
+
+**Amounts.** MySQL has no AES-GCM and cannot be given the key, so an encrypted `amount` could not be
+`SUM()`-ed, compared or ordered by *any* view or stored procedure. **Twelve of the fourteen views**
+read it, most of them indirectly, through `v_monthly_income_expense` or `v_category_month_totals`:
+`v_monthly_income_expense`, `v_monthly_income_expense_6m`, `v_category_month_totals`,
+`v_category_spend_trend`, `v_top_category_current_month`, `v_dashboard_summary`,
+`v_budget_consumption`, `v_daily_spending_current_month`, `v_weekly_spending_current_month`,
+`v_user_recent_activity`, `v_admin_usage_stats` and `v_admin_top_categories`. Only
+`v_active_announcements` and `v_dashboard_tips` are unaffected. **Five procedures** touch it:
+`sp_check_budget_alerts`, `sp_generate_tips`, `sp_generate_monthly_insight`,
+`sp_post_recurring_transactions` and `sp_apply_csv_batch`.
+
+Encrypting amounts would mean moving the entire reporting tier — modules 6, 7, 8, 9 and 11, across
+34 Java files — into the application layer first. Two shortcuts were explicitly rejected:
+
+- **Storing plaintext as well** (a second `amount` column) would defeat the purpose outright.
+- **Deterministic encryption** to make `SUM` work is not possible — MySQL cannot sum ciphertext in
+  any mode — and a deterministic scheme would leak equality between equal amounts.
+
+This is recorded as **OB-013**, to be done as its own piece of work with its own approval. Until
+then, stated plainly: **a direct `SELECT` on `transactions` still reveals amounts.**
+
+**Values owned by the locked M12 surface** (`insights`, `import_rows`) are written only by
+procedures belonging to features that are not built. Encrypting them now would mean rewriting those
+procedures, which is implementing a locked module by the back door. Recorded as **OB-012**.
+
+### 12.6 Key management
+
+- The key comes from `CAMPUSCOIN_ENCRYPTION_KEY` only. There is **no default**, and the application
+  **refuses to start** if it is missing, not valid Base64, or not exactly 32 bytes —
+  `EncryptionService.decodeKey` throws `IllegalStateException` from the constructor.
+- The key is never logged, never returned in a response, never placed in a JWT, never written to
+  MySQL, and never sent to Angular.
+- The failure messages name the variable and the problem, never the key or any plaintext.
+- **Key rotation is not implemented.** The `keyVersion` byte exists in the envelope so a future
+  rotation can identify which key wrote a row; today a value from a different key version is
+  refused loudly rather than misread. See "Outstanding before production" below.
+
+### 12.7 The transition from existing plaintext
+
+The project has no migration tool it can run in place (see §13 of the encryption brief): the schema
+is rebuilt from `db/merged/campuscoin_full.sql`, and SQL cannot produce an envelope because a
+`DEFAULT` cannot call an application cipher. A rebuilt or existing database therefore still contains
+plaintext descriptions until each row is rewritten.
+
+`decryptStored` handles this: a value that is not a well-formed envelope is returned unchanged and a
+single warning naming the situation (never the value) is logged. Rows the application wrote are
+still authenticated on read — leniency applies only to values this build did not write, so a
+tampered ciphertext still throws.
+
+**Operators re-encrypt by rewriting the rows** (any `PATCH` through the API re-encrypts that row),
+or by recreating the data. Demo/seed rows written by `06_demo.sql` hold plaintext until edited.
 
 ---
 
 ## Summary of verification
 
-Every claim above that can be checked by machine is checked by the test suite (214 tests, all
+Every claim above that can be checked by machine is checked by the test suite (535 tests, all
 passing):
 
 | Claim | Test |
@@ -475,6 +597,15 @@ passing):
 | A student cannot use the admin portal or admin routes | `AdminAuthApiIT` |
 | Ownership is enforced by the query, for every id-addressed verb | `CategoryApiIT`, `TransactionApiIT` |
 | Concurrent writes cannot both report success | `TransactionApiIT` |
+| An encrypted column holds ciphertext, not the plaintext, when read directly | `TransactionApiIT` |
+| A description is plaintext through the API to its owner and ciphertext at rest | `TransactionApiIT` |
+| The audit snapshot carries the ciphertext, never the plaintext | `TransactionApiIT` |
+| A value posted by the recurring scheduler stays readable end to end | `RecurringRuleApiIT` |
+| Two encryptions of the same value differ (fresh IV), and 200 encryptions yield 200 IVs | `EncryptionServiceTest` |
+| A tampered ciphertext, a wrong key or a different key version is refused | `EncryptionServiceTest` |
+| A missing, malformed or wrong-length key stops start-up | `EncryptionServiceTest` |
+| A value written before encryption existed still reads back unchanged | `EncryptionServiceTest`, `TransactionApiIT` |
+| The plaintext description never reaches the log, and neither does the envelope | `TransactionApiIT` (`plaintextDescriptionNeverReachesTheLog`) |
 
 ## Outstanding before production
 
@@ -489,4 +620,16 @@ These are deployment tasks, not code defects, and none is in this module's scope
    permitted for local use and are the only operational paths left open; `/actuator/metrics` and
    the rest of `/actuator/**` now require a token. `health` publishes only the summary status
    (`show-details: never`), so it discloses nothing internal.
-6. **Enable InnoDB tablespace encryption** if data-at-rest protection is required (§12).
+6. **Set `CAMPUSCOIN_ENCRYPTION_KEY` from the same secret manager as `JWT_SECRET`**, and back it
+   up. Losing it makes every encrypted description and bookmark note permanently unreadable — there
+   is no recovery path that does not involve the key. Do not reuse an existing key from elsewhere
+   and do not derive it from `JWT_SECRET`.
+7. **Re-encrypt the rows that predate encryption.** The seed and any existing database hold
+   plaintext descriptions until each row is rewritten (§12.7). Confirm the transitional warning has
+   stopped appearing in the log before treating the migration as finished.
+8. **Implement key rotation before the first key is retired.** The envelope carries a `keyVersion`
+   byte and this build refuses a value stamped with a version it does not hold, so a rotation needs
+   a decrypt-with-old / re-encrypt-with-new pass that does not exist yet (§12.6).
+9. **Enable InnoDB tablespace encryption** (or an encrypted volume) as well. That is a different
+   layer and still worth having: it protects the tables this design deliberately leaves in the clear
+   (§12.5), and it costs the schema nothing.

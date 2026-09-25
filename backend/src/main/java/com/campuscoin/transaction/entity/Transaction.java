@@ -100,6 +100,19 @@ public class Transaction {
     @Column(name = "amount", nullable = false)
     private BigDecimal amount;
 
+    /**
+     * The student's free-text note. As stored, and therefore as held on the entity, this is the
+     * <em>ciphertext</em> - a Base64 AES-256-GCM envelope, not the words the student typed.
+     *
+     * <p>Encryption happens at the service boundary, not here: {@code TransactionService} encrypts
+     * before the row is written and {@code TransactionMapper} decrypts on the way out, so nothing
+     * outside those two sees an entity holding ciphertext for longer than a single request. A JPA
+     * {@code AttributeConverter} would have put the key inside the entity lifecycle and quietly
+     * affected every query, which is why there is none (section 10 of the encryption brief).
+     *
+     * <p>{@code length = 255} describes the plaintext the column accepts; the column itself is
+     * {@code VARCHAR(2048)} because the envelope is larger than the text it protects.
+     */
     @Column(name = "description", length = 255)
     private String description;
 

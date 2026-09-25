@@ -80,7 +80,27 @@ class OpenApiContractIT extends AbstractMySqlIntegrationTest {
             "GET /api/v1/tips",
             "GET /api/v1/tips/months",
             "POST /api/v1/tips/generate",
-            "POST /api/v1/tips/{id}/state");
+            "POST /api/v1/tips/{id}/state",
+            "GET /api/v1/bookmarks",
+            "POST /api/v1/bookmarks",
+            "PATCH /api/v1/bookmarks/{id}",
+            "DELETE /api/v1/bookmarks/{id}",
+            "GET /api/v1/admin/users",
+            "POST /api/v1/admin/users/{id}/status",
+            "POST /api/v1/admin/users/{id}/password-reset",
+            "GET /api/v1/admin/categories",
+            "POST /api/v1/admin/categories",
+            "PATCH /api/v1/admin/categories/{id}",
+            "GET /api/v1/admin/announcements",
+            "POST /api/v1/admin/announcements",
+            "PATCH /api/v1/admin/announcements/{id}",
+            "GET /api/v1/admin/tip-templates",
+            "POST /api/v1/admin/tip-templates",
+            "PATCH /api/v1/admin/tip-templates/{id}",
+            "GET /api/v1/admin/settings",
+            "PATCH /api/v1/admin/settings/{key}",
+            "GET /api/v1/admin/stats",
+            "GET /api/v1/admin/stats/top-categories");
 
     /**
      * Endpoints that must stay reachable without a token. Each is either a sign-in step - nobody
@@ -205,23 +225,82 @@ class OpenApiContractIT extends AbstractMySqlIntegrationTest {
                 "/api/v1/tips/{id}/dismiss", "/api/v1/tips/export", "/api/v1/tips/history",
                 "/api/v1/tips/current");
 
-        // Twenty-eight distinct paths for forty-one operations, and the difference is not an
-        // accident. Nine paths carry more than one method: the four collections /categories,
-        // /transactions, /recurring-rules and /budgets each serve GET and POST (list and create are
-        // one resource, so they are one URL); /profile/me serves GET and PATCH; and the four
-        // {@code {id}} paths /categories/{id}, /transactions/{id}, /recurring-rules/{id} and
-        // /budgets/{id} each serve GET, PATCH and DELETE. That is 22 operations on 9 paths, leaving
-        // 19 single-method paths - 41 in all. The two report paths and the three single-method tip
-        // paths are among the nineteen: each serves one method and no other, because a report is
-        // read and never written and a tip's month, its months list and its generator are three
-        // distinct reads-or-actions rather than one resource seen two ways. The fourth tip path,
-        // /tips/{id}/state, is a POST sub-resource rather than a PATCH of a field, for the reason
-        // /notifications/{id}/read is: the state change writes the state and the timestamp beside it
-        // together, and which pair is written depends on the state. Shared paths, not duplicated
-        // endpoints: a POST to /categories and a GET of /categories are the same resource viewed two
-        // ways, whereas /tips/{id}/state and a hypothetical /tips/{id} are two operations - and the
-        // second deliberately does not exist.
-        assertThat(paths).hasSize(28);
+        // A saved item is reached on its own collection, and its note is a PATCH of a field on the
+        // {@code {id}} path rather than a /note sub-resource: a bookmark has exactly one field a
+        // student may change, and one field is what PATCH already means - the same shape
+        // /categories/{id} and /budgets/{id} use. There is no change of target: what a bookmark
+        // points at is what it is, and the update trigger refuses to move it, so a route that
+        // promised to would be promising something the schema declines. There is no /pin: pinning a
+        // tip is a different act on a different table, under /tips/{id}/state (VĐ-03).
+        assertThat(paths).doesNotContain("/api/v1/bookmarks/all", "/api/v1/bookmarks/list",
+                "/api/v1/bookmarks/saved", "/api/v1/bookmarks/my-bookmarks",
+                "/api/v1/profile/me/bookmarks", "/api/v1/bookmarks/{id}/note",
+                "/api/v1/bookmarks/{id}/pin", "/api/v1/bookmarks/{id}/unpin",
+                "/api/v1/bookmarks/{id}/insights");
+
+        // The administration surface is reached under /admin, and every one of its operations is
+        // there - so an alias under the student paths would be a second name for a route that
+        // already exists. There is no PUT anywhere: every writable resource in the module has a
+        // PATCH, and each of the procedures behind them is an "upsert" or a "set one thing", so a
+        // PUT would promise a whole-representation replace the database does not perform. There is
+        // no DELETE either, and the reasons differ per resource: VĐ-06 gives an administrator no way
+        // to delete an account at all (the reset link is the whole of that use case), and categories,
+        // announcements and tip templates are withdrawn with `isActive: false` rather than removed,
+        // because a template's history in `user_tips` restricts deletion and a retired default
+        // category may still have students' records filed against it (BR-07). Activation is a
+        // PATCH of the flag, not a /activate sub-resource, for the reason /tips/{id}/state is one
+        // path and not three: active and inactive are one column with two values, and a second URL
+        // would be a second name for one write. There is no GET /admin/users/{id} because the two
+        // writes on that collection already return the row they changed, and no GET /admin/audit-log
+        // because UC-22 B5 requires every administrative write to be logged, not to be browsable -
+        // no view exists over the table. There is no /admin/insights, /admin/anomalies or /admin/ai
+        // of any shape: those are module 12's, which is locked, so no route, no settings key and no
+        // schema here may name them.
+        assertThat(paths).doesNotContain("/api/v1/admin/users/{id}",
+                "/api/v1/admin/users/{id}/disable", "/api/v1/admin/users/{id}/enable",
+                "/api/v1/admin/users/{id}/reset-password", "/api/v1/admin/users/{id}/password",
+                "/api/v1/admin/users/{id}/role", "/api/v1/admin/audit-log",
+                "/api/v1/admin/audit", "/api/v1/admin/logs",
+                "/api/v1/admin/categories/{id}/retire", "/api/v1/admin/categories/{id}/activate",
+                "/api/v1/admin/categories/defaults",
+                "/api/v1/admin/announcements/{id}/activate",
+                "/api/v1/admin/announcements/{id}/deactivate",
+                "/api/v1/admin/announcements/{id}/publish",
+                "/api/v1/admin/tip-templates/{id}/activate",
+                "/api/v1/admin/tip-templates/{id}/deactivate",
+                "/api/v1/admin/settings/all", "/api/v1/admin/settings/list",
+                "/api/v1/admin/thresholds",
+                "/api/v1/admin/stats/categories", "/api/v1/admin/stats/usage",
+                "/api/v1/admin/insights", "/api/v1/admin/anomalies", "/api/v1/admin/ai");
+
+        // Forty-three distinct paths for sixty-one operations, and the difference is not an accident.
+        // Fourteen paths carry more than one method: the eight collections /categories,
+        // /transactions, /recurring-rules, /budgets, /bookmarks, /admin/categories,
+        // /admin/announcements and /admin/tip-templates each serve GET and POST (list and create are
+        // one resource, so they are one URL); /profile/me serves GET and PATCH; the four {@code {id}}
+        // paths /categories/{id}, /transactions/{id}, /recurring-rules/{id} and /budgets/{id} each
+        // serve GET, PATCH and DELETE; and /bookmarks/{id} serves PATCH and DELETE only, because a
+        // saved item is read as part of the list and a route returning one on its own would be a
+        // second way to read the same row with none of the ordering the list carries. That is
+        // 26 operations on the eleven of those that existed before module 11, plus 6 on its three
+        // collections - 32 operations on 14 paths, leaving 29 single-method paths and 61 in all. The
+        // two report paths and the four single-method tip paths are among the twenty-nine: each
+        // serves one method and no other, because a report is read and never written and a tip's
+        // month, its months list and its generator are three distinct reads-or-actions rather than
+        // one resource seen two ways. The fourth tip path, /tips/{id}/state, is a POST sub-resource
+        // rather than a PATCH of a field, for the reason /notifications/{id}/read is: the state
+        // change writes the state and the timestamp beside it together, and which pair is written
+        // depends on the state. Module 11's two status changes follow the same rule and are POST
+        // sub-resources for it - /admin/users/{id}/status writes the status, the session
+        // revocations and `token_version` together, and /admin/users/{id}/password-reset writes a
+        // token row and sends a message, which is not a field of the user at all. Its ten remaining
+        // paths are single-method: /admin/settings/{key} and the three {@code {id}} PATCH paths are
+        // written and never read on their own (their lists serve the reads), and /admin/stats,
+        // /admin/stats/top-categories and the two collection GETs are read and never written.
+        // Shared paths, not duplicated endpoints: a POST to /admin/categories and a GET of
+        // /admin/categories are the same resource viewed two ways, whereas /tips/{id}/state and a
+        // hypothetical /tips/{id} are two operations - and the second deliberately does not exist.
+        assertThat(paths).hasSize(43);
     }
 
     @Test
@@ -288,7 +367,10 @@ class OpenApiContractIT extends AbstractMySqlIntegrationTest {
         assertThat(responseSchemas).contains("ProfileResponse", "AuthResponse", "ApiError",
                 "CategoryResponse", "TransactionResponse", "RecurringRuleResponse",
                 "BudgetResponse", "NotificationResponse", "DashboardResponse", "ReportResponse",
-                "SpendingSeriesResponse", "TipListResponse", "TipResponse", "TipMonthsResponse");
+                "SpendingSeriesResponse", "TipListResponse", "TipResponse", "TipMonthsResponse",
+                "BookmarkResponse", "AdminUserResponse", "AnnouncementResponse",
+                "TipTemplateResponse", "SystemSettingResponse", "AdminUsageStatsResponse",
+                "AdminTopCategoryResponse", "AdminPasswordResetResponse");
 
         for (String name : responseSchemas) {
             JsonNode properties = schemas.at("/" + name + "/properties");
@@ -729,6 +811,264 @@ class OpenApiContractIT extends AbstractMySqlIntegrationTest {
         // `categoryId` is nullable. The savings-goal tip and the "not enough data yet" tip are about
         // the month as a whole, so a client must be able to tell "no category" from "category 0".
         assertThat(schemas.at("/TipResponse/properties/categoryId").isMissingNode()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Section 13 phase 7: the bookmark contract has the documented shape")
+    void bookmarkSchemasMatchTheDocumentedContract() throws Exception {
+        JsonNode document = openApiDocument();
+        JsonNode schemas = document.at("/components/schemas");
+
+        // Ten fields, and the tip's own words travel with the saved entry: UC-19's postcondition is
+        // that a marked item can be looked at again later, so the client renders the card from this
+        // one response rather than resolving a tip id per row. `userId` is absent for the usual
+        // reason - the query already applied ownership - and it matters more than usual here because
+        // an entry is advice about one student's spending plus a note they wrote.
+        assertThat(fieldNames(schemas, "BookmarkResponse")).containsExactlyInAnyOrder(
+                "id", "itemType", "tipId", "tipTitle", "tipBody", "tipPotentialSaving",
+                "tipState", "tipMonth", "note", "createdAt");
+        assertThat(fieldNames(schemas, "BookmarkResponse"))
+                .doesNotContain("userId", "user_id", "insightId", "insight_id", "createdBy",
+                        "dedupeKey", "dedupe_key", "rankScore", "rank_score", "categoryId",
+                        "tipCategoryId", "updatedAt", "deletedAt");
+
+        // The request names the item by kind and id, which is how the schema's own CHECK reads the
+        // pair: `item_type` selects which of `tip_id` / `insight_id` must be set. A field called
+        // `tipId` would say the endpoint is about tips while accepting `INSIGHT`.
+        assertThat(fieldNames(schemas, "CreateBookmarkRequest"))
+                .containsExactlyInAnyOrder("itemType", "itemId", "note");
+        assertThat(fieldNames(schemas, "CreateBookmarkRequest"))
+                .doesNotContain("userId", "user_id", "tipId", "insightId", "createdAt",
+                        "dedupeKey", "dedupe_key");
+
+        // The note edit is one field, because the note is the only part of a bookmark UC-19 lets a
+        // student change. A body able to set `tipId` would be offering to move a bookmark onto a
+        // different item, which `trg_bookmarks_before_update` exists to refuse; `createdAt` is the
+        // database's and is what the list orders by.
+        assertThat(fieldNames(schemas, "UpdateBookmarkNoteRequest")).containsExactlyInAnyOrder("note");
+        assertThat(fieldNames(schemas, "UpdateBookmarkNoteRequest"))
+                .doesNotContain("itemType", "itemId", "tipId", "insightId", "userId", "id",
+                        "createdAt");
+
+        // Both `itemType` and `tipState` are published as their member names, so the vocabulary is
+        // discoverable from Swagger without reading the database.
+        //
+        // `itemType` advertises `INSIGHT` because the column holds it and this build refuses it where
+        // the reason can be explained - a narrowed enum would turn that request into a JSON parsing
+        // failure whose message says the value is invalid, which is both untrue and unhelpful. The
+        // request and the response must publish the same two members, since both are typed by the one
+        // `BookmarkItemType`; that only `TIP` is ever written or returned is the service's rule, and
+        // `BookmarksApiIT` pins it.
+        assertThat(enumValues(schemas, "CreateBookmarkRequest", "itemType"))
+                .containsExactlyInAnyOrder("TIP", "INSIGHT");
+        assertThat(enumValues(schemas, "BookmarkResponse", "itemType"))
+                .isEqualTo(enumValues(schemas, "CreateBookmarkRequest", "itemType"));
+        assertThat(enumValues(schemas, "BookmarkResponse", "tipState"))
+                .containsExactlyInAnyOrder("NEW", "PINNED", "DISMISSED");
+
+        // There is no schema that could re-point a bookmark and none that could create a tip. Both
+        // would be capabilities the module deliberately does not have.
+        for (String forbidden : new String[] {"UpdateBookmarkRequest", "CreateBookmarkNoteRequest",
+                "BookmarkNoteRequest", "MoveBookmarkRequest", "CreateInsightRequest"}) {
+            assertThat(schemas.has(forbidden))
+                    .as("%s must not exist: a bookmark's target is what it is", forbidden)
+                    .isFalse();
+        }
+
+        // `note` is nullable - a bookmark without one is the ordinary case - and `tipId` is nullable
+        // because the projection reads the joined tip as nullable. A client must be able to tell "no
+        // note" from "an empty note", which is why the field is omitted rather than sent blank.
+        assertThat(schemas.at("/BookmarkResponse/properties/note").isMissingNode()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Section 13 phase 7: the administration contract has the documented shape")
+    void adminSchemasMatchTheDocumentedContract() throws Exception {
+        JsonNode document = openApiDocument();
+        JsonNode schemas = document.at("/components/schemas");
+
+        // Eight fields. The exclusion list is the load-bearing part of this schema rather than the
+        // inclusion list: `password_hash` and `token_version` are the two columns an account row
+        // carries that must never leave the server, and `token_version` is the subtler of them - it is
+        // the entire security meaning of a JWT's `tv` claim, so publishing it would let an attacker
+        // decide whether a stolen token is still live. `monthly_allowance_baseline`,
+        // `monthly_savings_goal`, `theme_preference`, `font_scale` and `ai_enabled` are absent for the
+        // other reason: UC-22 gives an administrator no use case for any of them, and a field with no
+        // use case is a field a client will depend on anyway.
+        assertThat(fieldNames(schemas, "AdminUserResponse")).containsExactlyInAnyOrder(
+                "id", "email", "fullName", "role", "status", "academicYear", "lastLoginAt",
+                "createdAt");
+        assertThat(fieldNames(schemas, "AdminUserResponse")).doesNotContain("passwordHash",
+                "password_hash", "password", "tokenVersion", "token_version", "updatedAt",
+                "updated_at", "monthlyAllowanceBaseline", "monthly_allowance_baseline",
+                "monthlySavingsGoal", "monthly_savings_goal", "themePreference", "theme_preference",
+                "fontScale", "font_scale", "aiEnabled", "ai_enabled", "emailVerifiedAt",
+                "email_verified_at");
+
+        // Both enums carry the column's own vocabulary, so an administrator reading a row and writing
+        // a status sees one set of words. `UserRole` publishes two members because `role` is an ENUM
+        // with two - the account list is the only place an administrator is named as one.
+        assertThat(enumValues(schemas, "AdminUserResponse", "role"))
+                .containsExactlyInAnyOrder("STUDENT", "ADMIN");
+        assertThat(enumValues(schemas, "AdminUserResponse", "status"))
+                .containsExactlyInAnyOrder("ACTIVE", "DISABLED");
+
+        // The status write is one field, typed by the same enum the response publishes - and it is a
+        // POST to a sub-path rather than a PATCH of the resource, because disabling also revokes
+        // sessions and bumps `token_version` (BR-03). `userId` is absent for the usual reason: the
+        // account is named by the path and the actor by the token, so a body-supplied id could only
+        // be an ownership bypass.
+        assertThat(fieldNames(schemas, "SetUserStatusRequest")).containsExactlyInAnyOrder("status");
+        assertThat(fieldNames(schemas, "SetUserStatusRequest"))
+                .doesNotContain("userId", "user_id", "id", "tokenVersion", "token_version");
+        assertThat(enumValues(schemas, "SetUserStatusRequest", "status"))
+                .isEqualTo(enumValues(schemas, "AdminUserResponse", "status"));
+
+        // The reset response is one fixed message and no token. That is the whole of UC-22 B4's
+        // disclosure policy: the link is delivered to the account owner's address and an administrator
+        // who could read it off the screen would be able to take over the account (VĐ-06).
+        assertThat(fieldNames(schemas, "AdminPasswordResetResponse"))
+                .containsExactlyInAnyOrder("message");
+        assertThat(fieldNames(schemas, "AdminPasswordResetResponse")).doesNotContain("token",
+                "resetToken", "reset_token", "resetLink", "reset_link", "url", "expiresAt");
+
+        // Nine fields, and it is the student module's own `CategoryResponse` type - one DTO over one
+        // table, so the two cannot drift. `isDefault` is what tells the two populations apart, and a
+        // request that could set it would be a request to move a row into or out of the shared scope,
+        // which BR-06 refuses at the trigger.
+        assertThat(fieldNames(schemas, "CategoryResponse")).contains("isDefault");
+        for (String request : new String[] {"UpsertDefaultCategoryRequest",
+                "UpdateDefaultCategoryRequest"}) {
+            assertThat(fieldNames(schemas, request))
+                    .as("%s must not let a client choose the row's scope or owner", request)
+                    .doesNotContain("isDefault", "userId", "user_id", "createdBy", "created_by");
+        }
+        assertThat(fieldNames(schemas, "UpsertDefaultCategoryRequest")).containsExactlyInAnyOrder(
+                "name", "type", "icon", "color", "description", "sortOrder", "isActive");
+        assertThat(fieldNames(schemas, "UpdateDefaultCategoryRequest")).containsExactlyInAnyOrder(
+                "name", "type", "icon", "color", "description", "sortOrder", "isActive");
+
+        // Nine fields. `createdBy` is absent - the audit trail records who posted a notice, which is
+        // what UC-22 B5 asks for - and `audience` is published because an administrator has to see
+        // that a notice is ADMINS-only: the student dashboard receives `ALL` and `STUDENTS` only, so
+        // an administrator looking at a notice students cannot see needs the field that explains it.
+        assertThat(fieldNames(schemas, "AnnouncementResponse")).containsExactlyInAnyOrder(
+                "id", "title", "body", "severity", "audience", "startsAt", "endsAt", "isActive",
+                "createdAt");
+        assertThat(fieldNames(schemas, "AnnouncementResponse")).doesNotContain("createdBy",
+                "created_by", "updatedAt", "updated_at", "userId", "user_id");
+
+        // The create request has six fields and no `isActive`: a notice is created active, and
+        // deactivating it is the edit endpoint's single field, so accepting the flag here would be a
+        // second way to express the same state at a moment when it has no meaning.
+        assertThat(fieldNames(schemas, "CreateAnnouncementRequest")).containsExactlyInAnyOrder(
+                "title", "body", "severity", "audience", "startsAt", "endsAt");
+        assertThat(fieldNames(schemas, "CreateAnnouncementRequest")).doesNotContain("isActive",
+                "createdBy", "id");
+        // The edit is exactly `isActive`. Content is create-once in this build - `announcements` has
+        // no content-update procedure, while `tip_templates` does - so a typo is corrected by posting
+        // a new notice and withdrawing the old one. That asymmetry is deliberate: it is what keeps
+        // every administrative write on a procedure, so `sp_require_admin` and the audit row cannot
+        // be bypassed (OB-005).
+        assertThat(fieldNames(schemas, "UpdateAnnouncementRequest"))
+                .containsExactlyInAnyOrder("isActive");
+        assertThat(fieldNames(schemas, "UpdateAnnouncementRequest")).doesNotContain("title", "body",
+                "severity", "audience", "startsAt", "endsAt", "createdBy");
+
+        // Both announcement enums publish the column's own values. `SUCCESS` and `ALL` are genuinely
+        // reachable - the first is a severity the schema declares and nothing narrower would be
+        // truthful, the second is an audience that reaches everybody - so a client switching on
+        // either needs the full set.
+        assertThat(enumValues(schemas, "AnnouncementResponse", "severity"))
+                .containsExactlyInAnyOrder("INFO", "WARNING", "SUCCESS");
+        assertThat(enumValues(schemas, "AnnouncementResponse", "audience"))
+                .containsExactlyInAnyOrder("ALL", "STUDENTS", "ADMINS");
+        assertThat(enumValues(schemas, "CreateAnnouncementRequest", "severity"))
+                .isEqualTo(enumValues(schemas, "AnnouncementResponse", "severity"));
+        assertThat(enumValues(schemas, "CreateAnnouncementRequest", "audience"))
+                .isEqualTo(enumValues(schemas, "AnnouncementResponse", "audience"));
+
+        // Seven fields, and `conditionParams` is the one deliberately withheld. The column exists and
+        // is a JSON blob whose meaning the schema does not document; nothing in this build reads it,
+        // so publishing it would offer a field neither side can interpret. It is recorded as a
+        // follow-up rather than guessed at.
+        assertThat(fieldNames(schemas, "TipTemplateResponse")).containsExactlyInAnyOrder(
+                "id", "code", "conditionType", "titleTemplate", "bodyTemplate", "defaultPriority",
+                "isActive");
+        assertThat(fieldNames(schemas, "TipTemplateResponse")).doesNotContain("conditionParams",
+                "condition_params", "createdBy", "created_by", "updatedAt", "updated_at");
+
+        // The create request requires the code and the two text templates; the update request accepts
+        // `code` so a full representation can be round-tripped, and the service refuses a different
+        // one rather than letting the procedure ignore it silently. Neither request carries
+        // `conditionParams`, which is what makes the column unreachable rather than merely unread.
+        assertThat(fieldNames(schemas, "CreateTipTemplateRequest")).containsExactlyInAnyOrder(
+                "code", "conditionType", "titleTemplate", "bodyTemplate", "defaultPriority",
+                "isActive");
+        assertThat(fieldNames(schemas, "UpdateTipTemplateRequest")).containsExactlyInAnyOrder(
+                "code", "conditionType", "titleTemplate", "bodyTemplate", "defaultPriority",
+                "isActive");
+        for (String request : new String[] {"CreateTipTemplateRequest",
+                "UpdateTipTemplateRequest"}) {
+            assertThat(fieldNames(schemas, request))
+                    .as("%s must not reach the column nothing in this build reads", request)
+                    .doesNotContain("conditionParams", "condition_params", "createdBy",
+                            "created_by");
+        }
+        assertThat(enumValues(schemas, "TipTemplateResponse", "conditionType"))
+                .containsExactlyInAnyOrder("OVER_BUDGET", "NEAR_BUDGET", "CATEGORY_SPIKE",
+                        "NO_BUDGET_SET", "SAVINGS_GOAL_AT_RISK", "LOW_SAVINGS_RATE", "GENERIC");
+
+        // Five fields. `updatedBy` and `updatedAt` are absent: the audit trail records who changed a
+        // threshold, when, and what the value was before, which is a stronger answer than a per-row
+        // copy and leaves one authority rather than two.
+        assertThat(fieldNames(schemas, "SystemSettingResponse")).containsExactlyInAnyOrder(
+                "key", "value", "valueType", "description", "adjustable");
+        assertThat(fieldNames(schemas, "SystemSettingResponse")).doesNotContain("updatedBy",
+                "updated_by", "updatedAt", "updated_at", "settingKey", "settingValue");
+        // The update is one field, sent as text: `setting_value` is VARCHAR(255), and typing this as
+        // a number would make the API unable to carry any future key that is not one while forcing
+        // the shape check into two places.
+        assertThat(fieldNames(schemas, "UpdateThresholdRequest"))
+                .containsExactlyInAnyOrder("value");
+        assertThat(fieldNames(schemas, "UpdateThresholdRequest"))
+                .doesNotContain("key", "settingKey", "valueType");
+
+        // Ten aggregate fields, all of them sums or counts across the whole user base. There is no
+        // identifier of any kind - which is the property that makes publishing money defensible here
+        // and the reason each field is named rather than the set being checked loosely.
+        assertThat(fieldNames(schemas, "AdminUsageStatsResponse")).containsExactlyInAnyOrder(
+                "totalStudents", "activeStudents", "disabledStudents", "activeUsers30d",
+                "totalTransactions", "totalExpenseLogged", "totalIncomeLogged", "totalBudgets",
+                "totalTipsGenerated", "totalInsightsGenerated");
+        assertThat(fieldNames(schemas, "AdminUsageStatsResponse"))
+                .doesNotContain("userId", "user_id", "email", "fullName", "studentId",
+                        "student_id");
+
+        // Seven fields. `scope` is what makes the ranking readable - a shared default and a student's
+        // own category can share a name and mean different things - and `distinctUsers` is what
+        // separates a category many students use from one student using it heavily.
+        assertThat(fieldNames(schemas, "AdminTopCategoryResponse")).containsExactlyInAnyOrder(
+                "categoryId", "categoryName", "type", "scope", "txnCount", "totalAmount",
+                "distinctUsers");
+        assertThat(fieldNames(schemas, "AdminTopCategoryResponse"))
+                .doesNotContain("userId", "user_id", "email", "fullName", "categoryIcon",
+                        "categoryColor");
+        assertThat(enumValues(schemas, "AdminTopCategoryResponse", "type"))
+                .containsExactlyInAnyOrder("INCOME", "EXPENSE");
+
+        // No administration endpoint takes a body it should not, and no module 12 surface has a
+        // schema. A `CreateInsightRequest` or an `AdminAnomalyResponse` would name a capability that
+        // is locked, and a schema is how such a capability would first become visible in the
+        // contract - which is why the guard is here rather than only in the route list.
+        for (String forbidden : new String[] {"CreateInsightRequest", "UpdateInsightRequest",
+                "AdminInsightResponse", "AdminAnomalyResponse", "AdminAiResponse",
+                "CreateAuditLogRequest", "AdminAuditResponse", "DeleteUserRequest"}) {
+            assertThat(schemas.has(forbidden))
+                    .as("%s must not exist: it names a capability this module does not have",
+                            forbidden)
+                    .isFalse();
+        }
     }
 
     // ------------------------------------------------------------------

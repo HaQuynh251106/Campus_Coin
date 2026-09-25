@@ -1399,6 +1399,70 @@ module to let you read or suppress the alert.
 
 ---
 
+### M4-23 — The description is ciphertext in the database and plaintext through the API
+
+| | |
+|---|---|
+| **ID** | M4-23 |
+| **Title** | A direct `SELECT` on `transactions.description` reveals no text, while the owner still reads the description normally |
+| **Covers** | Application-Level Field Encryption (AES-256-GCM), `SECURITY.md` §12 — not a single UC, but the property that makes the description column safe to store |
+| **Preconditions** | `${USER_A_JWT}` is valid. `CAMPUSCOIN_ENCRYPTION_KEY` is set in the backend's environment (the application will not start without it). Adminer or a `mysql` shell is available. |
+
+**Steps**
+
+1. Record a transaction with a distinctive description:
+
+   ```bash
+   curl -i -X POST http://localhost:8080/api/v1/transactions \
+     -H "Authorization: Bearer ${USER_A_JWT}" \
+     -H "Content-Type: application/json" \
+     -d '{ "categoryId": <EXPENSE_CATEGORY_ID>, "amount": 12.34,
+           "txnDate": "<TODAY>", "description": "zzciphercheck lunch" }'
+   ```
+
+   Note the returned `id` (call it `<ID>`).
+
+2. Read the row **directly from the database**, bypassing the API:
+
+   ```sql
+   SELECT id, amount, description FROM transactions WHERE id = <ID>;
+   ```
+
+3. Read the same transaction **through the API**:
+
+   ```bash
+   curl -i http://localhost:8080/api/v1/transactions/<ID> \
+     -H "Authorization: Bearer ${USER_A_JWT}"
+   ```
+
+4. Record a **second** transaction with the **identical** description, then compare the two raw
+   `description` values side by side.
+
+5. Read the audit snapshot the trigger wrote:
+
+   ```sql
+   SELECT action, new_values FROM transaction_history WHERE transaction_id = <ID> ORDER BY id;
+   ```
+
+**Expected result**
+
+- Step 2: `description` is a **long opaque Base64 string** that does not contain `zzciphercheck` and
+  is not equal to `zzciphercheck lunch`. `amount` is **still an ordinary readable number** — amounts
+  are deliberately not encrypted (`SECURITY.md` §12.5, OB-013), and this case must not be read as
+  claiming otherwise.
+- Step 3: the API returns `"description": "zzciphercheck lunch"` — the owner sees their own words.
+  Encryption is invisible to the client; it is not the client's job to decrypt anything.
+- Step 4: the two raw values are **different**, even though the plaintext is identical. This is the
+  single most important check here: it proves a fresh random IV per value, which is the property GCM
+  cannot survive losing. Two equal ciphertexts would mean the IV was derived from the content.
+- Step 5: the `new_values` snapshot contains the **same ciphertext**, not the plaintext. The trigger
+  copies the column value, so the audit trail leaks nothing either while still preserving the
+  history BR-09 requires.
+
+**Result:** `- [ ] Pass  - [ ] Fail`
+
+---
+
 ## 3. Traceability
 
 | Test ID | Title (short) | UC | BR | Endpoint(s) |
@@ -1425,6 +1489,7 @@ module to let you read or suppress the alert.
 | M4-20 | Administrator refused; anonymous refused | UC-07, UC-10 | BR-03 | all six (16–21) |
 | M4-21 | Per-field validation errors | UC-07 | — | `POST /api/v1/transactions` (18) |
 | M4-22 | A large expense raises a budget alert | UC-14 (module 6) | BR-12 | `POST /api/v1/transactions` (18), observed in the database |
+| M4-23 | The description is ciphertext at rest, plaintext through the API | — | Cross-cutting (`SECURITY.md` §12) | `POST` (18), `GET/{id}` (17), observed in the database |
 
 ### UC / BR coverage summary
 
