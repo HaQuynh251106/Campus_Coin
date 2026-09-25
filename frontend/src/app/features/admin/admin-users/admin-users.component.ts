@@ -18,12 +18,12 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
           <h2 class="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
             User Account Management
           </h2>
-          <p class="text-xs text-slate-500 dark:text-neutral-400">
+          <p class="text-xs text-[var(--color-text-muted)]">
             Search, audit profiles, disable access, or trigger password recovery for campus students.
           </p>
         </div>
 
-        <div class="text-xs font-semibold text-slate-500">
+        <div class="text-xs font-semibold text-[var(--color-text-muted)]">
           Total in system: {{ users.length }} accounts
         </div>
       </div>
@@ -43,8 +43,8 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
         </div>
 
         <div class="flex items-center gap-2">
-          <label class="text-xs font-medium text-slate-500">Status:</label>
-          <select [(ngModel)]="statusFilter" class="text-xs py-1.5 px-2 bg-slate-50 dark:bg-neutral-800 border border-slate-300 dark:border-neutral-700 rounded-md">
+          <label class="text-xs font-medium text-[var(--color-text-muted)]">Status:</label>
+          <select [(ngModel)]="statusFilter" class="text-xs py-1.5 px-2 bg-slate-50 dark:bg-neutral-800 border border-slate-300 dark:border-neutral-700 rounded-md text-neutral-900 dark:text-neutral-100">
             <option value="ALL">All Statuses</option>
             <option value="ACTIVE">Active Only</option>
             <option value="DISABLED">Disabled Only</option>
@@ -57,7 +57,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs border-collapse">
             <thead>
-              <tr class="bg-slate-50 dark:bg-neutral-800/80 border-b border-slate-200 dark:border-neutral-800 text-slate-500 dark:text-neutral-400 uppercase tracking-wider font-semibold text-[10px]">
+              <tr class="table-head-row bg-slate-50 dark:bg-neutral-800/80 border-b border-[var(--color-border)] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold text-[10px]">
                 <th class="p-3">Student Name & ID</th>
                 <th class="p-3">Department & Year</th>
                 <th class="p-3">Allowance</th>
@@ -77,7 +77,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
                       </div>
                       <div>
                         <div class="font-bold text-slate-900 dark:text-white">{{ user.name }}</div>
-                        <div class="text-[11px] text-slate-400 font-mono">{{ user.studentId }} &bull; {{ user.email }}</div>
+                        <div class="text-[11px] text-[var(--color-text-muted)] font-mono">{{ user.studentId }} &bull; {{ user.email }}</div>
                       </div>
                     </div>
                   </td>
@@ -85,7 +85,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
                   <!-- Major & Year -->
                   <td class="p-3 text-slate-600 dark:text-neutral-300">
                     <div>{{ user.major }}</div>
-                    <div class="text-[11px] text-slate-400">{{ user.academicYear }}</div>
+                    <div class="text-[11px] text-[var(--color-text-muted)]">{{ user.academicYear }}</div>
                   </td>
 
                   <!-- Allowance -->
@@ -117,7 +117,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
                       <button
                         type="button"
                         (click)="viewUserModal(user)"
-                        class="px-2 py-1 text-slate-600 hover:text-slate-900 dark:text-neutral-400 dark:hover:text-white rounded border border-slate-200 dark:border-neutral-700 hover:bg-slate-100"
+                        class="px-2.5 py-1 text-slate-600 hover:text-slate-900 dark:text-neutral-400 dark:hover:text-neutral-100 rounded-md border border-slate-200 dark:border-neutral-700 hover:bg-slate-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
                         title="View Full Profile"
                       >
                         Details
@@ -126,13 +126,19 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
                       <button
                         type="button"
                         (click)="toggleStatus(user)"
-                        class="px-2 py-1 rounded border text-[11px] font-medium transition-colors"
+                        class="px-2.5 py-1 rounded-md border text-[11px] font-medium transition-colors cursor-pointer"
                         [class.border-rose-200]="user.status === 'ACTIVE'"
+                        [class.dark:border-rose-900]="user.status === 'ACTIVE'"
                         [class.text-rose-600]="user.status === 'ACTIVE'"
+                        [class.dark:text-rose-400]="user.status === 'ACTIVE'"
                         [class.hover:bg-rose-50]="user.status === 'ACTIVE'"
+                        [class.dark:hover:bg-rose-950/40]="user.status === 'ACTIVE'"
                         [class.border-emerald-200]="user.status === 'DISABLED'"
+                        [class.dark:border-emerald-900]="user.status === 'DISABLED'"
                         [class.text-emerald-600]="user.status === 'DISABLED'"
+                        [class.dark:text-emerald-400]="user.status === 'DISABLED'"
                         [class.hover:bg-emerald-50]="user.status === 'DISABLED'"
+                        [class.dark:hover:bg-emerald-950/40]="user.status === 'DISABLED'"
                       >
                         {{ user.status === 'ACTIVE' ? 'Disable' : 'Enable' }}
                       </button>
@@ -140,10 +146,10 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
                       <button
                         type="button"
                         (click)="triggerPasswordReset(user)"
-                        class="px-2 py-1 text-slate-600 hover:text-slate-900 dark:text-neutral-400 dark:hover:text-white rounded border border-slate-200 dark:border-neutral-700 hover:bg-slate-100"
+                        class="px-2.5 py-1 text-slate-600 hover:text-slate-900 dark:text-neutral-400 dark:hover:text-neutral-100 rounded-md border border-slate-200 dark:border-neutral-700 hover:bg-slate-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
                         title="Reset Student Password"
                       >
-                        Reset Key
+                        Reset Password
                       </button>
                     </div>
                   </td>
@@ -196,7 +202,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
               <button
                 type="button"
                 (click)="selectedUser = null"
-                class="px-4 py-2 bg-slate-900 text-white rounded text-xs font-semibold hover:bg-slate-800"
+                class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-semibold rounded-lg text-xs shadow-xs transition-colors cursor-pointer"
               >
                 Close Profile
               </button>

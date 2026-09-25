@@ -6,11 +6,12 @@ import { Category, CategoryType } from '../../core/models/category.model';
 import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadcrumbs.component';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { IconComponent } from '../../shared/components/icon/icon.component';
+import { CategoryIconComponent } from '../../shared/components/category-icon/category-icon.component';
 
 @Component({
   selector: 'app-categories',
   standalone: true,
-  imports: [CommonModule, FormsModule, BreadcrumbsComponent, IconComponent],
+  imports: [CommonModule, FormsModule, BreadcrumbsComponent, IconComponent, CategoryIconComponent],
   template: `
     <div class="space-y-6">
       <!-- Breadcrumbs -->
@@ -74,18 +75,18 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
           <div class="card-brutal p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs flex flex-col justify-between hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
             <div>
               <div class="flex items-center justify-between mb-2">
-                <div class="flex items-center gap-2.5">
-                  <div
-                    class="w-9 h-9 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center justify-center text-sm shadow-xs"
-                    [style.background-color]="cat.color"
-                  >
-                    <app-icon [name]="cat.icon" [size]="16" strokeWidth="1.5" className="text-neutral-900"></app-icon>
-                  </div>
+                <div class="flex items-center gap-3">
+                  <app-category-icon
+                    [name]="cat.name"
+                    [icon]="cat.icon"
+                    [color]="cat.color"
+                    size="md"
+                  ></app-category-icon>
                   <div>
                     <h4 class="font-medium text-sm text-neutral-900 dark:text-neutral-50">
                       {{ cat.name }}
                     </h4>
-                    <span class="text-[10px] uppercase font-medium text-neutral-400">
+                    <span class="text-[10px] uppercase font-medium text-[var(--color-text-muted)]">
                       {{ cat.type }}
                     </span>
                   </div>
@@ -107,33 +108,35 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
               </p>
             </div>
 
-            <!-- Action buttons (Only enabled for user-created custom categories) -->
+            <!-- Action footer -->
             <div class="pt-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-xs">
-              <span class="text-[11px] font-mono font-medium" [style.color]="cat.color">
-                ● {{ cat.color }}
-              </span>
-
-              @if (!cat.isDefault) {
+              @if (cat.isDefault) {
+                <span class="text-[11px] text-[var(--color-text-muted)] font-normal">
+                  Standard category
+                </span>
+                <span class="text-[11px] text-[var(--color-text-muted)]">
+                  System locked
+                </span>
+              } @else {
+                <span class="text-[11px] text-[var(--color-text-muted)] font-normal">
+                  Custom category
+                </span>
                 <div class="flex items-center gap-3">
                   <button
                     type="button"
                     (click)="openEditModal(cat)"
-                    class="text-neutral-500 hover:text-neutral-900 dark:hover:text-white font-medium cursor-pointer"
+                    class="text-neutral-500 hover:text-neutral-900 dark:hover:text-white font-medium cursor-pointer transition-colors"
                   >
                     Edit
                   </button>
                   <button
                     type="button"
                     (click)="deleteCategory(cat.id)"
-                    class="text-rose-600 hover:text-rose-700 dark:text-rose-400 font-medium cursor-pointer"
+                    class="text-rose-600 hover:text-rose-700 dark:text-rose-400 font-medium cursor-pointer transition-colors"
                   >
                     Delete
                   </button>
                 </div>
-              } @else {
-                <span class="text-[10px] text-neutral-400">
-                  Default category
-                </span>
               }
             </div>
           </div>
@@ -245,12 +248,12 @@ export class CategoriesComponent implements OnInit {
   editingCategory: Category | null = null;
   modalName = '';
   modalType: CategoryType = 'EXPENSE';
-  modalColor = '#FFE600';
+  modalColor = '#0EA5E9';
   modalDesc = '';
 
   paletteColors = [
-    '#EAB308', '#F59E0B', '#10B981', '#06B6D4',
-    '#3B82F6', '#8B5CF6', '#EC4899', '#EF4444'
+    '#EA580C', '#0D9488', '#0EA5E9', '#8B5CF6',
+    '#06B6D4', '#F43F5E', '#6366F1', '#10B981'
   ];
 
   get expenseCategories(): Category[] {

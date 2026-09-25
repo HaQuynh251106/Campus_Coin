@@ -35,10 +35,12 @@ export class AuthService {
         console.error('Failed to parse cached session:', e);
       }
     }
-    // Default student session for rapid demo navigation
-    const defaultStudent = this.usersList.find(u => u.id === 'user-001') || this.usersList[0];
-    this.currentUser.set(defaultStudent);
-    localStorage.setItem('campus_coin_user', JSON.stringify(defaultStudent));
+    // No session stored — visitor remains unauthenticated guest
+  }
+
+  loginAsDemo(): Observable<User> {
+    const demo = this.usersList.find(u => u.id === 'user-001') || this.usersList[0];
+    return of(demo).pipe(tap(u => this.setCurrentUser(u)));
   }
 
   login(email: string, _pass: string): Observable<User> {

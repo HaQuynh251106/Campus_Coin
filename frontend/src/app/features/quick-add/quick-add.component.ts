@@ -11,6 +11,8 @@ import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadc
 import { CardComponent } from '../../shared/components/card/card.component';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { IconComponent } from '../../shared/components/icon/icon.component';
+import { CategoryTagComponent } from '../../shared/components/category-tag/category-tag.component';
+import { CategoryIconComponent } from '../../shared/components/category-icon/category-icon.component';
 
 @Component({
   selector: 'app-quick-add',
@@ -20,7 +22,9 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
     FormsModule,
     ReactiveFormsModule,
     BreadcrumbsComponent,
-    IconComponent
+    IconComponent,
+    CategoryTagComponent,
+    CategoryIconComponent
   ],
   template: `
     <div class="space-y-6">
@@ -36,21 +40,21 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
           <h2 class="text-2xl sm:text-3xl font-semibold text-neutral-900 dark:text-neutral-50 tracking-tight">
             Log Transaction
           </h2>
-          <p class="text-xs sm:text-sm font-medium text-neutral-500 dark:text-neutral-400">
-            Type naturally for instant AI auto-tagging or enter details manually below.
+          <p class="text-xs sm:text-sm font-medium text-[var(--color-text-muted)]">
+            Enter spending with natural text or use manual details.
           </p>
         </div>
       </div>
 
-      <!-- 1. Smart Conversational Input Card (AI-Powered) -->
+      <!-- 1. Smart Conversational Input Card -->
       <div class="card-brutal p-5 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs">
         <div class="flex items-center gap-2 mb-3">
           <span class="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
             <app-icon name="sparkles" [size]="12" strokeWidth="1.5"></app-icon>
-            AI Smart Assist
+            Smart Assist
           </span>
-          <span class="text-xs text-neutral-500 dark:text-neutral-400">
-            Natural language parser
+          <span class="text-xs text-[var(--color-text-muted)]">
+            Auto-categorize
           </span>
         </div>
 
@@ -78,19 +82,23 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
         @if (aiResult && conversationalInput.trim().length > 2) {
           <div class="mt-4 p-3.5 bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700 rounded-lg flex flex-wrap items-center justify-between gap-3 animate-fade-in">
             <div class="flex items-center gap-2.5">
-              <span class="text-xs font-medium text-neutral-500">Suggested:</span>
+              <span class="text-xs font-medium text-[var(--color-text-muted)]">Suggested:</span>
               @if (aiResult.suggestedCategory) {
-                <div
-                  class="text-xs py-1 px-2.5 rounded-full flex items-center gap-1.5 border border-neutral-200 dark:border-neutral-700 font-medium"
-                  [style.background-color]="aiResult.suggestedCategory.color"
-                >
-                  <app-icon [name]="aiResult.suggestedCategory.icon" [size]="13" strokeWidth="1.5"></app-icon>
-                  <span>{{ aiResult.suggestedCategory.name }}</span>
+                <div class="flex items-center gap-2">
+                  <app-category-icon
+                    [name]="aiResult.suggestedCategory.name"
+                    [icon]="aiResult.suggestedCategory.icon"
+                    [color]="aiResult.suggestedCategory.color"
+                    size="sm"
+                  ></app-category-icon>
+                  <span class="text-xs font-medium text-neutral-800 dark:text-neutral-200">
+                    {{ aiResult.suggestedCategory.name }}
+                  </span>
                 </div>
               }
 
               @if (aiResult.extractedAmount) {
-                <span class="text-xs font-mono font-semibold bg-white dark:bg-neutral-700 px-2 py-0.5 rounded border border-neutral-200 dark:border-neutral-600">
+                <span class="text-xs font-mono font-semibold bg-white dark:bg-neutral-800 px-2 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100">
                   \${{ aiResult.extractedAmount }}
                 </span>
               }
@@ -103,12 +111,12 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
                 (click)="applyAiSuggestion()"
                 class="bg-amber-500 hover:bg-amber-600 text-neutral-950 font-medium text-xs py-1 px-3 rounded-md shadow-xs transition-colors cursor-pointer"
               >
-                Apply to Form ✓
+                Use suggestion
               </button>
               <button
                 type="button"
                 (click)="showCategoryPicker = !showCategoryPicker"
-                class="text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 underline cursor-pointer"
+                class="text-xs text-[var(--color-text-muted)] hover:text-neutral-900 dark:hover:text-neutral-100 underline cursor-pointer"
               >
                 Change category
               </button>
@@ -117,16 +125,20 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
 
           <!-- Quick Category Switcher Panel if user says 'not right' -->
           @if (showCategoryPicker) {
-            <div class="mt-3 p-3 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg flex flex-wrap gap-1.5">
+            <div class="mt-3 p-3 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg flex flex-wrap gap-2">
               @for (cat of categories; track cat.id) {
                 <button
                   type="button"
                   (click)="selectCategoryOverride(cat)"
-                  class="text-[11px] py-1 px-2.5 rounded-full border border-neutral-200 dark:border-neutral-700 cursor-pointer hover:opacity-85 transition-opacity flex items-center gap-1 font-medium"
-                  [style.background-color]="cat.color"
+                  class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-750 transition-colors cursor-pointer"
                 >
-                  <app-icon [name]="cat.icon" [size]="12" strokeWidth="1.5"></app-icon>
-                  <span>{{ cat.name }}</span>
+                  <app-category-icon
+                    [name]="cat.name"
+                    [icon]="cat.icon"
+                    [color]="cat.color"
+                    size="sm"
+                  ></app-category-icon>
+                  <span class="text-xs font-medium text-neutral-700 dark:text-neutral-300">{{ cat.name }}</span>
                 </button>
               }
             </div>
@@ -313,10 +325,10 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
             <h3 class="font-semibold text-lg text-neutral-900 dark:text-neutral-50 tracking-tight">
               Recent Entries
             </h3>
-            <p class="text-xs text-neutral-500">Edit entries or remove with soft-delete preservation</p>
+            <p class="text-xs text-[var(--color-text-muted)]">Edit or remove recent transactions</p>
           </div>
 
-          <div class="text-xs font-medium text-neutral-400">
+          <div class="text-xs font-medium text-[var(--color-text-muted)]">
             {{ recentList.length }} entries
           </div>
         </div>
@@ -324,28 +336,31 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs font-normal border-collapse">
             <thead>
-              <tr class="border-b border-neutral-200 dark:border-neutral-800 text-neutral-400 font-medium uppercase text-[11px]">
-                <th class="py-2.5 px-3">Date</th>
-                <th class="py-2.5 px-3">Category</th>
-                <th class="py-2.5 px-3">Description</th>
-                <th class="py-2.5 px-3 text-right">Amount</th>
-                <th class="py-2.5 px-3 text-center">Actions</th>
+              <tr class="table-head-row border-b border-[var(--color-border)] text-[var(--color-text-muted)] font-medium uppercase text-[11px]">
+                <th class="py-2.5 pl-4 pr-2 w-10 text-center text-[var(--color-text-muted)]">#</th>
+                <th class="py-2.5 px-3 text-[var(--color-text-muted)]">Date</th>
+                <th class="py-2.5 px-3 text-[var(--color-text-muted)]">Category</th>
+                <th class="py-2.5 px-3 text-[var(--color-text-muted)]">Description</th>
+                <th class="py-2.5 px-3 text-right text-[var(--color-text-muted)]">Amount</th>
+                <th class="py-2.5 px-3 text-center text-[var(--color-text-muted)]">Actions</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800">
-              @for (tx of recentList; track tx.id) {
-                <tr class="hover:bg-neutral-50 dark:hover:bg-neutral-800/40 transition-colors">
-                  <td class="py-2.5 px-3 font-mono text-neutral-500 whitespace-nowrap">
+            <tbody class="divide-y divide-[var(--color-border)]">
+              @for (tx of recentList; track tx.id; let idx = $index) {
+                <tr class="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40 transition-colors">
+                  <td class="py-2.5 pl-4 pr-2 text-center font-mono text-xs text-[var(--color-text-muted)] whitespace-nowrap">
+                    {{ idx + 1 }}
+                  </td>
+                  <td class="py-2.5 px-3 font-mono text-xs text-[var(--color-text-muted)] whitespace-nowrap">
                     {{ tx.date }}
                   </td>
-                  <td class="py-2.5 px-3">
-                    <span
-                      class="inline-flex items-center gap-1 text-[11px] py-0.5 px-2 rounded-full border border-neutral-200 dark:border-neutral-700 font-medium"
-                      [style.background-color]="tx.categoryColor || '#EAB308'"
-                    >
-                      <app-icon [name]="tx.categoryIcon" [size]="12" strokeWidth="1.5"></app-icon>
-                      <span>{{ tx.categoryName }}</span>
-                    </span>
+                  <td class="py-2.5 px-3 whitespace-nowrap">
+                    <app-category-tag
+                      [name]="tx.categoryName"
+                      [icon]="tx.categoryIcon"
+                      [color]="tx.categoryColor"
+                      size="xs"
+                    ></app-category-tag>
                   </td>
                   <td class="py-2.5 px-3 text-neutral-900 dark:text-neutral-100 font-medium max-w-[200px] truncate">
                     {{ tx.description }}
@@ -353,7 +368,9 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
                   <td
                     class="py-2.5 px-3 text-right font-semibold whitespace-nowrap font-mono"
                     [class.text-emerald-600]="tx.type === 'INCOME'"
+                    [class.dark:text-emerald-400]="tx.type === 'INCOME'"
                     [class.text-rose-600]="tx.type === 'EXPENSE'"
+                    [class.dark:text-rose-400]="tx.type === 'EXPENSE'"
                   >
                     {{ tx.type === 'INCOME' ? '+' : '-' }}\${{ tx.amount.toFixed(2) }}
                   </td>

@@ -34,6 +34,23 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
+        <!-- 0. Public Guest Module -->
+        <div class="card-brutal p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs md:col-span-2">
+          <div class="flex items-center gap-2 mb-3 pb-2 border-b border-neutral-200 dark:border-neutral-800">
+            <span class="text-base">🌐</span>
+            <h3 class="font-semibold text-base text-neutral-900 dark:text-neutral-50 tracking-tight">
+              Public Guest Entry Route
+            </h3>
+          </div>
+
+          <div class="p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
+            <a routerLink="/" class="font-mono font-medium text-amber-600 dark:text-amber-400 hover:underline block mb-0.5 text-xs">
+              / (Root Landing Page)
+            </a>
+            <span class="text-xs text-[var(--color-text-muted)]">Public marketing landing page for guest visitors explaining Campus Coin with hero, interactive component preview, feature highlights, and student testimonials.</span>
+          </div>
+        </div>
+
         <!-- 1. Authentication Module -->
         <div class="card-brutal p-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs">
           <div class="flex items-center gap-2 mb-3 pb-2 border-b border-neutral-200 dark:border-neutral-800">

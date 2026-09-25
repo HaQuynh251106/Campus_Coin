@@ -4,11 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { CategoryService } from '../../../core/services/category.service';
 import { AdminService, TipTemplate } from '../../../core/services/admin.service';
 import { Category } from '../../../core/models/category.model';
+import { CategoryIconComponent } from '../../../shared/components/category-icon/category-icon.component';
 
 @Component({
   selector: 'app-admin-categories',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CategoryIconComponent],
   template: `
     <div class="space-y-8">
 
@@ -17,7 +18,7 @@ import { Category } from '../../../core/models/category.model';
         <h2 class="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
           System Taxonomies & Advisor Templates
         </h2>
-        <p class="text-xs text-slate-500 dark:text-neutral-400">
+        <p class="text-xs text-[var(--color-text-muted)]">
           Govern campus default financial categories and institutional advice broadcast templates.
         </p>
       </div>
@@ -29,44 +30,45 @@ import { Category } from '../../../core/models/category.model';
             <h3 class="font-bold text-base text-slate-900 dark:text-white">
               Default Campus Expense & Income Categories
             </h3>
-            <p class="text-xs text-slate-500">Immutable baseline categories inherited by all student cohorts</p>
+            <p class="text-xs text-[var(--color-text-muted)]">Immutable baseline categories inherited by all student cohorts</p>
           </div>
         </div>
 
         <div class="bg-white dark:bg-neutral-900 rounded-lg border border-slate-200 dark:border-neutral-800 overflow-hidden shadow-xs">
           <table class="w-full text-left text-xs border-collapse">
             <thead>
-              <tr class="bg-slate-50 dark:bg-neutral-800 border-b border-slate-200 dark:border-neutral-800 text-slate-500 uppercase font-semibold text-[10px]">
-                <th class="p-3">Category Name</th>
-                <th class="p-3">Type</th>
-                <th class="p-3">Color Token</th>
+              <tr class="table-head-row bg-slate-50 dark:bg-neutral-800 border-b border-slate-200 dark:border-neutral-800 text-[var(--color-text-muted)] uppercase font-semibold text-[10px]">
+                <th class="p-3 w-1/4">Category Name</th>
+                <th class="p-3 w-28">Type</th>
                 <th class="p-3">Description</th>
-                <th class="p-3 text-center">Governance State</th>
+                <th class="p-3 w-40 text-center">Governance State</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-neutral-800">
               @for (cat of defaultCategories; track cat.id) {
                 <tr class="hover:bg-slate-50/60 dark:hover:bg-neutral-800/40">
                   <td class="p-3">
-                    <div class="flex items-center gap-2">
-                      <span class="w-3 h-3 rounded-full" [style.background-color]="cat.color"></span>
-                      <span class="font-bold text-slate-900 dark:text-white">{{ cat.name }}</span>
+                    <div class="flex items-center gap-2.5">
+                      <app-category-icon
+                        [name]="cat.name"
+                        [icon]="cat.icon"
+                        [color]="cat.color"
+                        size="sm"
+                      ></app-category-icon>
+                      <span class="font-medium text-xs text-slate-900 dark:text-white">{{ cat.name }}</span>
                     </div>
                   </td>
                   <td class="p-3">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold" [class.bg-emerald-50]="cat.type === 'INCOME'" [class.text-emerald-700]="cat.type === 'INCOME'" [class.bg-amber-50]="cat.type === 'EXPENSE'" [class.text-amber-700]="cat.type === 'EXPENSE'">
+                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold" [class.bg-emerald-50]="cat.type === 'INCOME'" [class.text-emerald-700]="cat.type === 'INCOME'" [class.dark:bg-emerald-950/40]="cat.type === 'INCOME'" [class.dark:text-emerald-300]="cat.type === 'INCOME'" [class.bg-amber-50]="cat.type === 'EXPENSE'" [class.text-amber-700]="cat.type === 'EXPENSE'" [class.dark:bg-amber-950/40]="cat.type === 'EXPENSE'" [class.dark:text-amber-300]="cat.type === 'EXPENSE'">
                       {{ cat.type }}
                     </span>
-                  </td>
-                  <td class="p-3 font-mono text-[11px] text-slate-500">
-                    {{ cat.color }}
                   </td>
                   <td class="p-3 text-slate-600 dark:text-neutral-400">
                     {{ cat.description }}
                   </td>
                   <td class="p-3 text-center">
                     <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-neutral-800 text-slate-600 dark:text-neutral-300 border border-slate-200 dark:border-neutral-700">
-                      🔒 Protected Default
+                      System Default
                     </span>
                   </td>
                 </tr>
@@ -83,13 +85,13 @@ import { Category } from '../../../core/models/category.model';
             <h3 class="font-bold text-base text-slate-900 dark:text-white">
               AI Advisor Announcement & Tip Templates
             </h3>
-            <p class="text-xs text-slate-500">Structured tips surfaced inside student feeds and monthly insights</p>
+            <p class="text-xs text-[var(--color-text-muted)]">Structured tips surfaced inside student feeds and monthly insights</p>
           </div>
 
           <button
             type="button"
             (click)="openAddTipModal()"
-            class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-neutral-950 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
           >
             <span>+ Create Tip Template</span>
           </button>
@@ -98,7 +100,7 @@ import { Category } from '../../../core/models/category.model';
         <div class="bg-white dark:bg-neutral-900 rounded-lg border border-slate-200 dark:border-neutral-800 overflow-hidden shadow-xs">
           <table class="w-full text-left text-xs border-collapse">
             <thead>
-              <tr class="bg-slate-50 dark:bg-neutral-800 border-b border-slate-200 dark:border-neutral-800 text-slate-500 uppercase font-semibold text-[10px]">
+              <tr class="table-head-row bg-slate-50 dark:bg-neutral-800 border-b border-slate-200 dark:border-neutral-800 text-[var(--color-text-muted)] uppercase font-semibold text-[10px]">
                 <th class="p-3">Tip Title</th>
                 <th class="p-3">Category Tag</th>
                 <th class="p-3">Target Cohort</th>
@@ -114,14 +116,18 @@ import { Category } from '../../../core/models/category.model';
                     {{ tip.title }}
                   </td>
                   <td class="p-3">
-                    <span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-semibold border border-blue-200">
-                      {{ tip.categoryTag }}
-                    </span>
+                    <div class="flex items-center gap-2">
+                      <app-category-icon
+                        [name]="tip.categoryTag"
+                        size="sm"
+                      ></app-category-icon>
+                      <span class="text-xs text-slate-700 dark:text-neutral-300 font-medium">{{ tip.categoryTag }}</span>
+                    </div>
                   </td>
                   <td class="p-3 text-slate-600 dark:text-neutral-300 font-mono text-[11px]">
                     {{ tip.audience }}
                   </td>
-                  <td class="p-3 text-slate-500 max-w-[280px] truncate">
+                  <td class="p-3 text-[var(--color-text-muted)] max-w-[280px] truncate">
                     {{ tip.content }}
                   </td>
                   <td class="p-3">
@@ -219,7 +225,7 @@ import { Category } from '../../../core/models/category.model';
                 <button
                   type="button"
                   (click)="showTipModal = false"
-                  class="px-3 py-2 rounded text-xs font-semibold text-slate-600 border border-slate-300"
+                  class="px-3.5 py-2 rounded-lg text-xs font-medium text-slate-700 dark:text-neutral-300 border border-slate-300 dark:border-neutral-700 hover:bg-slate-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -227,7 +233,7 @@ import { Category } from '../../../core/models/category.model';
                   type="button"
                   (click)="saveTip()"
                   [disabled]="!newTipTitle.trim() || !newTipContent.trim()"
-                  class="px-4 py-2 bg-slate-900 text-white rounded text-xs font-semibold hover:bg-slate-800 disabled:opacity-50"
+                  class="px-4 py-2 bg-amber-500 text-neutral-950 rounded-lg text-xs font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors shadow-xs cursor-pointer"
                 >
                   Publish Template
                 </button>

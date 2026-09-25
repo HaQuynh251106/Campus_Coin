@@ -4,6 +4,7 @@ import { RouterModule } from '@angular/router';
 import { NavSidebarComponent } from '../../shared/components/nav-sidebar/nav-sidebar.component';
 import { NavBottomComponent } from '../../shared/components/nav-bottom/nav-bottom.component';
 import { TopBarComponent } from '../../shared/components/top-bar/top-bar.component';
+import { ChatbotWidgetComponent } from '../../shared/components/chatbot-widget/chatbot-widget.component';
 import { STUDENT_NAV_ITEMS, STUDENT_SIDEBAR_EXTRA_ITEMS } from '../../shared/navigation.config';
 
 @Component({
@@ -14,7 +15,8 @@ import { STUDENT_NAV_ITEMS, STUDENT_SIDEBAR_EXTRA_ITEMS } from '../../shared/nav
     RouterModule,
     NavSidebarComponent,
     NavBottomComponent,
-    TopBarComponent
+    TopBarComponent,
+    ChatbotWidgetComponent
   ],
   template: `
     <div class="min-h-screen bg-brand-bg dark:bg-neutral-950 flex transition-colors">
@@ -36,6 +38,9 @@ import { STUDENT_NAV_ITEMS, STUDENT_SIDEBAR_EXTRA_ITEMS } from '../../shared/nav
         <main class="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto" [class.pb-24]="!isDesktop()">
           <router-outlet></router-outlet>
         </main>
+
+        <!-- Floating AI Chatbot Assistant Widget -->
+        <app-chatbot-widget></app-chatbot-widget>
 
         <!-- Mobile / Small Tablet Bottom Navigation Bar (< 1024px) -->
         @if (!isDesktop()) {

@@ -257,6 +257,46 @@ import { CommonModule } from '@angular/common';
         <path d="M16 13H8" />
         <path d="M16 17H8" />
       }
+
+      <!-- Landing & Marketing Icons -->
+      @if (name === 'menu') {
+        <line x1="4" x2="20" y1="12" y2="12" />
+        <line x1="4" x2="20" y1="6" y2="6" />
+        <line x1="4" x2="20" y1="18" y2="18" />
+      }
+
+      @if (name === 'arrow-right') {
+        <path d="M5 12h14" />
+        <path d="m12 5 7 7-7 7" />
+      }
+
+      @if (name === 'check-circle') {
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+        <polyline points="22 4 12 14.01 9 11.01" />
+      }
+
+      @if (name === 'shield-check') {
+        <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+        <path d="m9 12 2 2 4-4" />
+      }
+
+      @if (name === 'zap') {
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      }
+
+      @if (name === 'trending-up') {
+        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+        <polyline points="16 7 22 7 22 13" />
+      }
+
+      @if (name === 'bell') {
+        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+      }
+
+      @if (name === 'message-square') {
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      }
     </svg>
   `
 })

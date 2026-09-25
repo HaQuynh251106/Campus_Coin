@@ -17,7 +17,10 @@ export class ThemeService {
     if (this.isBrowser) {
       // 1. Initialize Dark Mode from localStorage or system preference
       const savedTheme = localStorage.getItem('campus_coin_dark_mode');
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const prefersDark =
+        typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+          ? window.matchMedia('(prefers-color-scheme: dark)').matches
+          : false;
       const initialDark = savedTheme !== null ? savedTheme === 'true' : prefersDark;
       this.isDarkMode.set(initialDark);
 

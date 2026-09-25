@@ -21,12 +21,7 @@ import { IconComponent } from '../icon/icon.component';
         <div class="px-2 py-2.5 mb-5 border-b border-neutral-200 dark:border-neutral-800 pb-4">
           <a [routerLink]="isAdmin ? '/admin/dashboard' : '/app/home'" class="flex items-center gap-2.5 group">
             <div
-              class="w-9 h-9 rounded-lg flex items-center justify-center text-base font-bold transition-all border"
-              [class.bg-amber-500-10]="!isAdmin"
-              [class.border-amber-500-20]="!isAdmin"
-              [class.bg-rose-500-10]="isAdmin"
-              [class.border-rose-500-20]="isAdmin"
-              style="background-color: rgba(234, 179, 8, 0.1); border-color: rgba(234, 179, 8, 0.25);"
+              class="w-9 h-9 rounded-lg flex items-center justify-center text-base font-bold transition-all border bg-amber-500/10 border-amber-500/25 text-amber-600 dark:text-amber-400 shadow-xs"
             >
               {{ isAdmin ? '🛡️' : '🪙' }}
             </div>
