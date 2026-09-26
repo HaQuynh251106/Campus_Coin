@@ -17,7 +17,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
           <div class="absolute -left-20 -bottom-20 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
           <div class="relative z-10 max-w-2xl mx-auto space-y-4">
-            <span class="inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wider">
+            <span class="text-xs font-semibold uppercase tracking-wider text-amber-300 block">
               Free Forever for Students
             </span>
 

@@ -12,30 +12,46 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
   template: `
     <div class="card-brutal p-6 sm:p-8 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs">
       <div class="mb-5">
-        <span class="inline-flex items-center text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 mb-2">
-          Student Portal
+        <span class="text-xs font-semibold text-amber-600 dark:text-amber-400 tracking-wider uppercase block mb-1">
+          Campus Coin Portal
         </span>
         <h2 class="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
           Welcome Back
         </h2>
         <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-          Sign in to track your campus expenses, allowances & budgets.
+          Sign in with your campus credentials to access your account.
         </p>
       </div>
 
-      <!-- Quick Demo Fill Helper -->
-      <div class="mb-5 p-3 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 rounded-lg flex items-center justify-between gap-2">
-        <div class="text-xs">
-          <span class="font-medium text-neutral-900 dark:text-neutral-100 block">Demo Student</span>
-          <span class="text-neutral-500 font-mono">an.nguyen&#64;student.campuscoin.edu</span>
+      <!-- Quick Demo Fill Helpers for Evaluation -->
+      <div class="mb-5 p-3 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 rounded-lg space-y-2">
+        <div class="flex items-center justify-between text-xs">
+          <div>
+            <span class="font-medium text-neutral-900 dark:text-neutral-100">Student Account</span>
+            <span class="text-neutral-500 font-mono block text-[11px]">an.nguyen&#64;student.campuscoin.edu</span>
+          </div>
+          <button
+            type="button"
+            (click)="fillDemoStudent()"
+            class="text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 px-2 py-0.5 rounded transition-colors cursor-pointer"
+          >
+            Student Fill
+          </button>
         </div>
-        <button
-          type="button"
-          (click)="fillDemoStudent()"
-          class="text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
-        >
-          Quick Fill ⚡
-        </button>
+
+        <div class="border-t border-neutral-200/60 dark:border-neutral-700/60 pt-2 flex items-center justify-between text-xs">
+          <div>
+            <span class="font-medium text-neutral-900 dark:text-neutral-100">Admin Account</span>
+            <span class="text-neutral-500 font-mono block text-[11px]">admin&#64;campuscoin.edu</span>
+          </div>
+          <button
+            type="button"
+            (click)="fillDemoAdmin()"
+            class="text-xs font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-200/60 dark:bg-neutral-700/60 hover:bg-neutral-200 dark:hover:bg-neutral-700 px-2 py-0.5 rounded transition-colors cursor-pointer"
+          >
+            Admin Fill
+          </button>
+        </div>
       </div>
 
       @if (errorMessage) {
@@ -54,7 +70,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
           <input
             type="email"
             formControlName="email"
-            placeholder="student@campus.edu"
+            placeholder="username@campuscoin.edu"
             class="input-brutal"
             [class.border-rose-500]="loginForm.get('email')?.invalid && loginForm.get('email')?.touched"
           />
@@ -92,7 +108,10 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
           class="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-medium rounded-lg text-sm shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
         >
           @if (isLoading) {
-            <span class="inline-block animate-spin">⏳</span>
+            <svg class="animate-spin h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
           }
           <span>Sign In to Campus Coin →</span>
         </button>
@@ -127,6 +146,13 @@ export class LoginComponent {
     });
   }
 
+  fillDemoAdmin(): void {
+    this.loginForm.patchValue({
+      email: 'admin@campuscoin.edu',
+      password: 'Admin@123'
+    });
+  }
+
   onSubmit(): void {
     if (this.loginForm.invalid) return;
 
@@ -135,9 +161,14 @@ export class LoginComponent {
 
     const { email, password } = this.loginForm.value;
     this.auth.login(email!, password!).subscribe({
-      next: () => {
+      next: (res) => {
         this.isLoading = false;
-        this.router.navigate(['/app/home']);
+        // Role-based routing: Admin -> Admin Dashboard, Student -> Student Home Feed
+        if (res.user?.role === 'ADMIN' || this.auth.isAdmin()) {
+          this.router.navigate(['/admin/dashboard']);
+        } else {
+          this.router.navigate(['/app/home']);
+        }
       },
       error: (err) => {
         this.isLoading = false;

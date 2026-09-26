@@ -59,7 +59,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
             <ul class="space-y-2 text-xs text-neutral-600 dark:text-neutral-300">
               <li>
                 <a routerLink="/auth/login" class="hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
-                  Student Log In
+                  Sign In
                 </a>
               </li>
               <li>
@@ -73,7 +73,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
                 </a>
               </li>
               <li>
-                <a routerLink="/auth/admin-login" class="hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
+                <a routerLink="/auth/login" class="hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
                   Institutional Admin
                 </a>
               </li>

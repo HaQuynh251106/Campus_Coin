@@ -18,7 +18,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
   template: `
     <div class="card-brutal p-6 sm:p-8 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs">
       <div class="mb-5">
-        <span class="inline-flex items-center text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 mb-2">
+        <span class="text-xs font-semibold text-amber-600 dark:text-amber-400 tracking-wider uppercase block mb-1">
           Join Campus Coin
         </span>
         <h2 class="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
@@ -128,7 +128,10 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
           class="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-medium rounded-lg text-sm shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
         >
           @if (isLoading) {
-            <span class="inline-block animate-spin">⏳</span>
+            <svg class="animate-spin h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
           }
           <span>Create Student Account →</span>
         </button>

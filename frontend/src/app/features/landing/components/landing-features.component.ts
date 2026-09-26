@@ -20,7 +20,7 @@ interface FeatureCard {
 
         <!-- Section Header -->
         <div class="text-center max-w-2xl mx-auto mb-12 sm:mb-16 space-y-3">
-          <span class="inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 uppercase tracking-wider">
+          <span class="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 block">
             Key Pillars
           </span>
           <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">

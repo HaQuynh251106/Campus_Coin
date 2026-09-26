@@ -10,7 +10,7 @@ export const authGuard: CanActivateFn = () => {
     return true;
   }
 
-  // Redirect to student login
+  // Redirect to unified login
   return router.createUrlTree(['/auth/login']);
 };
 
@@ -18,9 +18,9 @@ export const guestGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
 
-  // If already authenticated, redirect straight to student portal
+  // If already authenticated, redirect straight to appropriate portal
   if (auth.isLoggedIn()) {
-    return router.createUrlTree(['/app/home']);
+    return router.createUrlTree([auth.isAdmin() ? '/admin/dashboard' : '/app/home']);
   }
 
   return true;
