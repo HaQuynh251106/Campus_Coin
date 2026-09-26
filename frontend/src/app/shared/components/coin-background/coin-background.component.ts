@@ -502,9 +502,9 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
             coin.state = 'resting';
             coin.landedTime = now;
 
-            // Scoring Trigger: Check if coin settled within savings jar horizontal range
-            const jarRadiusUnits = Math.min(3.8, this.worldWidth * 0.22);
-            if (Math.abs(pos.x) <= jarRadiusUnits) {
+            // Scoring Trigger: Widen catch zone to catch roughly 60-70% of all falling coins
+            const jarCatchRadius = this.worldWidth * 0.29;
+            if (Math.abs(pos.x) <= jarCatchRadius) {
               this.ngZone.run(() => {
                 this.savingsJarService.recordCoinCaught(pos.x, this.PIXELS_PER_UNIT);
               });

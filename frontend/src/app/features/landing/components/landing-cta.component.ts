@@ -8,7 +8,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
   standalone: true,
   imports: [CommonModule, RouterModule, IconComponent],
   template: `
-    <section class="py-16 sm:py-20 border-t border-neutral-200/80 dark:border-neutral-800/80 bg-white/60 dark:bg-neutral-950/60 backdrop-blur-xs">
+    <section class="pt-16 sm:pt-20 pb-28 sm:pb-36 border-t border-neutral-200/80 dark:border-neutral-800/80 bg-white/60 dark:bg-neutral-950/60 backdrop-blur-xs">
       <div class="max-w-6xl mx-auto px-4 sm:px-6">
 
         <div class="relative overflow-hidden rounded-2xl bg-neutral-900 text-white border border-neutral-800 p-8 sm:p-12 text-center space-y-6 shadow-subtle-lg">

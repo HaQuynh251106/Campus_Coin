@@ -29,12 +29,12 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
     <!-- Chat Window Panel (Opens when Mascot is clicked; hides mascot launcher per A.2) -->
     @if (isOpen()) {
       @if (isGuestMode) {
-        <!-- Gated Panel for Guests on Landing Page (Exclusive to logged-in users) -->
+        <!-- Gated Panel for Guests on Landing Page (Exclusive to logged-in users, full Dark Mode support) -->
         <div
-          class="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-subtle-lg flex flex-col overflow-hidden animate-scale-up z-50 select-none"
+          class="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-2xl shadow-subtle-lg flex flex-col overflow-hidden animate-scale-up z-50 select-none"
         >
           <!-- Header with close (✕) control -->
-          <div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-850 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
+          <div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
             <div class="flex items-center gap-2.5">
               <div class="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-amber-700 dark:text-amber-400 shadow-xs">
                 <app-icon name="squirrel-logo" [size]="18" strokeWidth="1.75"></app-icon>
@@ -44,7 +44,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
                   Campus Coin Assistant
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Online"></span>
                 </h3>
-                <span class="text-[10px] text-[var(--color-text-muted)] block">
+                <span class="text-[10px] text-neutral-500 dark:text-neutral-400 block">
                   Student Financial Mascot & Coach
                 </span>
               </div>
@@ -53,7 +53,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
             <button
               type="button"
               (click)="closeChat()"
-              class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 p-1 cursor-pointer rounded-md transition-colors text-xs"
+              class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-700 p-1 cursor-pointer rounded-md transition-colors text-xs"
               title="Close panel"
               aria-label="Close panel"
             >
@@ -64,7 +64,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
           <!-- Gated Body (No input, no chips, no mock conversation) -->
           <div class="p-6 flex flex-col items-center text-center space-y-4 bg-white dark:bg-neutral-900">
             <!-- Mascot Illustration Avatar -->
-            <div class="w-16 h-16 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shadow-xs relative">
+            <div class="w-16 h-16 rounded-2xl bg-amber-500/10 dark:bg-amber-500/15 border-2 border-amber-500/30 dark:border-amber-500/40 flex items-center justify-center text-amber-600 dark:text-amber-400 shadow-xs relative">
               <app-icon name="squirrel-logo" [size]="34" strokeWidth="1.6"></app-icon>
               <span class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-amber-500 text-neutral-950 flex items-center justify-center text-[10px] shadow-xs border-2 border-white dark:border-neutral-900 font-bold">
                 🔒
@@ -75,7 +75,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
               <h4 class="font-semibold text-sm sm:text-base text-neutral-900 dark:text-neutral-50 tracking-tight">
                 Log in first to chat with Sooc!
               </h4>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed font-normal">
+              <p class="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed font-normal">
                 Sign in with your campus account — then we can budget, tag dining expenses, and track your allowance together!
               </p>
             </div>
@@ -93,7 +93,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
               <a
                 routerLink="/auth/register"
                 (click)="closeChat()"
-                class="flex-1 py-2.5 px-3 bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700 font-medium text-xs rounded-lg transition-colors text-center flex items-center justify-center cursor-pointer"
+                class="flex-1 py-2.5 px-3 bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700 font-medium text-xs rounded-lg transition-colors text-center flex items-center justify-center cursor-pointer"
               >
                 <span>Sign up</span>
               </a>
@@ -103,10 +103,10 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
       } @else {
         <!-- Full Mock Chat Panel for Logged-In Student Portal -->
         <div
-          class="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 h-[460px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-subtle-lg flex flex-col overflow-hidden animate-scale-up z-50 select-none"
+          class="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 h-[460px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-2xl shadow-subtle-lg flex flex-col overflow-hidden animate-scale-up z-50 select-none"
         >
           <!-- Chat Header with explicit close (✕) control (A.2) -->
-          <div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-850 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
+          <div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
             <div class="flex items-center gap-2.5">
               <div class="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-amber-700 dark:text-amber-400 shadow-xs">
                 <app-icon name="squirrel-logo" [size]="18" strokeWidth="1.75"></app-icon>
@@ -116,7 +116,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
                   Campus Coin Assistant
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Online"></span>
                 </h3>
-                <span class="text-[10px] text-[var(--color-text-muted)] block">
+                <span class="text-[10px] text-neutral-500 dark:text-neutral-400 block">
                   Student Financial Mascot & Coach
                 </span>
               </div>
@@ -125,7 +125,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
             <button
               type="button"
               (click)="closeChat()"
-              class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 p-1 cursor-pointer rounded-md transition-colors text-xs"
+              class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-700 p-1 cursor-pointer rounded-md transition-colors text-xs"
               title="Close chat"
               aria-label="Close chat"
             >

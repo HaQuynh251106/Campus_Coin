@@ -36,7 +36,7 @@ import { IconComponent } from '../icon/icon.component';
           class="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-subtle-lg z-50 overflow-hidden animate-fade-in"
         >
           <!-- Panel Header -->
-          <div class="px-4 py-3 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
+          <div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-800/80 border-b border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="font-semibold text-sm text-neutral-900 dark:text-neutral-100">
                 Notifications

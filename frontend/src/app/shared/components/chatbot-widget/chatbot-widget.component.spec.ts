@@ -132,5 +132,20 @@ describe('ChatbotWidgetComponent', () => {
 
       expect(component.isOpen()).toBe(false);
     });
+
+    it('should apply dark mode classes to gated panel container, header and buttons (Item 1)', () => {
+      component.toggleOpen();
+      fixture.detectChanges();
+
+      const el: HTMLElement = fixture.nativeElement;
+      const panel = el.querySelector('.animate-scale-up') as HTMLElement;
+      expect(panel).toBeTruthy();
+      expect(panel.classList.contains('dark:bg-neutral-900')).toBe(true);
+      expect(panel.classList.contains('dark:border-neutral-700')).toBe(true);
+
+      const header = panel.querySelector('.border-b') as HTMLElement;
+      expect(header.classList.contains('dark:bg-neutral-800')).toBe(true);
+      expect(header.classList.contains('dark:border-neutral-700')).toBe(true);
+    });
   });
 });
