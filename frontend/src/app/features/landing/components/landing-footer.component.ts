@@ -10,99 +10,125 @@ import { SavingsJarService } from '../../../core/services/savings-jar.service';
   imports: [CommonModule, RouterModule, IconComponent],
   template: `
     <footer class="border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-900/70 backdrop-blur-xs transition-colors relative">
-      <!-- Savings Jar Receptacle (Visual Anchor where falling coins land) -->
-      <div class="relative -top-11 flex flex-col items-center justify-center mx-auto mb-[-24px] pointer-events-auto select-none">
+      <!-- Clear Glass Savings Jar Receptacle (Visual Anchor where falling coins land) -->
+      <div class="relative -top-12 flex flex-col items-center justify-center mx-auto mb-[-24px] pointer-events-auto select-none">
         <div class="relative flex flex-col items-center group">
-          <!-- Floating "+1 Coin" text feedback items -->
+          <!-- Floating "+1 Coin" text feedback items on caught coins -->
           @for (item of floatingCoins(); track item.id) {
             <span
-              class="absolute -top-7 font-mono font-bold text-xs text-amber-600 dark:text-amber-400 pointer-events-none animate-float-fade z-20"
+              class="absolute -top-7 font-mono font-bold text-xs text-amber-600 dark:text-amber-400 drop-shadow-sm pointer-events-none animate-float-fade z-20"
               [style.transform]="'translateX(' + item.xOffset + 'px)'"
             >
               {{ item.text }}
             </span>
           }
 
-          <!-- Glass Acorn Savings Jar SVG Graphic -->
-          <div class="w-16 h-20 sm:w-20 sm:h-24 relative flex items-center justify-center drop-shadow-md">
-            <svg viewBox="0 0 48 56" class="w-full h-full overflow-visible">
+          <!-- Clear Glass Savings Jar SVG Illustration -->
+          <div class="w-18 h-22 sm:w-20 sm:h-24 relative flex items-center justify-center drop-shadow-md">
+            <svg viewBox="0 0 48 54" class="w-full h-full overflow-visible">
               <defs>
-                <linearGradient id="jarGlassGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.14" />
-                  <stop offset="100%" stop-color="#D97706" stop-opacity="0.05" />
+                <!-- Glass Body Tint Gradient -->
+                <linearGradient id="masonGlassGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.12" />
+                  <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.08" />
+                  <stop offset="100%" stop-color="#D97706" stop-opacity="0.06" />
                 </linearGradient>
-                <linearGradient id="jarCapWood" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#92400E" />
-                  <stop offset="100%" stop-color="#78350F" />
+                <!-- Lid Metal Gradient -->
+                <linearGradient id="masonLidMetal" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#E2E8F0" />
+                  <stop offset="50%" stop-color="#CBD5E1" />
+                  <stop offset="100%" stop-color="#94A3B8" />
                 </linearGradient>
-                <linearGradient id="jarGoldCoin" x1="0%" y1="0%" x2="100%" y2="100%">
+                <!-- Gold Coin Gradient -->
+                <linearGradient id="masonCoinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stop-color="#FDE047" />
                   <stop offset="100%" stop-color="#EAB308" />
                 </linearGradient>
               </defs>
 
-              <!-- 1. Acorn Cap Stem -->
-              <path d="M 24 2 C 24 0, 26 0, 26 2 L 25 7 L 23 7 Z" fill="#78350F" />
+              <!-- 1. Jar Mouth & Threaded Metal Lid -->
+              <rect x="14" y="6" width="20" height="4" rx="1.5" fill="url(#masonLidMetal)" stroke="#64748B" stroke-width="0.8" />
+              <!-- Lid Grip Ridges -->
+              <line x1="17" y1="7" x2="17" y2="9.5" stroke="#94A3B8" stroke-width="0.75" />
+              <line x1="21" y1="7" x2="21" y2="9.5" stroke="#94A3B8" stroke-width="0.75" />
+              <line x1="24" y1="7" x2="24" y2="9.5" stroke="#94A3B8" stroke-width="0.75" />
+              <line x1="27" y1="7" x2="27" y2="9.5" stroke="#94A3B8" stroke-width="0.75" />
+              <line x1="31" y1="7" x2="31" y2="9.5" stroke="#94A3B8" stroke-width="0.75" />
+              <!-- Glass Neck Ring -->
+              <rect x="15" y="10" width="18" height="3" rx="0.5" fill="url(#masonGlassGrad)" stroke="#D97706" stroke-width="0.9" />
 
-              <!-- 2. Acorn Cap / Wooden Lid with Coin Slot -->
+              <!-- 2. Transparent Glass Cylindrical Jar Body -->
               <path
-                d="M 9 16 C 9 7, 39 7, 39 16 C 39 18, 9 18, 9 16 Z"
-                fill="url(#jarCapWood)"
-                stroke="#451A03"
-                stroke-width="1.2"
-              />
-              <!-- Cap texture cross-hatches -->
-              <path d="M 15 10 L 19 16 M 21 8 L 27 16 M 29 9 L 33 16" stroke="#B45309" stroke-width="0.8" stroke-linecap="round" />
-              <!-- Coin Slot on top of lid -->
-              <rect x="20" y="8" width="8" height="2" rx="1" fill="#18181B" stroke="#451A03" stroke-width="0.5" />
-
-              <!-- 3. Glass Acorn Jar Body (Transparent with amber tint) -->
-              <path
-                d="M 11 17 C 8 28, 13 44, 24 50 C 35 44, 40 28, 37 17 Z"
-                fill="url(#jarGlassGrad)"
+                d="M 16 13 C 12 14, 9 17, 9 20 L 9 46 C 9 49.5, 12 51, 16 51 L 32 51 C 36 51, 39 49.5, 39 46 L 39 20 C 39 17, 36 14, 32 13 Z"
+                fill="url(#masonGlassGrad)"
                 stroke="#D97706"
-                stroke-width="1.5"
-                class="dark:stroke-amber-400"
+                stroke-width="1.4"
+                class="dark:stroke-amber-500"
               />
 
-              <!-- Glass Left Curved Specular Highlight -->
+              <!-- 3. Glass Specular Reflections (Left Wall, Shoulder, Right Wall) -->
+              <!-- Left wall vertical glass shine streak -->
               <path
-                d="M 14 20 C 11 28, 14 38, 20 44"
+                d="M 12 21 L 12 45"
                 fill="none"
-                stroke="rgba(255, 255, 255, 0.7)"
-                stroke-width="1.2"
+                stroke="rgba(255, 255, 255, 0.85)"
+                stroke-width="1.3"
+                stroke-linecap="round"
+                class="dark:stroke-white/40"
+              />
+              <!-- Top left shoulder reflection -->
+              <path
+                d="M 14 18 Q 18 15 22 15"
+                fill="none"
+                stroke="rgba(255, 255, 255, 0.65)"
+                stroke-width="1"
+                stroke-linecap="round"
+                class="dark:stroke-white/35"
+              />
+              <!-- Right edge soft reflection -->
+              <path
+                d="M 36 23 L 36 43"
+                fill="none"
+                stroke="rgba(255, 255, 255, 0.3)"
+                stroke-width="1"
                 stroke-linecap="round"
               />
 
-              <!-- 4. Inside the jar: Settled gold coins -->
-              <ellipse cx="22" cy="45" rx="5" ry="2.2" fill="url(#jarGoldCoin)" stroke="#CA8A04" stroke-width="0.8" />
-              <ellipse cx="28" cy="43" rx="4.5" ry="2" fill="url(#jarGoldCoin)" stroke="#CA8A04" stroke-width="0.8" />
-              @if (savedCount() > 0) {
-                <!-- Additional coins stack up visually as counter increases -->
-                <ellipse cx="24" cy="40" rx="5" ry="2.2" fill="url(#jarGoldCoin)" stroke="#CA8A04" stroke-width="0.8" />
-              }
-              @if (savedCount() >= 5) {
-                <ellipse cx="20" cy="36" rx="4.5" ry="2" fill="url(#jarGoldCoin)" stroke="#CA8A04" stroke-width="0.8" />
-                <ellipse cx="27" cy="35" rx="4.5" ry="2" fill="url(#jarGoldCoin)" stroke="#CA8A04" stroke-width="0.8" />
-              }
+              <!-- 4. Piled Gold Coins Visible Inside the Clear Glass Base -->
+              <!-- Bottom coin base row -->
+              <ellipse cx="18" cy="46" rx="6" ry="2.2" fill="url(#masonCoinGrad)" stroke="#B45309" stroke-width="0.8" />
+              <ellipse cx="30" cy="46" rx="6" ry="2.2" fill="url(#masonCoinGrad)" stroke="#B45309" stroke-width="0.8" />
+              <!-- Middle coin row -->
+              <ellipse cx="24" cy="43.5" rx="6.5" ry="2.3" fill="url(#masonCoinGrad)" stroke="#B45309" stroke-width="0.8" />
+              <!-- Angled top resting coins -->
+              <ellipse cx="17.5" cy="40.5" rx="5.2" ry="2" fill="url(#masonCoinGrad)" stroke="#B45309" stroke-width="0.8" transform="rotate(-10 17.5 40.5)" />
+              <ellipse cx="29.5" cy="39.5" rx="5.2" ry="2" fill="url(#masonCoinGrad)" stroke="#B45309" stroke-width="0.8" transform="rotate(12 29.5 39.5)" />
 
-              <!-- 5. Front Glass Brand Coin Seal -->
-              <circle cx="24" cy="27" r="5.5" fill="url(#jarGoldCoin)" stroke="#B45309" stroke-width="0.9" />
-              <!-- Lightning Bolt Icon inside coin seal -->
-              <path d="M 24.5 24 L 22.5 27 L 24 27 L 23.5 30 L 25.5 26.8 L 24.2 26.8 Z" fill="#78350F" />
+              <!-- 5. Classic "SAVINGS" Label on Front Glass -->
+              <rect
+                x="15"
+                y="23"
+                width="18"
+                height="9"
+                rx="1.5"
+                fill="#FFFBEB"
+                stroke="#F59E0B"
+                stroke-width="0.8"
+                class="dark:fill-neutral-800 dark:stroke-amber-600"
+              />
+              <text
+                x="24"
+                y="29.5"
+                font-size="4.2"
+                font-weight="800"
+                font-family="system-ui, sans-serif"
+                text-anchor="middle"
+                fill="#B45309"
+                letter-spacing="0.5"
+                class="dark:fill-amber-400"
+              >SAVINGS</text>
             </svg>
           </div>
-
-          <!-- Running Counter: "Saved today: X coins" -->
-          <div class="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white dark:bg-neutral-800 border border-amber-500/30 text-xs font-medium text-neutral-800 dark:text-neutral-100 shadow-xs">
-            <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-            <span>
-              Saved today: <strong class="font-bold text-amber-600 dark:text-amber-400 font-mono">{{ savedCount() }}</strong> {{ savedCount() === 1 ? 'coin' : 'coins' }}
-            </span>
-          </div>
-          <span class="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 font-normal">
-            Coins landing here automatically tucked into savings
-          </span>
         </div>
       </div>
 
@@ -211,6 +237,5 @@ import { SavingsJarService } from '../../../core/services/savings-jar.service';
 export class LandingFooterComponent {
   private savingsJarService = inject(SavingsJarService);
 
-  readonly savedCount = this.savingsJarService.savedCount;
   readonly floatingCoins = this.savingsJarService.floatingCoins;
 }
