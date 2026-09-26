@@ -10,6 +10,7 @@ import {
   ChangeDetectionStrategy
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { SavingsJarService } from '../../../core/services/savings-jar.service';
 import type * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import type { RoomEnvironment as RoomEnvType } from 'three/examples/jsm/environments/RoomEnvironment.js';
@@ -59,6 +60,7 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
   private ngZone = inject(NgZone);
   private platformId = inject(PLATFORM_ID);
   private isBrowser = isPlatformBrowser(this.platformId);
+  private savingsJarService = inject(SavingsJarService);
 
   // Configuration
   private readonly PIXELS_PER_UNIT = 35; // 1 physics unit = 35 screen pixels
@@ -494,12 +496,19 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
           const distToFloor = pos.y - this.floorY;
           const speed = Math.hypot(linvel.x, linvel.y, linvel.z);
 
-          if (distToFloor <= 4.0 && speed < 0.8) {
+          const isResting = (distToFloor <= 4.0 && speed < 0.8) || distToFloor <= 0.6;
+
+          if (isResting) {
             coin.state = 'resting';
             coin.landedTime = now;
-          } else if (distToFloor <= 0.6) {
-            coin.state = 'resting';
-            coin.landedTime = now;
+
+            // Scoring Trigger: Check if coin settled within savings jar horizontal range
+            const jarRadiusUnits = Math.min(3.8, this.worldWidth * 0.22);
+            if (Math.abs(pos.x) <= jarRadiusUnits) {
+              this.ngZone.run(() => {
+                this.savingsJarService.recordCoinCaught(pos.x, this.PIXELS_PER_UNIT);
+              });
+            }
           }
         } else if (coin.state === 'resting') {
           if (coin.landedTime && now - coin.landedTime > this.REST_DURATION) {
