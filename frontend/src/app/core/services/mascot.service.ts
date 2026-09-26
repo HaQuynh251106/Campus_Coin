@@ -61,6 +61,7 @@ export class MascotService {
     if (this.isBrowser) {
       this.initRouterListener();
       this.initInactivityDetector();
+      this.initProactiveGreeting();
     }
   }
 
@@ -158,19 +159,29 @@ export class MascotService {
           return;
         }
 
-        // On student routes: Walk / hop transition with contextual quote
-        if (url.includes('/reports')) {
-          this.triggerState('walk', "Let's check your reports!", 3200);
-        } else if (url.includes('/budgets')) {
-          this.triggerState('walk', 'Checking monthly budget caps!', 3200);
-        } else if (url.includes('/quick-add')) {
-          this.triggerState('walk', 'Ready to log spending!', 3200);
-        } else if (url.includes('/home')) {
-          this.triggerState('walk', 'Heading back to your feed!', 3000);
+        // On student routes: Walk / hop animation transition (silent, no bubble spamming per navigation)
+        if (url.includes('/reports') || url.includes('/budgets') || url.includes('/quick-add') || url.includes('/home')) {
+          this.triggerState('walk', undefined, 2200);
         } else {
           this.triggerState('idle', undefined, 0);
         }
       });
+  }
+
+  // B.4 Proactive Greeting: Trigger once per browser session after 3.5s delay
+  private initProactiveGreeting(): void {
+    if (!this.isBrowser) return;
+    try {
+      const alreadyShown = sessionStorage.getItem('cc_mascot_greeting_shown');
+      if (!alreadyShown) {
+        setTimeout(() => {
+          if (!this.isChatOpen() && !this.bubbleText()) {
+            this.bubbleText.set("Need help figuring out this month's budget?");
+            sessionStorage.setItem('cc_mascot_greeting_shown', 'true');
+          }
+        }, 3800);
+      }
+    } catch {}
   }
 
   // Inactivity Detector (Sleepy state after 90 seconds of no user interaction)

@@ -45,5 +45,39 @@ describe('ChatbotWidgetComponent', () => {
     component.sendQuickPrompt('What is my budget status?');
     expect(chatbotService.messages().some(m => m.text === 'What is my budget status?')).toBe(true);
   });
-});
 
+  it('should apply custom thin scrollbar styling to message scroll container (A.1)', () => {
+    component.toggleOpen();
+    fixture.detectChanges();
+
+    const scrollContainer = fixture.nativeElement.querySelector('.chat-scrollbar');
+    expect(scrollContainer).toBeTruthy();
+  });
+
+  it('should render mascot avatar next to bot assistant messages (A.4)', () => {
+    component.toggleOpen();
+    fixture.detectChanges();
+
+    const botAvatars = fixture.nativeElement.querySelectorAll('app-icon[name="squirrel-logo"]');
+    // Header icon + at least 1 assistant welcome message avatar
+    expect(botAvatars.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('should provide accessible placeholder and active state on send button (A.3)', () => {
+    component.toggleOpen();
+    fixture.detectChanges();
+
+    const input = fixture.nativeElement.querySelector('input[name="chatInput"]') as HTMLInputElement;
+    expect(input).toBeTruthy();
+    expect(input.placeholder).toBe('Ask about budgets, meals, allowance…');
+
+    const sendBtn = fixture.nativeElement.querySelector('button[title="Send message"]') as HTMLButtonElement;
+    expect(sendBtn).toBeTruthy();
+    expect(sendBtn.disabled).toBe(true);
+
+    component.userInput.set('Hello assistant');
+    fixture.detectChanges();
+
+    expect(sendBtn.disabled).toBe(false);
+  });
+});

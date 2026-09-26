@@ -34,8 +34,8 @@ import { STUDENT_NAV_ITEMS, STUDENT_SIDEBAR_EXTRA_ITEMS } from '../../shared/nav
         <!-- Sticky Top Bar Header -->
         <app-top-bar></app-top-bar>
 
-        <!-- Dynamic Routed Feature Views -->
-        <main class="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto" [class.pb-24]="!isDesktop()">
+        <!-- Dynamic Routed Feature Views with safe bottom clearance for mascot launcher (B.7) -->
+        <main class="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto pb-28 md:pb-32" [class.pb-36]="!isDesktop()">
           <router-outlet></router-outlet>
         </main>
 
