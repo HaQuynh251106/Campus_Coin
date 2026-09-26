@@ -10,6 +10,11 @@ define those flows. "The column exists" is not a reason to build an API.
 
 Base path: `/api/v1`. All endpoints consume and produce `application/json`.
 
+**76 operations on 56 paths**, numbered 1–76 across the twelve modules. The count is pinned by
+`OpenApiContractIT`, which reads the generated OpenAPI document and fails if it disagrees with this
+list — so a documented endpoint that does not exist, or an endpoint that is not documented here,
+breaks the build rather than the contract.
+
 ## Module 1 — Authentication
 
 | # | Method | Endpoint | UC | Auth | Success | Module |
@@ -717,7 +722,133 @@ administrator disabled after it was issued is refused by the database as well as
 
 See [administration.md](administration.md) for the full contract.
 
+## Module 12 — Optional / Advanced
+
+Seven features from the SRS's optional block: CSV import (UC-11), AI categorisation (UC-08), monthly
+insight (UC-17), unusual/duplicate detection (UC-24), forecast (UC-25), and recent activity (UC-26).
+They are grouped in one module because the SRS groups them, but they are six independent surfaces with
+their own packages.
+
+| # | Method | Endpoint | UC | Auth | Success | Module |
+|---|--------|----------|----|------|---------|--------|
+| 62 | POST | `/api/v1/imports` | UC-11 A1 | Bearer token, role `STUDENT` | `201` the stored preview | CSV import |
+| 63 | GET | `/api/v1/imports` | UC-11 | Bearer token, role `STUDENT` | `200` the import history | CSV import |
+| 64 | GET | `/api/v1/imports/{batchId}` | UC-11 B5 | Bearer token, role `STUDENT` | `200` the batch and its rows | CSV import |
+| 65 | PATCH | `/api/v1/imports/{batchId}/rows/{rowId}` | UC-11 B6 | Bearer token, role `STUDENT` | `200` the row, in its new state | CSV import |
+| 66 | POST | `/api/v1/imports/{batchId}/commit` | UC-11 B9 | Bearer token, role `STUDENT` | `200` the batch after importing | CSV import |
+| 67 | POST | `/api/v1/imports/{batchId}/cancel` | UC-11 A2 | Bearer token, role `STUDENT` | `200` the cancelled batch | CSV import |
+| 68 | POST | `/api/v1/ai/suggest-category` | UC-08 | Bearer token, role `STUDENT` | `200` a proposal, or `NONE` | Categorisation |
+| 69 | GET | `/api/v1/insights` | UC-17 | Bearer token, role `STUDENT` | `200` the month's insight | Insights |
+| 70 | GET | `/api/v1/insights/months` | UC-17 | Bearer token, role `STUDENT` | `200` the months that have one | Insights |
+| 71 | POST | `/api/v1/insights/generate` | UC-17 | Bearer token, role `STUDENT` | `200` the insight after generating | Insights |
+| 72 | GET | `/api/v1/anomalies` | UC-24 | Bearer token, role `STUDENT` | `200` the flagged records | Anomalies |
+| 73 | POST | `/api/v1/anomalies/scan` | UC-24 | Bearer token, role `STUDENT` | `200` the scan's tally | Anomalies |
+| 74 | GET | `/api/v1/forecast` | UC-25 | Bearer token, role `STUDENT` | `200` the projection | Forecast |
+| 75 | GET | `/api/v1/recent-activity` | UC-26 | Bearer token, role `STUDENT` | `200` the caller's activity | Recent activity |
+| 76 | POST | `/api/v1/recent-activity` | UC-26 | Bearer token, role `STUDENT` | `201` the recorded entry | Recent activity |
+
+**Total: 15 endpoints.** No duplicates: no `/{id}` read on any of the four collections, no alias path,
+no `PUT` or `DELETE`, no multipart upload, and no second route for a UC that already has one. Each
+decision below is the kind that quietly becomes a duplicate later.
+
+Module 12 is the one module the project brief called **locked**, and the lock is why several things
+that would otherwise be reasonable are absent. Nothing here is a route onto the M1–M11 surfaces that
+were approved earlier: the module adds tables and procedures only where the schema had already
+reserved them, and the six packages are new.
+
+### The AI boundary — the rule every AI endpoint obeys
+
+Three of these surfaces involve a model: UC-08 (suggest a category), UC-17 (write the month's
+narrative). The SRS and the project's security rules fix the flow, and it is enforced by the shape of
+the code rather than by convention:
+
+```
+Angular → Spring Boot → this backend reads and filters the student's own rows
+                       → a prepared context object → the AI provider
+       ← this backend validates the answer ←
+```
+
+- **The provider never sees the database.** `AiSuggestionPort` (the port the services call) has no
+  repository: an implementation can send only what a service deliberately handed it and cannot fetch
+  anything for itself.
+- **The key never leaves the server.** `GEMINI_API_KEY` is read from the environment, is never
+  written to `application.yml`, never stored in MySQL, never put in a JWT and never sent to Angular.
+  It is not logged.
+- **No credential is a supported deployment.** With `GEMINI_API_KEY` unset the application starts
+  normally and installs `NoopAiSuggestionPort`: UC-08 falls back to the student's own learned rules
+  and UC-17 keeps the `RULE_BASED` summary a stored procedure already wrote. Nothing is faked — the
+  `generatedBy` column records `RULE_BASED` rather than `AI`.
+- **The answer is advice, and the API says so.** A suggestion never files a record on its own, and an
+  insight is advisory rather than financial advice (BR-13).
+- **`ai.enabled` and `ai.send_aggregates_only` are respected.** They live in `system_settings` and are
+  read before a call is made.
+
+### The `db/` changes Module 12 carries
+
+Unlike Module 11, this module **does** change the database, and two of those changes are worth a
+review line because they are corrections rather than additions:
+
+- **`sp_flag_transaction` (new)** — UC-24's write path. The three anomaly columns (`is_flagged`,
+  `flag_type`, `flag_note`), `ix_txn_flagged` and the two `anomaly.*` settings existed in the schema
+  from the start, but no procedure read or wrote them. The procedure is the sole write path so that
+  the ownership check (`BR-02`) lives in the database, next to `fk_txn_user`, rather than being
+  restated in Java. **It is not reachable as a client-supplied flag**: the API only ever passes a
+  value its own detector computed, which is the UC-24 instruction "do not allow the client to
+  arbitrarily set anomaly flags" made structural.
+- **`sp_apply_csv_batch` counter fix** — the commit path derived the duplicate count by subtracting
+  the imported and error rows from the total. That is wrong, because the walk it subtracted from only
+  visits rows the preview had already left `VALID`: a row refused in the preview (an unreadable date,
+  a typo in the amount) was counted as "you already recorded this". The three counters are now read
+  directly from `import_rows`, so the preview's own counter refresh and this commit agree by
+  construction — one definition per counter, both paths using it.
+- **`insights`** and **`import_batches` / `import_rows`** tables are read and written through existing
+  procedures (`sp_generate_monthly_insight`, `sp_apply_csv_batch`); no new table was added for the
+  module.
+- `db/merged/campuscoin_full.sql` stays in lockstep with `db/03_procedures.sql`. It is what the
+  integration suite loads, so the two files are the same schema seen twice, not a script and its
+  snapshot.
+
+### The decisions worth recording
+
+- **The commit is `POST .../commit`, not `PATCH {status}`.** A commit steps through every importable
+  row and generates transactions, then rewrites the batch's counters — its effect exceeds any single
+  column, and the student is asking for the work to be done, not naming a state. Same shape as
+  `POST /notifications/{id}/read` and `POST /anomalies/scan`.
+- **A CSV file is sent as JSON text, not as a multipart upload.** There is no `MultipartFile`, no
+  multipart configuration and no over-size handler anywhere in this build; adding all three for one
+  endpoint would leave the refusal a multipart route is most likely to hit answered by Spring's
+  default rather than by this API's error contract. `POST /api/v1/imports` takes
+  `{"filename": "...", "content": "..."}`.
+- **An unreadable row does not fail the file.** It is stored as an `ERROR` row carrying a sentence in
+  the student's terms, and the rows around it are previewed normally — so a file that will import
+  nothing is still a preview, and the student can see which rows to fix. This is UC-11's "invalid rows
+  identifiable, valid rows importable".
+- **A duplicate is decided from the student's own data and cannot be set from a request.** The
+  detector compares a row against the student's own records on category, amount and a date within a
+  few days. Nothing in the request names a flag, and nothing in the request names a batch's status.
+- **The scan is explicit (`POST /anomalies/scan`), the read is not (`GET /anomalies`).** Reading
+  flagged records never writes; asking for a scan is a separate, deliberate call that examines the
+  student's own history and rewrites the marks. A `GET` that mutated would be a `GET` a browser
+  prefetch could trigger.
+- **The forecast has no `{month}` and no `?month=`.** The month is the one after the month in progress,
+  which is what UC-25 asks for and what the schema's stored projection is keyed on — a documented
+  judgement rather than a client choice. The months the estimate rests on are published as
+  `recentMonths` inside the response rather than as a separate route.
+- **`GET /recent-activity` is not `GET /transactions?sort=recent`.** It is the student's own log of
+  having *opened or changed* a record — a different table (`recent_activity`), a different fact, and a
+  different owner. `POST /recent-activity` is what the client calls when a student opens or edits a
+  transaction; it records an entry, it does not change the transaction.
+- **UC-08 stores what it learns, and the learning is the point.** Each imported row — and each filing
+  — maps a description to the category it was filed under, in `category_rules`, so the next record
+  from the same merchant is suggested correctly. `RULE` beats `AI` in the response's `source`: a
+  mapping the student taught wins over a model's guess. The preserved example is "Campus Cafe → Food".
+- **The insight is generated through a procedure that already existed.** `sp_generate_monthly_insight`
+  writes the `RULE_BASED` figures; the AI narrative is layered on top by the backend and never
+  replaces them, so the numbers are always the database's own and the prose is always marked with its
+  author.
+
 ### Non-API paths
+
 
 These are served for development and operations. They are not part of the application contract and
 no frontend depends on them.
@@ -734,7 +865,7 @@ no frontend depends on them.
   frontend developer: base URL and environments, authentication, the Angular interceptors to
   install, the common error contract, the data ownership rule, the full enum reference, the
   per-module endpoint reference, the integration flows and the master quick-reference table of all
-  61 operations.
+  76 operations.
 - [authentication.md](authentication.md) — request and response contract for endpoints 1–7,
   including Angular integration notes.
 - [profile.md](profile.md) — request and response contract for endpoints 8–10, including Angular
@@ -764,4 +895,12 @@ no frontend depends on them.
 - [administration.md](administration.md) — request and response contract for endpoints 46–61, why
   every write is a `CALL` to a procedure that audits itself, and the fields that must never leave the
   server.
+- [imports.md](imports.md) — request and response contract for endpoints 62–67, the JSON-text upload,
+  the preview/commit/cancel workflow, and how a duplicate is decided.
+- [ai-and-insights.md](ai-and-insights.md) — request and response contract for endpoints 68–71, the
+  AI boundary (Angular → Spring Boot → provider, with the context prepared by this backend and the
+  answer validated on return), the `RULE`-over-`AI` precedence, and the `generatedBy` field BR-13
+  turns on.
+- [advanced.md](advanced.md) — request and response contract for endpoints 72–76: anomaly flagging,
+  the forecast, and recent activity.
 - [../SECURITY.md](../SECURITY.md) — the security decisions behind these endpoints.

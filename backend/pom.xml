@@ -18,6 +18,7 @@
 		<java.version>21</java.version>
 		<springdoc.version>2.8.5</springdoc.version>
 		<jjwt.version>0.12.6</jjwt.version>
+		<google.genai.version>1.73.0</google.genai.version>
 		<!--
 		  Overrides the version Spring Boot's dependency management would pick (1.20.x).
 		  Testcontainers 1.20 negotiates an API version below 1.40, which Docker Engine 29
@@ -50,11 +51,43 @@
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
+		<!--
+			Outbound email, used for one thing: delivering the UC-03 password reset link to the
+			account's mailbox.
+
+			The dependency is present whether or not a mail server is configured. Spring Boot
+			creates a JavaMailSender only when spring.mail.host is set, so a deployment without an
+			SMTP host starts normally and PasswordResetConfig installs the no-op notifier - the
+			same shape AiConfig uses for GEMINI_API_KEY. Credentials are read from the
+			environment (MAIL_USERNAME / MAIL_PASSWORD) and are never written to application.yml,
+			the database, a JWT or the frontend.
+		-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
+
 		<!-- Swagger / OpenAPI Documentation -->
 		<dependency>
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
 			<version>${springdoc.version}</version>
+		</dependency>
+
+		<!--
+			Google Gen AI Java SDK - the AI provider for UC-08 (category suggestion) and UC-17
+			(monthly narrative). It is a hard dependency of the build but not of the running
+			application: AiConfig installs NoopAiSuggestionPort when no credential is present,
+			so a deployment without GEMINI_API_KEY starts normally and both use cases run on
+			their deterministic, database-backed paths instead.
+
+			The credential is read from the environment by AiProperties and is never written to
+			application.yml, the database, a JWT or the frontend.
+		-->
+		<dependency>
+			<groupId>com.google.genai</groupId>
+			<artifactId>google-genai</artifactId>
+			<version>${google.genai.version}</version>
 		</dependency>
 
 		<!-- Database - MySQL is the single source of truth for the schema -->

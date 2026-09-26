@@ -621,7 +621,7 @@ written does not.
 
 - [`FRONTEND_API_GUIDE.md`](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for the
   frontend: base URL, interceptors, the shared error contract, the enum reference and the master
-  table of all 61 operations
+  table of all 76 operations
 - [`API_INVENTORY.md`](API_INVENTORY.md) — endpoints 36–37, and the decisions recorded with them
 - [`dashboard.md`](dashboard.md) — the other read of `v_monthly_income_expense` and
   `v_category_month_totals`, and why its month is not selectable where this one's is

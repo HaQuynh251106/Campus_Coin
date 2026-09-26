@@ -107,6 +107,33 @@ The backend also needs two secrets of its own. Neither is a database account, an
 
 > **`CAMPUSCOIN_ENCRYPTION_KEY` is a symmetric secret, not a private key.** It is never written to MySQL, never placed in a JWT and never sent to Angular. **Back it up:** data encrypted with one key cannot be read by a build configured with a different one, and losing it makes every encrypted description and note permanently unreadable. Do not derive it from `JWT_SECRET`. See `SECURITY.md` §12.
 
+### Optional external credentials
+
+Two features reach outside the deployment. **Neither credential is required** — the application starts
+and behaves correctly without both, and every case in the manual test procedures that needs one is
+marked **N/A** rather than failed. Both are listed empty in `.env.example`.
+
+| Variable | Needed for | If unset |
+|---|---|---|
+| `GEMINI_API_KEY` | UC-08 category suggestion and UC-17's AI narrative | A no-op provider is installed. UC-08 answers from the student's learned `category_rules` and returns `source: NONE` when there is none; UC-17 keeps the `RULE_BASED` summary the database wrote and `generated_by` says so |
+| `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | UC-03's password-reset email | The reset request **still succeeds** and answers its usual generic message, but no message is delivered. In the dev profile the link is written to `backend/target/password-reset-dev.log` instead, so the flow is demonstrable without a mail server |
+
+Two things to know before filling these in:
+
+- **`MAIL_FROM_ADDRESS` is required in practice even when `MAIL_HOST` is set.** A message with no
+  usable `From` cannot be delivered, so the SMTP notifier is only selected when **both** are present —
+  a host alone leaves the no-op in place rather than producing failed sends.
+- **`AI_MODEL` changes where student data is sent**, so it is deployment configuration rather than an
+  administrator-tunable `system_settings` row. It is not in the adjustable-key allow-list and a
+  `PATCH` on it is refused.
+
+The `RESET_SINK_ENABLED=false` switch turns the development file sink off and is what a deployment
+must set before real sending is possible. **Leaving it on in production would write reset links to
+disk**, which is why the dev profile defaults it on and the prod profile does not define it.
+
+See `SECURITY.md` §13 for the AI boundary — what is sent, what is never sent, and why the provider is
+never given database access.
+
 ---
 
 ## Demo accounts with preloaded data

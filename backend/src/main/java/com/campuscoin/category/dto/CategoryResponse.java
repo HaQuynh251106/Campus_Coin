@@ -41,11 +41,16 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(description = "A category the student can use (UC-06).")
 public record CategoryResponse(
 
-        @Schema(description = "Identifier, as the database assigned it.", example = "13")
+        @Schema(description = "Identifier, as the database assigned it. The value in this example "
+                + "is an illustration of the type, not a row that exists: ids are assigned by the "
+                + "database, so a client must always take them from a response rather than assume "
+                + "one. `1` is used here because the first row seeded by db/05_seed.sql always has "
+                + "it.", example = "1")
         Long id,
 
         @Schema(description = "Display name. Unique among the student's own categories of the "
-                + "same type, and never the same as a default category's.", example = "Campus Cafe")
+                + "same type, and never the same as a default category's.",
+                example = "Coffee & Snacks")
         String name,
 
         @Schema(description = "Whether records filed here are income or expense. This is the "

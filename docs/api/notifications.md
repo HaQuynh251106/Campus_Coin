@@ -698,7 +698,7 @@ differ (`2026-09-24T18:02:11` vs `...Z`) and the comparison would be meaningless
 
 - [FRONTEND_API_GUIDE.md](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for the
   frontend: base URL, interceptors, the shared error contract, the enum reference and the master
-  table of all 61 operations
+  table of all 76 operations
 - [API_INVENTORY.md](API_INVENTORY.md) — the authoritative endpoint list
 - [authentication.md](authentication.md) — how to obtain the token these endpoints need
 - [budgets.md](budgets.md) — module 6's other half, UC-13, where the limits these alerts are about are set

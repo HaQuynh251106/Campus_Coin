@@ -486,7 +486,7 @@ module's saved list is a third view of them.
 
 - [`docs/api/FRONTEND_API_GUIDE.md`](FRONTEND_API_GUIDE.md) — **start here.** The single entry point
   for the frontend: base URL, interceptors, the shared error contract, the enum reference and the
-  master table of all 61 operations
+  master table of all 76 operations
 - [`docs/api/API_INVENTORY.md`](API_INVENTORY.md) — endpoints 42–45, and the decisions recorded with
   them
 - [`docs/api/tips.md`](tips.md) — the tips this module points at, and the pinning act VĐ-03

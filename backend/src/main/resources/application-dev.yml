@@ -28,9 +28,15 @@ spring:
 campuscoin:
   security:
     password-reset:
-      # Writes the reset link to a file under backend/target/ instead of sending email.
-      # The raw token is never written to the application log.
-      sink-enabled: true
+      # Writes the reset link to a file under backend/target/ instead of sending email, so a
+      # developer needs no mail server. The raw token is never written to the application log.
+      #
+      # Set RESET_SINK_ENABLED=false to exercise real SMTP locally: with the sink off and
+      # MAIL_HOST / MAIL_FROM_ADDRESS set, PasswordResetConfig installs the SMTP notifier and
+      # the link is actually sent. A local catcher on plain SMTP (MailHog, Mailpit) also needs
+      # MAIL_STARTTLS=false and no MAIL_USERNAME. The default stays true so nothing is mailed
+      # by accident.
+      sink-enabled: ${RESET_SINK_ENABLED:true}
 
 logging:
   level:

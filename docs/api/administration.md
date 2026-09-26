@@ -611,7 +611,7 @@ including the two production defects the suite found and how the read-back ident
 
 - [FRONTEND_API_GUIDE.md](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for the
   frontend: base URL, interceptors, the shared error contract, the enum reference and the master
-  table of all 61 operations
+  table of all 76 operations
 - [API_INVENTORY.md](API_INVENTORY.md) — the full endpoint inventory, including why nothing here
   duplicates an existing route.
 - [authentication.md](authentication.md) — tokens, sessions and UC-05.

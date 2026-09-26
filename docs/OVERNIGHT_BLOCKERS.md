@@ -68,34 +68,44 @@ be derived from the database and the assumption is recorded per module.
 | **Module** | 1 — Authentication (UC-03) |
 | **Related UC** | UC-03 B2 |
 | **Related BR** | BR-04 |
-| **Status** | OPEN |
+| **Status** | OPEN — implementation complete, waiting on external credentials |
 
-**Blocked task.** Wiring an actual outbound mail provider so a reset link reaches the account
-owner in production.
+**Blocked task.** Supplying the credentials that let a reset link reach the account owner in
+production.
 
-**Why it is blocked.** No provider, credentials, sender address or SMTP/API configuration has been
-supplied, and inventing credentials is forbidden. This is an external-service dependency.
+**Why it is blocked.** No provider, credentials or verified sender address has been supplied, and
+inventing them is forbidden. This is an external-service dependency, not missing work.
 
-**Required input from me.** The provider and its credentials — SMTP host/port/user/password, or an
-API key for a transactional mail service — plus the verified sender address.
+**Required input from me.** An SMTP host, port, username and password (or an API key for a
+transactional mail service), plus a sender address the account is allowed to send as.
 
-**Current safe state.** The delivery mechanism is a port: `PasswordResetNotifier` with two
-implementations. Development uses `FilePasswordResetNotifier` (writes the link under
-`backend/target/`, gitignored; never to the log). Production uses `NoopPasswordResetNotifier`,
-which warns and sends nothing rather than writing a reset token to disk on a server. UC-03's
-generic response is identical in both cases, so account enumeration is not possible either way.
+**What was built while waiting.** `SmtpPasswordResetNotifier` now exists and is selected
+automatically when `MAIL_HOST` and `MAIL_FROM_ADDRESS` are both set — **no code change is needed
+once the values arrive**, only environment variables. The class sits behind the existing
+`PasswordResetNotifier` port, alongside `FilePasswordResetNotifier` (development: writes the link
+under `backend/target/`, gitignored, never to the log) and `NoopPasswordResetNotifier` (the
+fallback: warns and sends nothing rather than writing a reset token to disk on a server). UC-03's
+generic response is identical in all three cases, so account enumeration is not possible whichever
+is installed.
 
-**Temporary action.** Implemented and tested against the file sink. Adding a real provider means
-adding one bean; no UC-03 code changes.
+The connection is configured under `campuscoin.security.password-reset.smtp` rather than Spring's
+own `spring.mail`. That is deliberate: Spring Boot's `MailSenderAutoConfiguration` treats a
+*present* `spring.mail.host` as "configure a mail server", including an empty string, so a blank
+`${MAIL_HOST:}` default would build a sender pointed at no host. Owning the property means a blank
+host reads as "no mail server" and installs the no-op — the same shape `AiConfig` uses for a blank
+API key. The decision is recorded in `application.yml`'s comment and pinned by
+`PasswordResetConfigTest#aBlankHostYieldsTheNoop`.
 
-**Impact.** Password reset cannot work in production until this is resolved. **The service must
-not be treated as production-ready for UC-03.**
+**Verification already done without credentials.** `SmtpPasswordResetDeliveryTest` runs a minimal
+SMTP server on a loopback socket and asserts on the bytes a receiver actually gets — the envelope
+sender and recipient, and the link inside both decoded body parts. So the MIME encoding and the
+SMTP dialogue are proven rather than assumed; what the credentials add is a real host.
 
-**Suggested options.** Implement a `SmtpPasswordResetNotifier` once credentials exist, or wire a
-transactional mail API client. Either is a single new class behind the existing port.
+**Impact.** Password reset cannot deliver in production until the values are supplied. **The
+service must not be treated as production-ready for UC-03**, and this entry is the reason.
 
-**Recommended next action.** Supply provider credentials, or confirm the deployment will add the
-implementation itself.
+**Recommended next action.** Supply the SMTP values (or a transactional-mail API key and sender
+address). The keys are listed as commented placeholders in `.env.example`; nothing else changes.
 
 ---
 
@@ -230,34 +240,45 @@ deployment.
 | **Module** | 12 — Optional / Advanced (UC-11) |
 | **Related UC** | UC-11 |
 | **Related BR** | BR-02, BR-13 |
-| **Status** | OPEN |
+| **Status** | RESOLVED — closed at the application layer by module 12 (option (a)) |
 
 **Blocked task.** Adding a trigger to reject an `import_rows.ai_suggested_category_id` that
 belongs to another student.
 
-**Why it is blocked.** This is an acknowledged remaining gap, recorded in `DB_DESIGN.md` §4.8. The
+**Why it was blocked.** This was an acknowledged remaining gap, recorded in `DB_DESIGN.md` §4.8. The
 fix would be a new `BEFORE INSERT/UPDATE` trigger on `import_rows`. Adding a trigger is a schema
 change, which section 2 forbids without explicit approval.
 
 **Required input from me.** Approval to add the trigger, or a decision to handle it entirely in
 the application layer when UC-11 is implemented.
 
-**Current safe state.** The column is written only by the application during the UC-11 preview
-step. No procedure, trigger or view reads it back, and `sp_apply_csv_batch` — the real write path
-for CSV import — **does** verify ownership. The application layer can therefore reject an invalid
-value before it is stored, and this is the plan for module 12.
+**How it was resolved.** Module 12 took option (a): the application layer is the only writer of the
+column, and it resolves every value against the caller's own visible categories before writing. The
+resolution has one entry point, `ImportCategoryResolver`, whose answer *is* the value that reaches
+`ai_suggested_category_id` — there is no other computation and no path that takes a category id from
+the request. The chain is:
 
-**Temporary action.** Deferred to module 12, where UC-11 is implemented. The application will
-validate ownership before writing the column.
+| Writer | What it does with the column |
+|---|---|
+| `ImportCategoryResolver` | Matches the file's category name against the caller's own visible categories (their own rows plus the shared defaults) and, as a last line of defence, refuses any proposed id that is not in that visible set. A name that matches nothing resolves to `null`, so a foreign id cannot be produced |
+| `ImportPreviewer` | Carries that resolved value into `ImportRowDraft.aiSuggestedCategoryId()`; it does not compute one |
+| `ImportWriteDao` | Writes the draft's value behind `NULLIF(:aiSuggestedCategoryId, '')`, so there is no default and no fallback that could name a row the caller cannot see |
 
-**Impact.** Low. Exploiting it requires writing the column directly, and the value has no effect
-on any transaction or report.
+`sp_apply_csv_batch` remains the real write path for imported *transactions* and continues to verify
+ownership itself. `ImportApiIT#aLearnedMappingSuggestsACategoryWithoutFilingTheRow` asserts the
+positive half end to end through HTTP — a learned mapping produces an `aiSuggestedCategoryId` drawn
+from the caller's own visible set — and the last-line refusal is what a future change to
+`CategorySuggester` would have to defeat before a foreign id could appear. The refusal branch itself
+has no test that forces it, because nothing in the current code can reach the column with an id from
+outside the visible set; that is recorded here rather than claimed as covered.
 
-**Suggested options.** (a) Application-side validation in module 12 — no schema change, sufficient
-because the column is application-only. (b) A trigger matching
-`trg_bookmarks_before_insert/update`, if defence in depth is wanted.
+**Impact of the resolution.** Low, and unchanged from the assessment above: the column has no effect
+on any transaction or report, and there is no API surface that accepts a category id for it.
 
-**Recommended next action.** Confirm option (a) is sufficient.
+**Option (b) remains open.** A `BEFORE INSERT/UPDATE` trigger on `import_rows` matching
+`trg_bookmarks_before_insert/update` would still be defence in depth for a writer that bypasses the
+application. It was not added, because it is a schema change with no use case requiring it and the
+application-layer guarantee is complete for every path the API exposes.
 
 ---
 
@@ -577,34 +598,66 @@ and option 2 (accept and close). Until then the module ships with the documented
 | **Module** | 12 — Optional / Advanced (`insights`, `import_rows`) |
 | **Related UC** | UC-17, UC-11 |
 | **Related BR** | BR-12, BR-17 |
-| **Status** | OPEN — deferred with module 12 |
+| **Status** | OPEN — still unencrypted, now with a live read path; re-scoped by module 12 |
 
-**Blocked task.** Bringing `insights.title`/`insights.body` (UC-17) and
-`import_rows.original_description`/`parsed_*` (UC-11) under application-level field encryption.
+**Blocked task.** Bringing `insights.summary_text`/`advice_text` and the amount aggregates UC-17
+stores, and `import_rows.parsed_description`/`parsed_amount` (UC-11), under application-level field
+encryption.
 
-**Why it is blocked.** Both tables are written by stored procedures
-(`sp_generate_monthly_insight`, `sp_apply_csv_batch`) that belong to module 12, which is locked
-pending project-owner approval. A procedure cannot encrypt — that would require the key inside
-MySQL — so encrypting these columns means rewriting those procedure bodies, which is building the
-locked module by the back door. Claiming the columns are encrypted while their only writer still
+**What changed when module 12 was built.** The exposure is no longer latent. Both tables are now
+reachable through the running API — `GET /api/v1/insights` (69) reads `insights`, and the CSV
+import preview (62, 64) reads `import_rows` — so a direct `SELECT` on either table now reveals values
+a student can also read through the API. That is the whole finding: the columns were unencrypted
+before because nothing read them, and building the reader did not change the columns.
+
+**Two further points module 12 recorded rather than fixed.**
+
+1. **An imported row's description reaches `transactions.description` as ciphertext; the preview
+   copy stays plaintext.** The two do not carry the same protection, because they are not the same
+   data. `transactions.description` is written by `TransactionService` through the encryption
+   boundary and is `VARCHAR(2048) CHARACTER SET ascii COLLATE ascii_bin` — the Base64 envelope's
+   column. `import_rows.parsed_description` is a `VARCHAR(255)` in the table's default `utf8mb4`, and
+   it holds the row as the file wrote it, for the preview to display beside the values the importer
+   read. So an import produces a transaction whose description is encrypted **and** a preview row
+   that still holds the same text in the clear. A change that encrypts `parsed_description` without
+   widening it to `ascii_bin` would fail the column's own encoding; the two changes are one piece of
+   work, not two.
+2. **`import_rows.raw_data` is a third plaintext copy.** It is the whole CSV line as JSON, so it
+   contains the amount and the description again. It is named here so that the work above is scoped
+   to three columns rather than two.
+
+**Why it remains blocked.** The blocker's own resolution condition — "fold into module 12 when it is
+approved" — has not been met. Module 12 is **implemented but still locked pending the project
+owner's approval**, and the encryption work here would require changing the same two procedure
+bodies the module's own procedures now depend on. `sp_generate_monthly_insight` still writes
+`total_income`, `total_expense` and `net_amount` as `DECIMAL` sums and `sp_apply_csv_batch` still
+writes `parsed_amount` as a `DECIMAL`; a procedure cannot encrypt, so making those columns
+`VARBINARY` would stop the schema from loading at all. Doing it now would also be a schema change
+beyond the module's approved scope. Claiming the columns are protected while their only writer still
 inserts plaintext would be worse than leaving the gap documented.
 
-**Required input from me.** Approval to start module 12 (or explicit approval to change those two
-procedures ahead of it). When module 12 is built, the same treatment the transaction descriptions
-already have applies: the Java writer encrypts, the Java reader decrypts, and the procedure is
-narrowed to stop writing the free-text columns directly.
+**Required input from me.** Approval to close OB-012. The work is well-defined and the same shape
+the transaction descriptions already have: the Java writer encrypts, the Java reader decrypts, the
+procedure is narrowed to stop writing the free-text column directly, and the affected columns are
+widened to the Base64 envelope's `VARCHAR ... ascii_bin`. It touches `db/01_schema.sql`,
+`db/03_procedures.sql` and `db/merged/campuscoin_full.sql`, which is why it needs to be asked for
+rather than assumed.
 
 **Current safe state.** The columns are marked in `db/01_schema.sql` with a `KNOWN PLAINTEXT —
 RESIDUAL EXPOSURE, DELIBERATE` comment pointing at this blocker, so a later reader finds the gap at
-the schema rather than having to rediscover it. No Java code reads or writes either table today, so
-nothing in the current build can leak or mis-handle them.
+the schema rather than having to rediscover it. **No response publishes a value these columns hold
+that the caller is not entitled to see:** UC-17's insight is the caller's own, and UC-11's preview
+rows are the caller's own file. The exposure is a direct `SELECT` on the database, not an API leak,
+and the API's ownership checks are the reason it stays that way.
 
-**Impact.** Low. Neither table is reachable through the running API: both are inert until module 12
-exists, and no student can currently create an insight or an import row. The exposure is latent, not
-live. It is recorded rather than fixed so that module 12 is not built on the assumption that these
-columns are already protected.
+**Impact.** Low, and unchanged in kind from before: it is a residual at-rest exposure for a person
+with database credentials, not a live disclosure through the application. What module 12 changed is
+that the exposure is no longer latent — the tables are now read by a running feature — so this entry
+is now describing real data rather than an inert one.
 
-**Recommended next action.** Leave OPEN; fold into module 12 when it is approved.
+**Recommended next action.** Leave OPEN. Fold into a follow-up approval when the project owner
+unlocks module 12; the two `db/` changes module 12 already carries are the precedent for how such a
+change is recorded and mirrored into `db/merged/campuscoin_full.sql`.
 
 ---
 
@@ -761,11 +814,17 @@ a monthly insight as well as a saving tip.
 
 **Why it is blocked.** UC-19 B1 names "a tip or an insight", and `bookmarks.item_type` is
 `ENUM('TIP','INSIGHT')` with `ck_bookmark_target` and a dedicated `insights` foreign key supporting
-both shapes — so the schema is ready. But insights are **UC-17**, inside module 12, which is locked
-pending the project owner's approval, and `insights` has **no read path anywhere in the repository**:
-no view in `db/02_views.sql`, no endpoint, no Java type. Serving the branch would mean exposing a
-locked module's contract through this one, and faking it — returning a tip under an `INSIGHT` label —
-would be worse.
+both shapes — so the schema is ready. But insights are **UC-17**, inside module 12, which is
+**implemented but still locked pending the project owner's approval**. Serving the branch would mean
+exposing a locked module's contract through this one, and faking it — returning a tip under an
+`INSIGHT` label — would be worse.
+
+**What changed when module 12 was built.** The factual basis of this blocker has moved. `insights`
+now has an owner in the application: `InsightViewDao` reads it, `InsightService` serves it, and
+endpoints 69–71 expose it. So the reason for refusing the branch is now **scope** — module 12 is
+locked — and no longer the absence of a read path. The work described below is unchanged and still
+worth doing at the same moment; it is simply no longer the only thing standing between UC-19 B1 and
+its second act.
 
 **What was built instead.** `POST` accepts `itemType` and answers `INSIGHT` with
 `400 VALIDATION_ERROR` and a field error on `itemType` whose message names UC-17. Refusing **by
@@ -797,25 +856,116 @@ OB-012.
 
 ---
 
+## OB-016 — Two `db/` changes carried by module 12, and the merge file that must follow them
+
+| Field | Value |
+|---|---|
+| **Priority** | LOW |
+| **Module** | 12 — Optional / Advanced |
+| **Related UC** | UC-11, UC-24 |
+| **Related BR** | BR-02, BR-09, BR-18 |
+| **Status** | RESOLVED — both changes applied and mirrored |
+
+**What this records.** Module 12 is the first module since the PHASE 0 encryption work to change a
+`db/` file, so the change and its mirroring are recorded here rather than left to a diff. Two
+changes, both in `db/03_procedures.sql`:
+
+1. **New — `sp_flag_transaction`.** The three flag columns on `transactions` (`is_flagged`,
+   `flag_type`, `flag_note`), `ix_txn_flagged` and the two `anomaly.*` settings have existed since
+   the schema was written, but **no procedure or view read or wrote them** — UC-24 is module 12 and
+   had never been built. The procedure is the write path, and it is a procedure rather than an
+   application `UPDATE` for the same reason `sp_touch_recent_activity` is: the ownership check
+   belongs in the database. `fk_txn_user` proves the row exists, not whose it is, so without the
+   check one student could flag another's record (BR-02). `p_flag_type = 'NONE'` is the clearing
+   form, so "not flagged" has exactly one representation and a stale note cannot survive an unflag.
+2. **Corrected — `sp_apply_csv_batch`'s counters.** The duplicate count was derived by subtraction
+   (`v_total - v_imported - v_errors`). The procedure's cursor visits only rows that were already
+   `VALID`, so a row the preview had refused was never seen, and subtraction reported every such row
+   as "you already recorded this". Each counter is now counted from the rows themselves, which makes
+   the preview's counter and the commit's agree by construction — one definition per counter, both
+   paths using it.
+
+**The mirroring rule, stated because it is easy to miss.** `db/merged/campuscoin_full.sql` is what
+`AbstractMySqlIntegrationTest` loads into the Testcontainers MySQL, so **any `db/*.sql` change must be
+mirrored into the merged file in the same edit** or the suite tests a schema the deployment will not
+have. Both changes above are mirrored; `git diff --stat -- db/` shows the two files moving together
+and nothing else.
+
+**No table, view, trigger or column was added.** `sp_flag_transaction` uses columns that already
+existed; the `sp_apply_csv_batch` change is inside an existing body. `ddl-auto: validate` still
+holds, because no entity's mapping changed.
+
+---
+
+## OB-017 — The `anomaly.*` thresholds are not administration-tunable
+
+| Field | Value |
+|---|---|
+| **Priority** | LOW |
+| **Module** | 11 — Administration (UC-23, VĐ-05), with 12 — Optional / Advanced (UC-24) |
+| **Related UC** | UC-23, UC-24 |
+| **Related BR** | BR-15, VĐ-05 |
+| **Status** | OPEN — recorded as a deliberate boundary, awaiting a decision |
+
+**What was found.** `sp_admin_set_threshold`'s allow-list is exactly six keys:
+`budget.near_threshold_pct`, `budget.exceeded_threshold_pct`, `insight.spike_threshold_pct`,
+`insight.spike_baseline_months`, `tips.max_dashboard` and `auth.reset_token_ttl_minutes`. The two
+`anomaly.*` keys — `anomaly.duplicate_window_days` (UC-24's duplicate window, default 3) and
+`anomaly.unusual_multiplier` (the "several times the usual" multiple, default 3) — **exist as rows in
+`system_settings` and are read by the module 12 detector, but are not in that list**, so
+`PATCH /api/v1/admin/settings/{key}` refuses them with `409 THRESHOLD_NOT_ADJUSTABLE`.
+
+**Why this is a blocker and not a bug fix.** Widening the allow-list means changing
+`sp_admin_set_threshold`, which is a `db/` change outside module 12's approved scope, and it would
+also make module 11's documentation (whose allow-list is stated as six keys, matching "six
+adjustable, ten refused") wrong. So the boundary is recorded rather than moved. Module 12 reads both
+values from `system_settings` through the shared `SettingReader`, with the defaults above as
+constants, so **a deployment can still set them by updating the seeded row directly** — the values
+are configuration, they are simply not configuration an *administrator* can reach through the API.
+
+**Impact.** Low. UC-24 works and is tested with the seeded values. The gap is a tuning surface: an
+administrator who wants a 5-day duplicate window or a 4× unusual multiple must ask for a code or
+data change. Whether that is intended — anomaly sensitivity being a deployment decision rather than
+an operational one — is a project-owner question, not a code defect.
+
+**Recommended next action.** Confirm the boundary is intended, or approve adding the two keys to
+`sp_admin_set_threshold`'s allow-list and to `AdminThresholds` together, in which case module 11's
+documentation changes in the same edit.
+
+---
+
 ## Summary
 
 | ID | Priority | Module | Status |
 |---|---|---|---|
 | OB-001 | HIGH | All | OPEN — source PDF and `.docx` not on disk |
-| OB-002 | MEDIUM | 1 — Authentication | OPEN — no production mail provider |
+| OB-002 | MEDIUM | 1 — Authentication | OPEN — no production mail provider; the SMTP notifier is now implemented and waits on credentials |
 | OB-003 | MEDIUM | All | OPEN — secret store not chosen |
 | OB-004 | LOW | 1 — Authentication | READY FOR REVIEW — throttle is per instance |
 | OB-005 | MEDIUM | 11 — Administration | READY FOR REVIEW — DB admins bypass the admin gate; module 11 confirms every API write goes through `sp_require_admin` |
-| OB-006 | LOW | 12 — Advanced | OPEN — `import_rows` ownership check at app layer |
+| OB-006 | LOW | 12 — Advanced | **RESOLVED** — `import_rows` ownership closed at the application layer by module 12 |
 | OB-007 | LOW | Infrastructure | RESOLVED — `docker-compose.yml` translated |
 | OB-008 | LOW | Cross-cutting | RESOLVED — unauthenticated `/actuator` paths closed |
 | OB-009 | MEDIUM | 5 — Recurring (with 3) | READY FOR REVIEW — retired category freezes its rules |
 | OB-010 | MEDIUM | 5 — Recurring | READY FOR REVIEW — a pause defers its periods instead of skipping them |
 | OB-011 | MEDIUM | 6 — Budget (with 3) | READY FOR REVIEW — retired category freezes its budgets |
-| OB-012 | LOW | 12 — Advanced | OPEN — `insights`/`import_rows` stay plaintext with module 12 |
-| OB-013 | MEDIUM | 6, 7, 8, 9, 11 — every aggregation | OPEN — amounts deliberately not encrypted; module 11 serves the plaintext aggregates |
+| OB-012 | LOW | 12 — Advanced | OPEN — `insights`/`import_rows` stay plaintext; module 12 added a live read path and scoped the work to three columns |
+| OB-013 | MEDIUM | 6, 7, 8, 9, 11, 12 — every aggregation | OPEN — amounts deliberately not encrypted; modules 11 and 12 serve the plaintext aggregates |
 | OB-014 | LOW | 5 — Recurring | READY FOR REVIEW — scheduler copies the rule's envelope |
-| OB-015 | LOW | 10 — Bookmarks (with 12) | OPEN — the insight branch of UC-19 waits for module 12 |
+| OB-015 | LOW | 10 — Bookmarks (with 12) | OPEN — the insight branch of UC-19 waits for module 12 to be unlocked |
+| OB-016 | LOW | 12 — Advanced | RESOLVED — the two `db/` changes, both mirrored into the merged file |
+| OB-017 | LOW | 11 / 12 | OPEN — the `anomaly.*` thresholds are not administrator-tunable |
+
+**Two items are now external dependencies rather than work in progress:** OB-002 needs mail
+credentials, and the AI provider needs `GEMINI_API_KEY`. Both features are implemented and
+tested; neither can be exercised against a real service until the values are supplied.
+
+> **Update, 2026-09-26.** The provider behind `AiSuggestionPort` was changed from Anthropic's Claude
+> to **Google's Gemini** at the project owner's request: `GeminiAiSuggestionPort` replaces
+> `AnthropicAiSuggestionPort`, the credential moves from `ANTHROPIC_API_KEY` to `GEMINI_API_KEY`, and
+> the default model from `claude-opus-5` to `gemini-3.5-flash`. Nothing above the port changed — the
+> services still depend only on `AiSuggestionPort`. The AI item above is otherwise unchanged: it
+> still needs a real key before it can be exercised against the live service.
 
 **Nothing in this list blocks modules 2–12 from proceeding.** Every item is either an external
 dependency, a deployment decision, or already-solved work recorded for review. The blocker that

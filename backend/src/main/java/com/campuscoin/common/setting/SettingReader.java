@@ -1,5 +1,7 @@
 package com.campuscoin.common.setting;
 
+import java.math.BigDecimal;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -35,6 +37,23 @@ public class SettingReader {
 
     /** VĐ-08: the currency a new account starts with, also used by the dashboard. */
     public static final String APP_CURRENCY = "app.currency";
+
+    /**
+     * UC-24: how many days back a record is compared against when looking for a suspected duplicate.
+     *
+     * <p>Seeded at {@code 3}. Read here rather than written into the detector because VĐ-05 makes it
+     * configuration: an administrator retunes the window without a redeploy. The value was seeded for
+     * the anomaly feature before that feature existed, which is why the key is already there.
+     */
+    public static final String ANOMALY_DUPLICATE_WINDOW_DAYS = "anomaly.duplicate_window_days";
+
+    /**
+     * UC-24: how many times the student's own average a record must reach to count as unusual.
+     *
+     * <p>Seeded at {@code 3}. A decimal rather than an integer, because the column is
+     * {@code DECIMAL} and a multiplier such as {@code 2.5} is a legitimate retuning.
+     */
+    public static final String ANOMALY_UNUSUAL_MULTIPLIER = "anomaly.unusual_multiplier";
 
     private final SystemSettingRepository repository;
 
@@ -84,5 +103,41 @@ public class SettingReader {
                 .map(setting -> setting.getSettingValue())
                 .filter(value -> !value.isBlank())
                 .orElse(defaultValue);
+    }
+
+    /**
+     * Reads a decimal setting.
+     *
+     * <p>The counterpart of {@link #getInt} for a key whose column is {@code DECIMAL} - a multiplier
+     * such as {@code 2.5} is a legitimate retuning, so an integer reader would silently discard it.
+     * The same unusable-value policy applies, for the same reason: a zero or negative multiplier
+     * would make every record "unusual" and a zero-day window would make the duplicate check
+     * useless, so a value that would disable the control it configures is treated as absent and the
+     * documented default is used instead. It mirrors the {@code IFNULL(NULLIF(CAST(...), 0), default)}
+     * guards the views apply for the same class of key (VĐ-05).
+     *
+     * @param key          the {@code setting_key} to read
+     * @param defaultValue returned when the row is absent, or its value is not a positive decimal
+     */
+    @Transactional(readOnly = true)
+    public BigDecimal getDecimal(String key, BigDecimal defaultValue) {
+        String raw = repository.findBySettingKey(key)
+                .map(setting -> setting.getSettingValue())
+                .orElse(null);
+
+        if (raw == null || raw.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            BigDecimal parsed = new BigDecimal(raw.trim());
+            if (parsed.signum() <= 0) {
+                log.warn("Setting {} has a non-positive value; using default {}", key, defaultValue);
+                return defaultValue;
+            }
+            return parsed;
+        } catch (NumberFormatException ex) {
+            log.warn("Setting {} is not a valid decimal; using default {}", key, defaultValue);
+            return defaultValue;
+        }
     }
 }

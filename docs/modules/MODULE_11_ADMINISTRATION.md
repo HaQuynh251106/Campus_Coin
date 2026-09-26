@@ -403,7 +403,7 @@ declaration is now instantiated with the same placeholder values before comparis
 | `AdminSettingsApiIT` | 28 | 58–59, including the six-key allow-list |
 | `AdminStatsApiIT` | 11 | 60–61 |
 | `AdminWriteFailureTest` | 16 | The classifier, unit-level, with the real driver exception shapes |
-| `OpenApiContractIT` | +1 (13 → 14) | The document lists all 61 operations on 43 paths; the 14th test pins the new response schemas |
+| `OpenApiContractIT` | +1 (13 → 14) | The document lists all 61 operations on 43 paths at the time module 11 was written — 76 on 56 now that module 12 is built; the 14th test pins the new response schemas |
 | **Total new** | **168** | Suite 568 → **736** |
 
 All integration classes extend `AbstractMySqlIntegrationTest`, so the real procedures, triggers and
@@ -474,7 +474,7 @@ Reviewed as another developer's PR, against criteria A–V.
 | F. Transaction boundaries | Reads `readOnly = true`; every `CALL` is plain `@Transactional`, never read-only, because MySQL refuses any `CALL` on a read-only connection |
 | G. N+1 and fetch strategy | One query per read, none in a loop. The user list is one projection; `findOne`/`findByCode` are single rows; `findCreatedBy` is one row inside the writing transaction. `open-in-view: false` |
 | H. Locking | **No explicit lock is taken.** The toggles and the upsert are last-write-wins field writes, which is what the caller asked for. Uniqueness that *is* decided from current state (template code, category name) is enforced by the database's unique keys and pre-checked in Java for the error message, not guarded by a lock |
-| I. Schema coupling | `ddl-auto: validate` holds for all 736 tests and every integration context starts under it. Native queries projected by alias; no entity in this module at all, so no mapping to drift |
+| I. Schema coupling | `ddl-auto: validate` holds for all 736 tests at the module-11 checkpoint (1090 now that module 12 is built) and every integration context starts under it. Native queries projected by alias; no entity in this module at all, so no mapping to drift |
 | J. Security | [`docs/api/administration.md` §9](../api/administration.md#9-security-properties): one role rule, authority from the live row, every write through `sp_require_admin` |
 | K. Sensitive output | `Admin*Mapper` is the single gate per resource, and the *records* have no component for the forbidden fields, so the guarantee is structural rather than a filter that a later edit could drop |
 | L. Logging | Ids and enum values only: actor, target id, audience, key name. No email body, no token, no ciphertext, no driver message. A refusal is logged as `reference=` plus an identifier, never the id of a row the caller did not name |
@@ -561,7 +561,7 @@ No attack produced a `500`, a leak, an unaudited write or a duplicate capability
 | No implementation logic duplicated | The one duplication is stated, not hidden: `AdminRequestContext` restates `auth.controller.ClientAddress`'s five lines. `ClientAddress` is package-private and its three call sites are all in the auth package, and neither widening it to `public` (exposing an auth-internal helper for an unrelated reason) nor reaching across packages was acceptable. The cost is that the "no proxy header" decision now lives in two places, and both javadocs say so |
 | `db/` unchanged by this module | Yes. `git diff --name-only -- db/` lists only the three PHASE 0 encryption files, and `git diff -- db/ \| grep sp_admin\|v_admin` is empty (§3.7) |
 | `ddl-auto: validate` holds | Yes — every integration context starts under it, and this module adds no entity, so there is nothing new to validate |
-| Full suite green | Yes — **736 tests, 0 failures, 0 errors, 0 skipped** |
+| Full suite green | Yes — **736 tests, 0 failures, 0 errors, 0 skipped** at this module's checkpoint (1090 with module 12) |
 | Every route in the inventory | Yes — 46–61 in `docs/api/API_INVENTORY.md`, with the "Total: 16 endpoints" no-duplicates paragraph |
 | API document written | Yes — `docs/api/administration.md` |
 | Manual test procedure written | Yes — `docs/testing/manual/MODULE_11_MANUAL_TEST.md`, §29 placeholders only |

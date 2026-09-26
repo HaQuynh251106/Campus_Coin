@@ -1,6 +1,6 @@
 -- ============================================================================
 --  CAMPUS COIN — 03_procedures.sql
---  1 utility function + 24 business procedures.
+--  1 utility function + 25 business procedures.
 --
 --  Why stored procedures instead of putting all the logic in the Java layer:
 --    - BR-05, BR-06, BR-07 and BR-08 span several tables, so a CHECK constraint
@@ -990,7 +990,21 @@ BEGIN
   CLOSE cur;
 
   SELECT COUNT(*) INTO v_total FROM import_rows WHERE batch_id = p_batch_id;
-  SET v_skipped = v_total - v_imported - v_errors;
+
+  -- The three counters below are read from the rows rather than derived from the walk
+  -- above, and that is a correction rather than a style choice. The cursor only ever
+  -- visits rows that were already 'VALID', so a row the preview had refused (a typo in
+  -- the amount, an unreadable date) is never seen by this procedure at all - and
+  -- deriving the duplicate count by subtraction reported every such row as "you already
+  -- recorded this". Counting each state directly also makes the preview's own counter
+  -- refresh and this commit agree by construction: there is one definition per counter
+  -- and both paths use it.
+  SELECT COUNT(*) INTO v_imported FROM import_rows
+   WHERE batch_id = p_batch_id AND row_status = 'IMPORTED';
+  SELECT COUNT(*) INTO v_errors FROM import_rows
+   WHERE batch_id = p_batch_id AND row_status = 'ERROR';
+  SELECT COUNT(*) INTO v_skipped FROM import_rows
+   WHERE batch_id = p_batch_id AND row_status = 'DUPLICATE';
 
   UPDATE import_batches
      SET status = 'COMMITTED',
@@ -1564,6 +1578,61 @@ BEGIN
   ON DUPLICATE KEY UPDATE occurred_at = NOW();
 END $$
 
+
+-- ---------------------------------------------------------------------------
+-- sp_flag_transaction — UC-24: set or clear the anomaly flag on one of the
+-- student's OWN transactions.
+--
+-- The three flag columns (is_flagged, flag_type, flag_note) have existed since
+-- the schema was written, together with ix_txn_flagged and the two
+-- `anomaly.*` settings, but no procedure or view read or wrote them: UC-24 is
+-- module 12 and until now it was not built. This procedure is that write path,
+-- and it is a procedure rather than an UPDATE issued by the application for the
+-- same reason sp_touch_recent_activity is: the ownership check belongs in the
+-- database. `fk_txn_user` proves the row exists, not whose it is, so without the
+-- check below one student could flag another student's record.
+--
+-- It is NOT reachable from the API as a client-supplied flag. The API only ever
+-- passes a value its own detector computed - see the note on the endpoint.
+--
+-- `p_flag_type = 'NONE'` is the clearing form: it sets is_flagged = 0 and the
+-- note to NULL, so "not flagged" has exactly one representation and a stale note
+-- cannot survive an unflag.
+--
+-- The UPDATE fires trg_transactions_after_update, which appends a history row
+-- when - and only when - one of the three columns actually changed (BR-09). A
+-- rescan that reaches the same conclusion therefore writes nothing at all, and
+-- one that flips a flag leaves a record of the system's own decision.
+-- ---------------------------------------------------------------------------
+DROP PROCEDURE IF EXISTS sp_flag_transaction $$
+CREATE PROCEDURE sp_flag_transaction(
+  IN p_txn_id    BIGINT UNSIGNED,
+  IN p_user_id   BIGINT UNSIGNED,
+  IN p_flag_type VARCHAR(20),
+  IN p_flag_note VARCHAR(255)
+)
+BEGIN
+  DECLARE v_owner BIGINT UNSIGNED DEFAULT NULL;
+
+  IF p_flag_type NOT IN ('NONE', 'DUPLICATE', 'UNUSUAL_AMOUNT') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid anomaly flag type';
+  END IF;
+
+  SELECT user_id INTO v_owner FROM transactions WHERE id = p_txn_id;
+  IF v_owner IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Transaction does not exist';
+  END IF;
+  IF v_owner <> p_user_id THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'BR-02: cannot flag a transaction owned by another student';
+  END IF;
+
+  UPDATE transactions
+     SET is_flagged = IF(p_flag_type = 'NONE', 0, 1),
+         flag_type  = p_flag_type,
+         flag_note  = IF(p_flag_type = 'NONE', NULL, p_flag_note)
+   WHERE id = p_txn_id;
+END $$
 
 -- ---------------------------------------------------------------------------
 -- sp_mark_notification_read — UC-14 B4: only one's own notification can be marked

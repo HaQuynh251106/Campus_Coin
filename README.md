@@ -9,8 +9,15 @@ view visual reports, and receive saving tips derived from their own spending hab
 > Authentication (UC-01, UC-02, UC-03, UC-05), Profile & Preferences (UC-04, UC-27), Personal
 > Categories (UC-06), Transactions (UC-07, UC-10), Recurring Expenses (UC-09), Budget &
 > Notifications (UC-13, UC-14), Dashboard (UC-12), Reports & Export (UC-15, UC-16), Saving
-> Tips (UC-18), Bookmarks / Notes (UC-19) and Administration (UC-20 – UC-23): 61 endpoints, 736
-> tests passing against a real MySQL 8.
+> Tips (UC-18), Bookmarks / Notes (UC-19) and Administration (UC-20 – UC-23): those eleven modules
+> are 61 endpoints and 736 tests passing against a real MySQL 8 (the totals in `docs/HANDOFF_M1_M11.md`).
+>
+> **Module 12 (Optional / Advanced) is implemented and tested but remains locked pending the
+> project owner's approval.** It adds fifteen operations — CSV import (UC-11), AI categorisation
+> (UC-08), monthly insights (UC-17), anomaly flagging (UC-24), forecast (UC-25) and recent activity
+> (UC-26) — taking the backend to **76 endpoints on 56 paths**, with the whole suite at **1090
+> tests passing**. The Angular frontend must **not** be wired to any of them until the project owner
+> unlocks the module; see [`docs/modules/MODULE_12_ADVANCED.md`](docs/modules/MODULE_12_ADVANCED.md).
 >
 > Free-text fields are protected by **Application-Level Field Encryption using AES-256-GCM**: a
 > transaction or recurring-rule description is written to MySQL as ciphertext, so a direct `SELECT`
@@ -19,8 +26,7 @@ view visual reports, and receive saving tips derived from their own spending hab
 > [`docs/SECURITY.md`](docs/SECURITY.md) §12 and blockers OB-012/OB-013. The key comes from
 > `CAMPUSCOIN_ENCRYPTION_KEY` and the application refuses to start without it.
 >
-> **Module 12 (Optional / Advanced) is locked pending the project owner's approval.** The Angular
-> frontend is still mock-only and has not yet been wired to the API.
+> **The Angular frontend is still mock-only and has not yet been wired to the API.**
 
 ---
 
@@ -47,7 +53,7 @@ is used.
 |---|---|---|
 | Tables | 23 | `db/01_schema.sql` |
 | Reporting views | 14 | `db/02_views.sql` |
-| Procedures & functions | 24 procedures + 1 function | `db/03_procedures.sql` |
+| Procedures & functions | 25 procedures + 1 function | `db/03_procedures.sql` |
 | Triggers | 14 | `db/04_triggers.sql` |
 | Foreign keys | 38 | `db/01_schema.sql` |
 | UNIQUE / CHECK constraints | 15 / 14 | `db/01_schema.sql` |
@@ -344,7 +350,7 @@ campus-coin/
 ├── db/                             # The entire database
 │   ├── 01_schema.sql               # 23 tables, foreign keys, indexes, CHECK
 │   ├── 02_views.sql                # 14 reporting views
-│   ├── 03_procedures.sql           # 24 procedures + 1 function
+│   ├── 03_procedures.sql           # 25 procedures + 1 function
 │   ├── 04_triggers.sql             # 14 triggers enforcing business rules
 │   ├── 05_seed.sql                 # Settings, accounts, categories, tip templates
 │   ├── 06_demo.sql                 # Demo data (optional)
@@ -360,7 +366,7 @@ campus-coin/
 │   ├── OVERNIGHT_BLOCKERS.md       # Decisions awaiting the project owner's input
 │   ├── HANDOFF_M1_M11.md           # M1–M11 release gate + handoff output
 │   ├── api/
-│   │   ├── FRONTEND_API_GUIDE.md   # START HERE: base URL, auth, interceptors, errors, enums, all 61 ops
+│   │   ├── FRONTEND_API_GUIDE.md   # START HERE: base URL, auth, interceptors, errors, enums, all 76 ops
 │   │   ├── API_INVENTORY.md        # Every endpoint, with its use case
 │   │   ├── authentication.md       # Module 1 contract + Angular integration
 │   │   ├── profile.md              # Module 2 contract + Angular integration
@@ -373,7 +379,10 @@ campus-coin/
 │   │   ├── reports.md              # Module 8 contract: reports & export (UC-15, UC-16)
 │   │   ├── tips.md                 # Module 9 contract: saving tips (UC-18)
 │   │   ├── bookmarks.md            # Module 10 contract: bookmarks & notes (UC-19)
-│   │   └── administration.md       # Module 11 contract: the admin surface (UC-20 – UC-23)
+│   │   ├── administration.md       # Module 11 contract: the admin surface (UC-20 – UC-23)
+│   │   ├── imports.md              # Module 12 (locked): CSV import (UC-11)
+│   │   ├── ai-and-insights.md      # Module 12 (locked): AI categorisation & insights (UC-08, UC-17)
+│   │   └── advanced.md             # Module 12 (locked): anomalies, forecast, activity (UC-24–UC-26)
 │   ├── modules/
 │   │   ├── MODULE_02_PROFILE.md        # Module report: tests, reviews, traceability
 │   │   ├── MODULE_03_CATEGORIES.md     # Module report
@@ -384,7 +393,8 @@ campus-coin/
 │   │   ├── MODULE_08_REPORTS.md        # Module report
 │   │   ├── MODULE_09_TIPS.md           # Module report
 │   │   ├── MODULE_10_BOOKMARKS.md      # Module report
-│   │   └── MODULE_11_ADMINISTRATION.md # Module report
+│   │   ├── MODULE_11_ADMINISTRATION.md # Module report
+│   │   └── MODULE_12_ADVANCED.md       # Module report (built, locked pending approval)
 │   └── testing/
 │       └── manual/                 # Hand-run test procedures, one per module
 │
@@ -401,6 +411,12 @@ campus-coin/
 │       ├── tips/                   # Module 9: saving tips (UC-18)
 │       ├── bookmark/               # Module 10: bookmarks / notes (UC-19)
 │       ├── admin/                  # Module 11: administration (UC-20 – UC-23)
+│       ├── imports/                # Module 12 (locked): CSV import (UC-11)
+│       ├── categorisation/         # Module 12 (locked): AI suggestions & rule learning (UC-08)
+│       ├── insight/                # Module 12 (locked): monthly insights (UC-17)
+│       ├── anomaly/                # Module 12 (locked): duplicate/unusual flagging (UC-24)
+│       ├── forecast/               # Module 12 (locked): the next month's projection (UC-25)
+│       ├── recent/                 # Module 12 (locked): recent activity (UC-26)
 │       └── common/                 # Errors, configuration, settings
 ├── frontend/                       # Angular web application (not yet wired to the API)
 ├── docker-compose.yml              # MySQL 8 + Adminer

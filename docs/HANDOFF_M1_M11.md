@@ -2,7 +2,12 @@
 
 **Produced by:** the §32 FINAL M1–M11 RELEASE GATE and §33 FINAL M1–M11 HANDOFF OUTPUT.
 **Date:** 2026-09-25.
-**Scope:** modules 1–11 of the Spring Boot backend. **Module 12 is not included and is not started.**
+**Scope:** modules 1–11 of the Spring Boot backend. **Module 12 is not part of this gate.** It has
+since been implemented and tested (endpoints 62–76; see
+[`docs/modules/MODULE_12_ADVANCED.md`](modules/MODULE_12_ADVANCED.md)) but remains **locked pending
+the project owner's approval**, so it is not counted in any figure below and the gate's PASS verdict
+still applies to M1–M11 as delivered. Where a later number differs from this document's — the
+endpoint total, the path count, the procedure count, the suite size — §4 records the change.
 
 ---
 
@@ -23,8 +28,10 @@
 | M11 | Administration | UC-20, UC-21, UC-22, UC-23 | COMPLETE |
 
 **Use cases deliberately not in M1–M11:** UC-08 (AI categorisation), UC-11 (CSV import),
-UC-17 (monthly insights), UC-24 (anomaly flagging) and UC-25's trend-alert surface belong to the
-locked module 12. They have no route, no settings key and no Java type in this build.
+UC-17 (monthly insights), UC-24 (anomaly flagging), UC-25 (forecast) and UC-26 (recent activity)
+were out of scope at the time of this gate. They have since been built as module 12 — endpoints
+62–76 — but with **no settings key and no administrator route**, and the module is **locked pending
+the project owner's approval**, so none of them is wired to the frontend. See §4.
 
 ---
 
@@ -35,13 +42,13 @@ locked module 12. They have no route, no settings key and no Java type in this b
 | 1 | M1–M11 status table | PASS | §1 above; `docs/modules/MODULE_02…11_*.md` |
 | 2 | UC coverage | PASS | UC-01…UC-23 except the five module-12 use cases listed above |
 | 3 | BR coverage | PASS | `docs/DB_DESIGN.md` BR mapping; `TipsRuleCoverageIT`, `SecurityHardeningIT` |
-| 4 | Endpoint inventory | PASS | `docs/api/API_INVENTORY.md` — 61 rows, numbered 1–61 |
-| 5 | OpenAPI contract verification | PASS | live document 43 paths / 61 operations; `OpenApiContractIT` 14 tests, `hasSize(43)` |
+| 4 | Endpoint inventory | PASS | `docs/api/API_INVENTORY.md` — 61 M1–M11 rows, numbered 1–61 (as at the gate; 76 now — §4) |
+| 5 | OpenAPI contract verification | PASS | live document 43 paths / 61 operations at the gate; `OpenApiContractIT` 14 tests, `hasSize(43)` (19 tests and `hasSize(56)` now — §4) |
 | 6 | Security review | PASS | `docs/SECURITY.md`; `SecurityHardeningIT`; `AdminSecurityIT` |
 | 7 | Ownership review | PASS | every module scopes reads by the caller; M10's not-yours / not-found policy pinned by test |
 | 8 | Role review | PASS | `AdminSecurityIT` sweeps all 16 admin routes: student → 403, no token → 401 |
-| 9 | Database regression | PASS | 23 tables, 14 views, 24 procedures + 1 function, 14 triggers, 38 FKs, 15 UNIQUE — unchanged |
-| 10 | Full automated test suite | PASS | **736 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS** (fresh `clean test`) |
+| 9 | Database regression | PASS | 23 tables, 14 views, 24 procedures + 1 function, 14 triggers, 38 FKs, 15 UNIQUE — unchanged at the gate (25 procedures now, module 12's `sp_flag_transaction` added — §4) |
+| 10 | Full automated test suite | PASS | **736 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS** (fresh `clean test`) — 1090 now — §4 |
 | 11 | Cross-module regression | PASS | one shared Testcontainers MySQL; whole suite green in one JVM run |
 | 12 | Recurring scheduler regression | PASS | `RecurringScheduler*` suite; live override to a minute cron posted a `source='RECURRING'` row |
 | 13 | Budget / alert regression | PASS | `budget` bucket 77 tests; live flow wrote `budget_alert_log` NEAR + EXCEEDED and a `BUDGET_EXCEEDED` notification |
@@ -92,6 +99,7 @@ M11 STATUS: COMPLETE
 
 M1–M11 FULL REGRESSION : PASS   (736 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS)
 OPENAPI                : PASS   (43 paths, 61 operations; live document matches the inventory)
+                                 — at the gate; §7 records what module 12 has since added
 SECURITY               : PASS   (AES-256-GCM field encryption; JWT; role/ownership sweeps green)
 DATABASE               : PASS   (23 tables / 14 views / 24 procedures + 1 function / 14 triggers)
 DOCKER                 : PASS   (MySQL 8 + Adminer stack healthy; no backend image by design)
@@ -109,6 +117,7 @@ FILES CHANGED    : 39 tracked files (+1970 / −133) and 18 new paths;
                    `docs/api/administration.md`, `docs/modules/MODULE_11_ADMINISTRATION.md`,
                    `docs/testing/manual/MODULE_11_MANUAL_TEST.md`
 NEXT ACTION      : WAITING FOR EXPLICIT PROJECT-OWNER APPROVAL FOR M12
+                   (M12 is now implemented and tested — §7 — but still locked)
 FINAL STATUS     : M1–M11 IMPLEMENTATION COMPLETE / M12 LOCKED / WAITING FOR PROJECT-OWNER APPROVAL
 ```
 
@@ -167,6 +176,40 @@ development database is untouched. Docker must be available.
 **Database state left behind:** the Docker volume was rebuilt from scratch after the live-flow
 verification, so the running database is the pristine seed — 3 users, 31 transactions, 31 history
 rows, 2 recurring rules, 0 audit rows, and the seeded administrator `ACTIVE`.
+
+---
+
+## 7. What module 12 has since added — the delta against this gate
+
+This section exists so the figures above stay true as a record of the gate rather than being edited
+into something they were not. **None of it changes the gate's verdict: the M1–M11 implementation
+above is complete, and module 12 is still locked.**
+
+| Figure | At this gate | Now |
+|---|---|---|
+| Endpoint inventory | 61 operations, 43 paths | **76 operations, 56 paths** (§4 above says 61 / 43 — that is the state at the gate) |
+| `OpenApiContractIT` | 14 tests, `hasSize(43)` | **19 tests, `hasSize(56)`** |
+| Full regression | 736 tests | **1090 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS** |
+| Procedures | 24 + 1 function | **25 + 1 function** — module 12 added `sp_flag_transaction` |
+| Tables / views / triggers / FKs / UNIQUE | 23 / 14 / 14 / 38 / 15 | **unchanged** — module 12 created no table, view or trigger |
+| `ErrorCode` constants | 26 | **unchanged** — module 12 added no error code |
+
+Module 12's deliverables:
+
+- `docs/modules/MODULE_12_ADVANCED.md` — the module report
+- `docs/api/imports.md` (62–67), `docs/api/ai-and-insights.md` (68–71), `docs/api/advanced.md` (72–76)
+- `docs/testing/manual/MODULE_12_MANUAL_TEST.md` — the manual procedure
+- `docs/api/FRONTEND_API_GUIDE.md` §7.12 and §8.14, plus its master table's rows 62–76
+- Two `db/` changes, both mirrored into `db/merged/campuscoin_full.sql`: `sp_flag_transaction` added,
+  and `sp_apply_csv_batch`'s duplicate counter corrected to read its rows instead of subtracting
+- The password-reset email work (Phase 3): a third `PasswordResetNotifier` implementation selected by
+  configuration, and `campuscoin.security.password-reset.smtp` + `campuscoin.ai` config blocks. The
+  reset **endpoints are unchanged** — paths, bodies and statuses are exactly what module 1 defined.
+
+Two external credentials are still outstanding and are the only reason the two provider-backed paths
+are untested against a live service: an **AI provider API key** and **SMTP or transactional-email
+credentials plus a verified sender address**. Both deployments degrade to a documented no-op or a
+`RULE_BASED` result without them, so nothing is blocked — only unexercised.
 
 ---
 
