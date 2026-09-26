@@ -5,7 +5,8 @@ import {
   ElementRef,
   AfterViewChecked,
   ChangeDetectionStrategy,
-  Input
+  Input,
+  signal
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -23,12 +24,12 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
     <!-- Squirrel Mascot replaces the old plain circular chatbot button -->
     <app-squirrel-mascot [initialAnchor]="initialAnchor"></app-squirrel-mascot>
 
-    <!-- Chat Window Panel (Opens when Mascot is clicked) -->
+    <!-- Chat Window Panel (Opens when Mascot is clicked; hides mascot launcher per A.2) -->
     @if (isOpen()) {
       <div
-        class="fixed bottom-24 right-4 sm:bottom-24 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 h-[460px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-subtle-lg flex flex-col overflow-hidden animate-scale-up z-50 select-none"
+        class="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 h-[460px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-subtle-lg flex flex-col overflow-hidden animate-scale-up z-50 select-none"
       >
-        <!-- Chat Header -->
+        <!-- Chat Header with explicit close (✕) control (A.2) -->
         <div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-850 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
           <div class="flex items-center gap-2.5">
             <div class="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-amber-700 dark:text-amber-400 shadow-xs">
@@ -48,55 +49,63 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
           <button
             type="button"
             (click)="closeChat()"
-            class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 p-1 cursor-pointer rounded-md transition-colors"
+            class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 p-1 cursor-pointer rounded-md transition-colors text-xs"
             title="Close chat"
+            aria-label="Close chat"
           >
             ✕
           </button>
         </div>
 
-        <!-- Messages Scrollable Body -->
+        <!-- Messages Scrollable Body with Refined Thin Scrollbar (A.1) -->
         <div
           #scrollContainer
-          class="flex-1 p-3.5 overflow-y-auto space-y-3 bg-neutral-50/40 dark:bg-neutral-900/60"
+          class="flex-1 p-3.5 overflow-y-auto space-y-3 bg-neutral-50/40 dark:bg-neutral-900/60 chat-scrollbar"
         >
           @for (msg of messages(); track msg.id) {
-            <div
-              class="flex flex-col"
-              [class.items-end]="msg.sender === 'user'"
-              [class.items-start]="msg.sender === 'assistant'"
-            >
-              <div
-                class="rounded-2xl p-3 text-xs leading-relaxed max-w-[85%]"
-                [class.bg-amber-500/15]="msg.sender === 'user'"
-                [class.text-neutral-950]="msg.sender === 'user'"
-                [class.dark:text-amber-100]="msg.sender === 'user'"
-                [class.border]="true"
-                [class.border-amber-500/30]="msg.sender === 'user'"
-                [class.rounded-tr-xs]="msg.sender === 'user'"
-                [class.bg-white]="msg.sender === 'assistant'"
-                [class.dark:bg-neutral-800]="msg.sender === 'assistant'"
-                [class.text-neutral-800]="msg.sender === 'assistant'"
-                [class.dark:text-neutral-200]="msg.sender === 'assistant'"
-                [class.border-neutral-200/80]="msg.sender === 'assistant'"
-                [class.dark:border-neutral-700/80]="msg.sender === 'assistant'"
-                [class.rounded-tl-xs]="msg.sender === 'assistant'"
-                [class.shadow-xs]="true"
-              >
-                {{ msg.text }}
+            @if (msg.sender === 'assistant') {
+              <!-- Assistant Message with Bot Mascot Avatar (A.4) -->
+              <div class="flex items-start gap-2 max-w-[88%]">
+                <div class="w-6 h-6 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-700 dark:text-amber-400 shrink-0 mt-0.5 shadow-xs">
+                  <app-icon name="squirrel-logo" [size]="13" strokeWidth="1.8"></app-icon>
+                </div>
+                <div class="flex flex-col items-start">
+                  <div
+                    class="rounded-2xl p-3 text-xs leading-relaxed bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border border-neutral-200/80 dark:border-neutral-700/80 rounded-tl-xs shadow-xs"
+                  >
+                    {{ msg.text }}
+                  </div>
+                  <span class="text-[9px] text-[var(--color-text-muted)] mt-1 px-1 font-mono">
+                    {{ msg.time }}
+                  </span>
+                </div>
               </div>
-              <span class="text-[9px] text-[var(--color-text-muted)] mt-1 px-1 font-mono">
-                {{ msg.time }}
-              </span>
-            </div>
+            } @else {
+              <!-- User Message -->
+              <div class="flex flex-col items-end self-end max-w-[85%]">
+                <div
+                  class="rounded-2xl p-3 text-xs leading-relaxed bg-amber-500/15 text-neutral-950 dark:text-amber-100 border border-amber-500/30 rounded-tr-xs shadow-xs"
+                >
+                  {{ msg.text }}
+                </div>
+                <span class="text-[9px] text-[var(--color-text-muted)] mt-1 px-1 font-mono">
+                  {{ msg.time }}
+                </span>
+              </div>
+            }
           }
 
-          <!-- Typing Indicator -->
+          <!-- Typing Indicator with Squirrel Avatar (A.4) -->
           @if (isTyping()) {
-            <div class="flex items-center gap-1.5 p-3 rounded-2xl rounded-tl-xs bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 max-w-[80px] shadow-xs">
-              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-bounce"></span>
-              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-bounce [animation-delay:0.15s]"></span>
-              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-bounce [animation-delay:0.3s]"></span>
+            <div class="flex items-start gap-2 max-w-[88%]">
+              <div class="w-6 h-6 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-700 dark:text-amber-400 shrink-0 mt-0.5 shadow-xs">
+                <app-icon name="squirrel-logo" [size]="13" strokeWidth="1.8"></app-icon>
+              </div>
+              <div class="flex items-center gap-1.5 p-3 rounded-2xl rounded-tl-xs bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-xs">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-bounce"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-bounce [animation-delay:0.15s]"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-bounce [animation-delay:0.3s]"></span>
+              </div>
             </div>
           }
         </div>
@@ -126,28 +135,79 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
           </button>
         </div>
 
-        <!-- Chat Input Footer -->
+        <!-- Chat Input Footer with Accessible Contrast (A.3) -->
         <form (ngSubmit)="onSend()" class="p-2.5 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex items-center gap-2">
           <input
             type="text"
-            [(ngModel)]="userInput"
+            [value]="userInput()"
+            (input)="userInput.set($any($event.target).value)"
             name="chatInput"
             placeholder="Ask about budgets, meals, allowance…"
             [disabled]="isTyping()"
-            class="flex-1 px-3 py-1.5 text-xs bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+            class="flex-1 px-3 py-1.5 text-xs bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-600 dark:placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
           />
           <button
             type="submit"
-            [disabled]="!userInput.trim() || isTyping()"
-            class="p-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-neutral-950 rounded-lg shadow-xs transition-colors cursor-pointer"
+            [disabled]="!userInput().trim() || isTyping()"
+            class="p-2 rounded-lg shadow-xs transition-all duration-150 flex items-center justify-center border"
+            [class.bg-amber-500]="userInput().trim() && !isTyping()"
+            [class.hover:bg-amber-600]="userInput().trim() && !isTyping()"
+            [class.active:scale-95]="userInput().trim() && !isTyping()"
+            [class.text-neutral-950]="userInput().trim() && !isTyping()"
+            [class.border-amber-600/30]="userInput().trim() && !isTyping()"
+            [class.cursor-pointer]="userInput().trim() && !isTyping()"
+            [class.bg-neutral-100]="!userInput().trim() || isTyping()"
+            [class.dark:bg-neutral-800]="!userInput().trim() || isTyping()"
+            [class.text-neutral-400]="!userInput().trim() || isTyping()"
+            [class.dark:text-neutral-500]="!userInput().trim() || isTyping()"
+            [class.border-neutral-200]="!userInput().trim() || isTyping()"
+            [class.dark:border-neutral-700]="!userInput().trim() || isTyping()"
+            [class.cursor-not-allowed]="!userInput().trim() || isTyping()"
             title="Send message"
           >
-            <app-icon name="arrow-right" [size]="14" strokeWidth="2"></app-icon>
+            <app-icon name="arrow-right" [size]="14" strokeWidth="2.5"></app-icon>
           </button>
         </form>
       </div>
     }
-  `
+  `,
+  styles: [`
+    /* A.1 Refined Custom Scrollbar: 5px, translucent, rounded, no arrows */
+    .chat-scrollbar {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(156, 163, 175, 0.35) transparent;
+    }
+    .chat-scrollbar::-webkit-scrollbar {
+      width: 5px;
+    }
+    .chat-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .chat-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.35);
+      border-radius: 9999px;
+    }
+    .chat-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(156, 163, 175, 0.6);
+    }
+    .chat-scrollbar::-webkit-scrollbar-button {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+    :host-context(.dark) .chat-scrollbar,
+    .dark .chat-scrollbar {
+      scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    }
+    :host-context(.dark) .chat-scrollbar::-webkit-scrollbar-thumb,
+    .dark .chat-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    :host-context(.dark) .chat-scrollbar::-webkit-scrollbar-thumb:hover,
+    .dark .chat-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.4);
+    }
+  `]
 })
 export class ChatbotWidgetComponent implements AfterViewChecked {
   @Input() initialAnchor: MascotAnchor = 'bottom-right';
@@ -157,7 +217,7 @@ export class ChatbotWidgetComponent implements AfterViewChecked {
 
   @ViewChild('scrollContainer') private scrollContainer?: ElementRef;
 
-  userInput = '';
+  userInput = signal('');
 
   isOpen = this.mascotService.isChatOpen;
   messages = this.chatbotService.messages;
@@ -176,9 +236,9 @@ export class ChatbotWidgetComponent implements AfterViewChecked {
   }
 
   onSend(): void {
-    if (!this.userInput.trim() || this.isTyping()) return;
-    const text = this.userInput;
-    this.userInput = '';
+    const text = this.userInput().trim();
+    if (!text || this.isTyping()) return;
+    this.userInput.set('');
     this.chatbotService.sendMessage(text);
   }
 

@@ -20,7 +20,7 @@ import { MascotService, MascotState, MascotAnchor, AnchorCoord } from '../../../
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <!-- Floating Draggable Container -->
+    <!-- Floating Draggable Container (Hidden when chat panel is open per A.2) -->
     <div
       #mascotWrapper
       class="fixed z-40 select-none touch-none transition-all duration-300 ease-out"
@@ -31,24 +31,33 @@ import { MascotService, MascotState, MascotAnchor, AnchorCoord } from '../../../
       [class.transition-none]="isDragging()"
       [class.cursor-grab]="!isDragging()"
       [class.cursor-grabbing]="isDragging()"
+      [class.opacity-0]="isChatOpen()"
+      [class.pointer-events-none]="isChatOpen()"
+      [class.scale-90]="isChatOpen()"
+      [class.invisible]="isChatOpen()"
       (mousedown)="onDragStart($event)"
       (touchstart)="onTouchStart($event)"
     >
-      <!-- Contextual Speech Bubble -->
+      <!-- Contextual Speech Bubble (B.4) -->
       @if (bubbleText()) {
         <div
           class="absolute bottom-full mb-2.5 left-1/2 -translate-x-1/2 w-48 sm:w-56 p-2.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-subtle-lg text-xs leading-snug animate-fade-in pointer-events-auto"
           (click)="$event.stopPropagation()"
         >
           <div class="flex items-start justify-between gap-1.5">
-            <span class="font-medium text-neutral-800 dark:text-neutral-200">
+            <span
+              class="font-medium text-neutral-800 dark:text-neutral-200 cursor-pointer hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+              (click)="onBubbleClick($event)"
+              title="Click to open assistant"
+            >
               {{ bubbleText() }}
             </span>
             <button
               type="button"
               (click)="dismissBubble($event)"
-              class="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 text-[10px] p-0.5 leading-none"
+              class="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 text-xs p-0.5 leading-none rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               title="Dismiss"
+              aria-label="Dismiss greeting"
             >
               ✕
             </button>
@@ -61,21 +70,26 @@ import { MascotService, MascotState, MascotAnchor, AnchorCoord } from '../../../
         </div>
       }
 
-      <!-- Interactive Mascot Button Trigger (Replaces old circular chatbot button) -->
+      <!-- Interactive Mascot Button Trigger with Hover Animation (B.2) and Extended Form (B.5) -->
       <button
         type="button"
         (click)="onMascotClick($event)"
         [attr.aria-label]="isChatOpen() ? 'Close Campus Coin assistant' : 'Open Campus Coin assistant'"
-        class="relative w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 border-2 border-amber-500/30 dark:border-amber-500/40 p-1.5 shadow-subtle-lg flex items-center justify-center transition-transform group backdrop-blur-xs"
-        [class.ring-2]="isChatOpen()"
-        [class.ring-amber-500]="isChatOpen()"
+        class="relative rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 border-2 border-amber-500/30 dark:border-amber-500/40 p-1.5 shadow-subtle-lg hover:shadow-subtle-xl flex items-center justify-center transition-all duration-200 group backdrop-blur-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 cursor-pointer"
+        [class.w-14]="!isExtended()"
+        [class.h-14]="!isExtended()"
+        [class.sm:w-16]="!isExtended()"
+        [class.sm:h-16]="!isExtended()"
+        [class.h-14]="isExtended()"
+        [class.sm:h-16]="isExtended()"
+        [class.px-3]="isExtended()"
+        [class.gap-2]="isExtended()"
       >
-        <!-- Lottie Container if available -->
-        <div #lottieContainer class="w-full h-full flex items-center justify-center">
-          <!-- Animated Mascot SVG Representation with 8 Dynamic States -->
+        <!-- Mascot Representation with High Contrast & Outlines (B.6) -->
+        <div #lottieContainer class="w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center shrink-0">
           <svg
             viewBox="0 0 48 48"
-            class="w-full h-full overflow-visible transition-transform duration-300"
+            class="w-full h-full overflow-visible transition-transform duration-300 group-hover:rotate-3 group-hover:scale-105"
             [class.animate-bounce-subtle]="state() === 'walk'"
             [class.animate-pulse-gentle]="state() === 'idle'"
             [class.animate-tumble]="state() === 'coin-flip'"
@@ -95,30 +109,35 @@ import { MascotService, MascotState, MascotAnchor, AnchorCoord } from '../../../
             <path
               d="M 28 38 C 42 36 46 22 41 12 C 37 5 28 6 30 14 C 31 18 33 22 28 28 Z"
               fill="url(#squirrelFur)"
+              stroke="#92400E"
+              stroke-width="1.2"
+              stroke-linejoin="round"
               class="origin-bottom transition-transform duration-500"
               [class.rotate-6]="state() === 'idle'"
               [class.-rotate-6]="state() === 'walk'"
             />
 
-            <!-- 2. Pointy Ears -->
-            <path d="M 12 12 L 15 22 L 9 22 Z" fill="url(#squirrelFur)" />
-            <path d="M 11.5 14 L 13.5 20 L 10 20 Z" fill="#FEF3C7" />
+            <!-- 2. Pointy Ears with crisp outlines -->
+            <path d="M 12 12 L 15 22 L 9 22 Z" fill="url(#squirrelFur)" stroke="#92400E" stroke-width="1.2" stroke-linejoin="round" />
+            <path d="M 11.5 14 L 13.5 20 L 10 20 Z" fill="#FEF3C7" stroke="#D97706" stroke-width="0.8" />
 
-            <path d="M 22 12 L 25 22 L 19 22 Z" fill="url(#squirrelFur)" />
-            <path d="M 21.5 14 L 23.5 20 L 20 20 Z" fill="#FEF3C7" />
+            <path d="M 22 12 L 25 22 L 19 22 Z" fill="url(#squirrelFur)" stroke="#92400E" stroke-width="1.2" stroke-linejoin="round" />
+            <path d="M 21.5 14 L 23.5 20 L 20 20 Z" fill="#FEF3C7" stroke="#D97706" stroke-width="0.8" />
 
-            <!-- 3. Head & Body -->
-            <circle cx="17" cy="24" r="9" fill="url(#squirrelFur)" />
-            <ellipse cx="17" cy="34" rx="8" ry="7" fill="url(#squirrelFur)" />
-            <ellipse cx="17" cy="35" rx="5" ry="4.5" fill="#FEF3C7" />
+            <!-- 3. Head & Body with dark amber outline for small screen clarity -->
+            <circle cx="17" cy="24" r="9" fill="url(#squirrelFur)" stroke="#92400E" stroke-width="1.2" />
+            <ellipse cx="17" cy="34" rx="8" ry="7" fill="url(#squirrelFur)" stroke="#92400E" stroke-width="1.2" />
+            <ellipse cx="17" cy="35" rx="5" ry="4.5" fill="#FEF3C7" stroke="#D97706" stroke-width="0.8" />
 
-            <!-- Cheeks (Puffed out in 'deposit' state) -->
+            <!-- Cheeks -->
             <ellipse
               cx="13"
               cy="27"
               [attr.rx]="state() === 'deposit' ? 6 : 4.5"
               [attr.ry]="state() === 'deposit' ? 4.5 : 3.5"
               fill="#FEF3C7"
+              stroke="#D97706"
+              stroke-width="0.8"
               class="transition-all duration-300"
             />
             <ellipse
@@ -127,61 +146,102 @@ import { MascotService, MascotState, MascotAnchor, AnchorCoord } from '../../../
               [attr.rx]="state() === 'deposit' ? 6 : 4.5"
               [attr.ry]="state() === 'deposit' ? 4.5 : 3.5"
               fill="#FEF3C7"
+              stroke="#D97706"
+              stroke-width="0.8"
               class="transition-all duration-300"
             />
 
-            <!-- 4. Eyes & Facial Expression per State -->
+            <!-- 4. Eyes & Facial Expression with strong contrast -->
             @if (state() === 'sleepy') {
               <!-- Sleeping closed curved eyes -->
-              <path d="M 12 23 Q 14 25 16 23" fill="none" stroke="#78350F" stroke-width="1.2" stroke-linecap="round" />
-              <path d="M 18 23 Q 20 25 22 23" fill="none" stroke="#78350F" stroke-width="1.2" stroke-linecap="round" />
+              <path d="M 12 23 Q 14 25 16 23" fill="none" stroke="#78350F" stroke-width="1.5" stroke-linecap="round" />
+              <path d="M 18 23 Q 20 25 22 23" fill="none" stroke="#78350F" stroke-width="1.5" stroke-linecap="round" />
               <!-- Floating Zzz -->
-              <text x="24" y="16" font-size="8" font-family="monospace" font-weight="bold" fill="#F59E0B" class="animate-pulse">Z</text>
-              <text x="28" y="11" font-size="6" font-family="monospace" font-weight="bold" fill="#F59E0B" class="animate-pulse">z</text>
+              <text x="24" y="16" font-size="8" font-family="monospace" font-weight="bold" fill="#D97706" class="animate-pulse">Z</text>
+              <text x="28" y="11" font-size="6" font-family="monospace" font-weight="bold" fill="#D97706" class="animate-pulse">z</text>
             } @else if (state() === 'chat-open' || state() === 'guest-roaming') {
               <!-- Happy smiling curved eyes -->
-              <path d="M 12 24 Q 14 21 16 24" fill="none" stroke="#18181B" stroke-width="1.5" stroke-linecap="round" />
-              <path d="M 18 24 Q 20 21 22 24" fill="none" stroke="#18181B" stroke-width="1.5" stroke-linecap="round" />
+              <path d="M 12 24 Q 14 21 16 24" fill="none" stroke="#09090B" stroke-width="1.6" stroke-linecap="round" />
+              <path d="M 18 24 Q 20 21 22 24" fill="none" stroke="#09090B" stroke-width="1.6" stroke-linecap="round" />
             } @else {
-              <!-- Alert bright eyes with reflection -->
-              <circle cx="14" cy="22" r="1.8" fill="#18181B" />
-              <circle cx="14.6" cy="21.4" r="0.6" fill="#FFFFFF" />
+              <!-- Alert bright eyes with glint -->
+              <circle cx="14" cy="22" r="2" fill="#09090B" />
+              <circle cx="14.6" cy="21.4" r="0.7" fill="#FFFFFF" />
 
-              <circle cx="20" cy="22" r="1.8" fill="#18181B" />
-              <circle cx="20.6" cy="21.4" r="0.6" fill="#FFFFFF" />
+              <circle cx="20" cy="22" r="2" fill="#09090B" />
+              <circle cx="20.6" cy="21.4" r="0.7" fill="#FFFFFF" />
             }
 
             <!-- Tiny Nose -->
-            <polygon points="16,26 18,26 17,27.5" fill="#78350F" />
+            <polygon points="16,26 18,26 17,27.5" fill="#451A03" />
 
-            <!-- Analyzing Glasses (Only in 'analyzing' state) -->
+            <!-- Analyzing Glasses -->
             @if (state() === 'analyzing') {
-              <circle cx="14" cy="22" r="3.2" fill="none" stroke="#0284C7" stroke-width="1.2" />
-              <circle cx="20" cy="22" r="3.2" fill="none" stroke="#0284C7" stroke-width="1.2" />
-              <line x1="17.2" y1="22" x2="16.8" y2="22" stroke="#0284C7" stroke-width="1.2" />
+              <circle cx="14" cy="22" r="3.2" fill="none" stroke="#0284C7" stroke-width="1.5" />
+              <circle cx="20" cy="22" r="3.2" fill="none" stroke="#0284C7" stroke-width="1.5" />
+              <line x1="17.2" y1="22" x2="16.8" y2="22" stroke="#0284C7" stroke-width="1.5" />
             }
 
             <!-- 5. Front Paws holding Campus Coin -->
-            <!-- Coin in hand -->
             <g
               class="transition-transform duration-500"
               [class.-translate-y-2]="state() === 'coin-flip'"
             >
-              <circle cx="17" cy="33" r="5" fill="url(#mascotCoin)" stroke="#CA8A04" stroke-width="0.8" />
-              <!-- Coin lightning bolt symbol -->
-              <path d="M 17.5 30.5 L 15.5 33 L 17 33 L 16.5 35.5 L 18.5 32.8 L 17.2 32.8 Z" fill="#78350F" />
+              <circle cx="17" cy="33" r="5" fill="url(#mascotCoin)" stroke="#78350F" stroke-width="1.2" />
+              <path d="M 17.5 30.5 L 15.5 33 L 17 33 L 16.5 35.5 L 18.5 32.8 L 17.2 32.8 Z" fill="#451A03" />
             </g>
 
-            <ellipse cx="13" cy="33" rx="1.6" ry="2" fill="#F59E0B" />
-            <ellipse cx="21" cy="33" rx="1.6" ry="2" fill="#F59E0B" />
+            <ellipse cx="13" cy="33" rx="1.6" ry="2" fill="#F59E0B" stroke="#92400E" stroke-width="0.8" />
+            <ellipse cx="21" cy="33" rx="1.6" ry="2" fill="#F59E0B" stroke="#92400E" stroke-width="0.8" />
           </svg>
         </div>
 
-        <!-- Online Pulse Dot Indicator -->
+        <!-- B.5 First-Use Extended Form Label -->
+        @if (isExtended()) {
+          <span class="font-semibold text-xs text-neutral-800 dark:text-neutral-100 pr-1.5 whitespace-nowrap animate-fade-in">
+            Ask Assistant
+          </span>
+        }
+
+        <!-- Online Pulse Dot Indicator (Top-Right) -->
         <span
-          class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-neutral-900"
+          class="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white dark:border-neutral-900 shadow-xs"
           title="AI Assistant Online"
         ></span>
+
+        <!-- B.1 Visual AI Sparkle Cue (Bottom-Left opposite green dot) -->
+        <span
+          class="absolute -bottom-1 -left-1 w-5 h-5 rounded-full bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 text-neutral-950 flex items-center justify-center shadow-xs border-2 border-white dark:border-neutral-900 ring-1 ring-amber-500/30"
+          title="AI Powered Assistant"
+        >
+          <svg class="w-2.5 h-2.5 text-neutral-950" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2L14.4 8.6L21 11L14.4 13.4L12 20L9.6 13.4L3 11L9.6 8.6L12 2Z" />
+          </svg>
+        </span>
+
+        <!-- B.3 Tooltip on Desktop Hover -->
+        @if (!bubbleText()) {
+          <div
+            class="hidden sm:block absolute top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-md bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-[11px] font-medium whitespace-nowrap shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-20"
+            [class.right-full]="isRightAnchored()"
+            [class.mr-2.5]="isRightAnchored()"
+            [class.left-full]="!isRightAnchored()"
+            [class.ml-2.5]="!isRightAnchored()"
+          >
+            Ask the Campus Coin assistant
+            <div
+              class="absolute top-1/2 -translate-y-1/2 border-4 border-transparent"
+              [class.left-full]="isRightAnchored()"
+              [class.-ml-px]="isRightAnchored()"
+              [class.border-l-neutral-900]="isRightAnchored()"
+              [class.dark:border-l-neutral-100]="isRightAnchored()"
+              [class.right-full]="!isRightAnchored()"
+              [class.-mr-px]="!isRightAnchored()"
+              [class.border-r-neutral-900]="!isRightAnchored()"
+              [class.dark:border-r-neutral-100]="!isRightAnchored()"
+            ></div>
+          </div>
+        }
       </button>
     </div>
   `,
@@ -224,13 +284,16 @@ export class SquirrelMascotComponent implements OnInit, OnDestroy {
   bubbleText = this.mascotService.bubbleText;
   isChatOpen = this.mascotService.isChatOpen;
 
+  // B.5 First-Use Extended State
+  isExtended = signal(false);
+
   // Dragging State
   isDragging = signal(false);
   private dragStartX = 0;
   private dragStartY = 0;
   private hasMoved = false;
 
-  // Anchor points definitions (Part A.3 Snap-to-Anchor)
+  // Anchor points definitions (Part A.3 Snap-to-Anchor & B.7 24px Spacing)
   private anchors: AnchorCoord[] = [
     {
       id: 'bottom-right',
@@ -251,19 +314,23 @@ export class SquirrelMascotComponent implements OnInit, OnDestroy {
       name: 'Mid Right',
       xPercent: 0.95,
       yPercent: 0.5,
-      cssStyle: { top: '48%', right: '16px' }
+      cssStyle: { top: '48%', right: '24px' }
     },
     {
       id: 'mid-left',
       name: 'Mid Left',
       xPercent: 0.05,
       yPercent: 0.5,
-      cssStyle: { top: '48%', left: '16px' }
+      cssStyle: { top: '48%', left: '24px' }
     }
   ];
 
   currentAnchor = signal<MascotAnchor>('bottom-right');
   customPosition = signal<{ x: number; y: number } | null>(null);
+
+  isRightAnchored = computed(() => {
+    return this.currentAnchor().includes('right');
+  });
 
   currentCoords = computed(() => {
     const pos = this.customPosition();
@@ -277,16 +344,33 @@ export class SquirrelMascotComponent implements OnInit, OnDestroy {
     }
 
     const matched = this.anchors.find(a => a.id === this.currentAnchor()) || this.anchors[0];
+    const isMobileNav = this.isBrowser && window.innerWidth < 1024;
+    let bottomVal = matched.cssStyle.bottom || 'auto';
+    if (isMobileNav && bottomVal === '24px') {
+      // Keep clear of mobile bottom navbar
+      bottomVal = '5.5rem';
+    }
+
     return {
       left: matched.cssStyle.left || 'auto',
       right: matched.cssStyle.right || 'auto',
       top: matched.cssStyle.top || 'auto',
-      bottom: matched.cssStyle.bottom || 'auto'
+      bottom: bottomVal
     };
   });
 
   ngOnInit(): void {
     this.currentAnchor.set(this.initialAnchor);
+
+    // B.5 First-Use Extended Form Check
+    if (this.isBrowser) {
+      try {
+        const count = parseInt(localStorage.getItem('cc_mascot_launch_count') || '0', 10);
+        if (count < 2) {
+          this.isExtended.set(true);
+        }
+      } catch {}
+    }
   }
 
   onMascotClick(event: MouseEvent): void {
@@ -296,7 +380,24 @@ export class SquirrelMascotComponent implements OnInit, OnDestroy {
       return;
     }
     event.stopPropagation();
+
+    // Collapse extended form upon interaction
+    if (this.isExtended()) {
+      this.isExtended.set(false);
+      if (this.isBrowser) {
+        try {
+          const count = parseInt(localStorage.getItem('cc_mascot_launch_count') || '0', 10);
+          localStorage.setItem('cc_mascot_launch_count', String(count + 1));
+        } catch {}
+      }
+    }
+
     this.mascotService.toggleChat();
+  }
+
+  onBubbleClick(event: MouseEvent): void {
+    event.stopPropagation();
+    this.mascotService.openChat();
   }
 
   dismissBubble(event: MouseEvent): void {
