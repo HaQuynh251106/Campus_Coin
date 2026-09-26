@@ -31,7 +31,7 @@ import jakarta.validation.constraints.Pattern;
 public record UpdateCategoryRequest(
 
         @Schema(description = "New display name. Omit to leave it unchanged; it cannot be blank.",
-                example = "Campus Cafe", nullable = true)
+                example = "Coffee & Snacks", nullable = true)
         // The same trimmed-length pattern as on create. Null passes, so omitting the field is not
         // an error; "" and "   " do not, because there is no such thing as a nameless category.
         @Pattern(regexp = "^\\s*\\S.{0,79}\\s*$",

@@ -41,7 +41,7 @@ import jakarta.validation.constraints.Pattern;
 public record UpdateDefaultCategoryRequest(
 
         @Schema(description = "New display name. Omit to leave it unchanged; it cannot be blank.",
-                example = "Campus Cafe", nullable = true)
+                example = "Coffee & Snacks", nullable = true)
         @Pattern(regexp = "^\\s*\\S.{0,79}\\s*$",
                 message = "Name must be between 1 and 80 characters and cannot be blank.")
         String name,

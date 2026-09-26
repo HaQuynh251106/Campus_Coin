@@ -30,7 +30,7 @@ public record CreateCategoryRequest(
 
         @Schema(description = "Display name. Cannot be blank, and must not repeat one of your "
                 + "existing categories of the same type or any default category's name.",
-                example = "Campus Cafe")
+                example = "Coffee & Snacks")
         @NotNull(message = "Name is required.")
         // Measures the trimmed length, which is what is stored in name VARCHAR(80): at least one
         // non-space character, at most 80 characters between the first and the end. The trailing
