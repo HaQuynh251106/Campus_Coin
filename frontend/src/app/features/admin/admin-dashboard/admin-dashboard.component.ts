@@ -1,7 +1,10 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { forkJoin, of, catchError } from 'rxjs';
 import { AdminService, AdminKpis } from '../../../core/services/admin.service';
+import { ToastService } from '../../../core/services/toast.service';
+import { AdminTopCategory } from '../../../core/models/admin.model';
 
 @Component({
   selector: 'app-admin-dashboard',
@@ -34,40 +37,40 @@ import { AdminService, AdminKpis } from '../../../core/services/admin.service';
         <div class="bg-white dark:bg-neutral-900 p-5 rounded-xl border border-slate-200 dark:border-neutral-800 shadow-xs">
           <span class="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider block">Registered Students</span>
           <div class="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-            {{ kpis?.totalUsers || 582 }}
+            {{ kpis ? kpis.totalUsers : (isLoading ? '...' : 0) }}
           </div>
           <div class="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-            ↑ +14% from last semester
+            Registered accounts
           </div>
         </div>
 
         <div class="bg-white dark:bg-neutral-900 p-5 rounded-xl border border-slate-200 dark:border-neutral-800 shadow-xs">
           <span class="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider block">Active Users (30d)</span>
           <div class="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
-            {{ kpis?.activeUsers || 541 }}
+            {{ kpis ? kpis.activeUsers : (isLoading ? '...' : 0) }}
           </div>
           <div class="text-xs text-[var(--color-text-muted)] font-medium mt-1">
-            93% engagement rate
+            30-day active sessions
           </div>
         </div>
 
         <div class="bg-white dark:bg-neutral-900 p-5 rounded-xl border border-slate-200 dark:border-neutral-800 shadow-xs">
           <span class="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider block">Total Volume Logged</span>
           <div class="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
-            \${{ (kpis?.totalVolumeTracked || 184500).toLocaleString() }}
+            \${{ kpis ? kpis.totalVolumeTracked.toLocaleString() : (isLoading ? '...' : '0.00') }}
           </div>
           <div class="text-xs text-[var(--color-text-muted)] font-medium mt-1">
-            Across 14,280 student transactions
+            Total expenses recorded
           </div>
         </div>
 
         <div class="bg-white dark:bg-neutral-900 p-5 rounded-xl border border-slate-200 dark:border-neutral-800 shadow-xs">
           <span class="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider block">Avg. Monthly Student Outflow</span>
           <div class="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-            \${{ kpis?.avgStudentMonthlySpend || 425 }}
+            \${{ kpis ? kpis.avgStudentMonthlySpend.toLocaleString() : (isLoading ? '...' : '0.00') }}
           </div>
           <div class="text-xs text-[var(--color-text-muted)] font-medium mt-1">
-            Within healthy student baseline
+            Average per active student
           </div>
         </div>
       </div>
@@ -114,55 +117,29 @@ import { AdminService, AdminKpis } from '../../../core/services/admin.service';
           </div>
 
           <div class="space-y-3.5">
-            <div>
-              <div class="flex justify-between text-xs font-medium mb-1 text-slate-700 dark:text-slate-300">
-                <span>Food & Dining</span>
-                <span class="font-bold font-mono">42%</span>
+            @if (topCategories.length > 0) {
+              @for (cat of topCategories; track cat.id) {
+                <div>
+                  <div class="flex justify-between text-xs font-medium mb-1 text-slate-700 dark:text-slate-300">
+                    <span class="truncate max-w-[180px]">{{ cat.name }}</span>
+                    <span class="font-bold font-mono">
+                      \${{ cat.totalAmount.toLocaleString() }} <span class="text-slate-400 font-normal">({{ cat.percentage }}%)</span>
+                    </span>
+                  </div>
+                  <div class="w-full h-2 bg-slate-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+                    <div
+                      class="h-full rounded-full transition-all duration-500"
+                      [style.width.%]="cat.percentage"
+                      [style.background-color]="cat.color"
+                    ></div>
+                  </div>
+                </div>
+              }
+            } @else {
+              <div class="py-8 text-center text-xs text-slate-400 dark:text-neutral-500">
+                No category expenditure recorded yet
               </div>
-              <div class="w-full h-2 bg-slate-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-                <div class="h-full bg-amber-400 rounded-full" style="width: 42%"></div>
-              </div>
-            </div>
-
-            <div>
-              <div class="flex justify-between text-xs font-medium mb-1 text-slate-700 dark:text-slate-300">
-                <span>Housing & Dorms</span>
-                <span class="font-bold font-mono">28%</span>
-              </div>
-              <div class="w-full h-2 bg-slate-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-                <div class="h-full bg-purple-500 rounded-full" style="width: 28%"></div>
-              </div>
-            </div>
-
-            <div>
-              <div class="flex justify-between text-xs font-medium mb-1 text-slate-700 dark:text-slate-300">
-                <span>Books & Academics</span>
-                <span class="font-bold font-mono">14%</span>
-              </div>
-              <div class="w-full h-2 bg-slate-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-                <div class="h-full bg-blue-500 rounded-full" style="width: 14%"></div>
-              </div>
-            </div>
-
-            <div>
-              <div class="flex justify-between text-xs font-medium mb-1 text-slate-700 dark:text-slate-300">
-                <span>Transport & Mobility</span>
-                <span class="font-bold font-mono">9%</span>
-              </div>
-              <div class="w-full h-2 bg-slate-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-                <div class="h-full bg-emerald-500 rounded-full" style="width: 9%"></div>
-              </div>
-            </div>
-
-            <div>
-              <div class="flex justify-between text-xs font-medium mb-1 text-slate-700 dark:text-slate-300">
-                <span>Other (Tech & Social)</span>
-                <span class="font-bold font-mono">7%</span>
-              </div>
-              <div class="w-full h-2 bg-slate-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-                <div class="h-full bg-rose-500 rounded-full" style="width: 7%"></div>
-              </div>
-            </div>
+            }
           </div>
         </div>
 
@@ -173,8 +150,11 @@ import { AdminService, AdminKpis } from '../../../core/services/admin.service';
 })
 export class AdminDashboardComponent implements OnInit {
   private adminService = inject(AdminService);
+  private toast = inject(ToastService);
+  private cdr = inject(ChangeDetectorRef);
 
   kpis: AdminKpis | null = null;
+  topCategories: Array<{ id: number; name: string; percentage: number; color: string; totalAmount: number }> = [];
 
   activityBars = [
     { day: 'Sep 11', label: '11', count: 180, heightPercent: 45 },
@@ -193,9 +173,41 @@ export class AdminDashboardComponent implements OnInit {
     { day: 'Sep 24', label: '24', count: 400, heightPercent: 100 }
   ];
 
+  isLoading = false;
+
   ngOnInit(): void {
-    this.adminService.getKpiMetrics().subscribe(data => {
-      this.kpis = data;
+    this.isLoading = true;
+    forkJoin({
+      kpis: this.adminService.getKpiMetrics().pipe(catchError(() => of(null))),
+      topCategories: this.adminService.getTopCategories().pipe(catchError(() => of([])))
+    }).subscribe({
+      next: ({ kpis, topCategories }) => {
+        this.isLoading = false;
+        this.kpis = kpis;
+        this.processTopCategories(topCategories || []);
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.isLoading = false;
+        this.toast.error('Failed to load institutional overview data');
+        this.cdr.markForCheck();
+      }
     });
+  }
+
+  private processTopCategories(raw: AdminTopCategory[]): void {
+    const active = raw.filter(c => c.txnCount > 0 || c.totalAmount > 0);
+    const sorted = [...active].sort((a, b) => Number(b.totalAmount) - Number(a.totalAmount)).slice(0, 5);
+    const totalSum = sorted.reduce((sum, c) => sum + Number(c.totalAmount || 0), 0);
+
+    const colors = ['#F59E0B', '#8B5CF6', '#3B82F6', '#10B981', '#EC4899', '#6366F1'];
+
+    this.topCategories = sorted.map((c, i) => ({
+      id: c.categoryId,
+      name: c.categoryName,
+      totalAmount: Number(c.totalAmount || 0),
+      percentage: totalSum > 0 ? Math.round((Number(c.totalAmount || 0) / totalSum) * 100) : 0,
+      color: colors[i % colors.length]
+    }));
   }
 }

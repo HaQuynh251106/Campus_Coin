@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
@@ -259,6 +259,7 @@ import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadc
 export class ProfileComponent implements OnInit {
   private fb = inject(FormBuilder);
   private auth = inject(AuthService);
+  private cdr = inject(ChangeDetectorRef);
   theme = inject(ThemeService);
 
   user = this.auth.currentUser;
@@ -284,6 +285,23 @@ export class ProfileComponent implements OnInit {
         savingsGoal: u.savingsGoal
       });
     }
+
+    if (this.auth.isStudent()) {
+      this.auth.getProfile().subscribe({
+        next: (p) => {
+          this.profileForm.patchValue({
+            name: p.fullName || this.profileForm.get('name')?.value,
+            academicYear: p.academicYear || this.profileForm.get('academicYear')?.value,
+            monthlyAllowance: p.monthlyAllowanceBaseline ?? this.profileForm.get('monthlyAllowance')?.value,
+            savingsGoal: p.monthlySavingsGoal ?? this.profileForm.get('savingsGoal')?.value
+          });
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          // Graceful fallback to token cached data
+        }
+      });
+    }
   }
 
   onSaveProfile(): void {
@@ -302,10 +320,15 @@ export class ProfileComponent implements OnInit {
       next: () => {
         this.isSaving = false;
         this.profileSuccess = true;
-        setTimeout(() => this.profileSuccess = false, 3500);
+        this.cdr.markForCheck();
+        setTimeout(() => {
+          this.profileSuccess = false;
+          this.cdr.markForCheck();
+        }, 3500);
       },
       error: () => {
         this.isSaving = false;
+        this.cdr.markForCheck();
       }
     });
   }

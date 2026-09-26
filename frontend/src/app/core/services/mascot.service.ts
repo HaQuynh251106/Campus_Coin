@@ -53,7 +53,7 @@ export class MascotService {
     "Log in and I'll help you manage your money!",
     'Click me to try the AI assistant!',
     'Track your campus allowance in seconds!',
-    'Zero bank credentials required!'
+    'Simple, private, and student-focused!'
   ];
   private guestPromptIndex = 0;
 

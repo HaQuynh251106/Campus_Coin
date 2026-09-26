@@ -1,7 +1,8 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+import { forkJoin, of, catchError } from 'rxjs';
 import { TransactionService, MonthlyTrendItem, CategoryBreakdownItem } from '../../core/services/transaction.service';
 import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadcrumbs.component';
 import { ButtonComponent } from '../../shared/components/button/button.component';
@@ -162,37 +163,45 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
             </div>
           </div>
 
-          <!-- Custom SVG / HTML Bar Chart -->
+          <!-- Custom HTML Bar Chart -->
           <div class="h-64 flex flex-col justify-end pt-4">
-            <div class="h-full flex items-end justify-between gap-2 sm:gap-4 px-2 border-b border-neutral-200 dark:border-neutral-800 pb-1">
-              @for (item of sixMonthTrend; track item.periodCode) {
-                <div class="flex-1 flex flex-col items-center h-full justify-end group relative">
-                  <!-- Tooltip Hover Popover -->
-                  <div class="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 z-20 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 text-[10px] font-mono py-1 px-2 rounded-md pointer-events-none whitespace-nowrap shadow-md">
-                    In: \${{ item.income }} | Out: \${{ item.expense }}
-                  </div>
+            @if (hasTrendData) {
+              <div class="h-full flex items-end justify-between gap-2 sm:gap-4 px-2 border-b border-neutral-200 dark:border-neutral-800 pb-1">
+                @for (item of sixMonthTrend; track item.periodCode) {
+                  <div class="flex-1 flex flex-col items-center h-full justify-end group relative">
+                    <!-- Tooltip Hover Popover -->
+                    <div class="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 z-20 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 text-[10px] font-mono py-1 px-2 rounded-md pointer-events-none whitespace-nowrap shadow-md">
+                      In: \${{ item.income }} | Out: \${{ item.expense }}
+                    </div>
 
-                  <!-- Side-by-side Bars -->
-                  <div class="w-full flex items-end justify-center gap-1 sm:gap-1.5 h-full">
-                    <!-- Income Bar -->
-                    <div
-                      class="w-1/2 max-w-[20px] bg-emerald-500/90 hover:bg-emerald-500 rounded-t-sm transition-all duration-300"
-                      [style.height.%]="(item.income / 700) * 100"
-                    ></div>
-                    <!-- Expense Bar -->
-                    <div
-                      class="w-1/2 max-w-[20px] bg-rose-500/90 hover:bg-rose-500 rounded-t-sm transition-all duration-300"
-                      [style.height.%]="(item.expense / 700) * 100"
-                    ></div>
-                  </div>
+                    <!-- Side-by-side Bars -->
+                    <div class="w-full flex items-end justify-center gap-1 sm:gap-1.5 h-full">
+                      <!-- Income Bar -->
+                      <div
+                        class="w-1/2 max-w-[20px] bg-emerald-500/90 hover:bg-emerald-500 rounded-t-sm transition-all duration-300"
+                        [style.height.%]="maxTrendValue > 0 ? (item.income / maxTrendValue) * 100 : 0"
+                      ></div>
+                      <!-- Expense Bar -->
+                      <div
+                        class="w-1/2 max-w-[20px] bg-rose-500/90 hover:bg-rose-500 rounded-t-sm transition-all duration-300"
+                        [style.height.%]="maxTrendValue > 0 ? (item.expense / maxTrendValue) * 100 : 0"
+                      ></div>
+                    </div>
 
-                  <!-- Month Label -->
-                  <span class="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 mt-2">
-                    {{ item.monthLabel }}
-                  </span>
-                </div>
-              }
-            </div>
+                    <!-- Month Label -->
+                    <span class="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 mt-2">
+                      {{ item.monthLabel }}
+                    </span>
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="h-full flex flex-col items-center justify-center text-center text-neutral-400 dark:text-neutral-500 pb-4">
+                <app-icon name="bar-chart-2" size="32" className="mb-2 opacity-50"></app-icon>
+                <p class="text-xs font-semibold text-neutral-600 dark:text-neutral-400">No trend history available</p>
+                <p class="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">Log transactions to chart your 6-month cash flow</p>
+              </div>
+            }
           </div>
         </div>
 
@@ -205,30 +214,38 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
             <p class="text-xs text-[var(--color-text-muted)]">Distribution for the selected period</p>
           </div>
 
-          <div class="space-y-3">
-            @for (cat of categoryBreakdown; track cat.categoryId) {
-              <div>
-                <div class="flex items-center justify-between text-xs font-medium mb-1.5">
-                  <div class="flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 rounded-full" [style.background-color]="cat.categoryColor"></span>
-                    <span class="text-neutral-800 dark:text-neutral-200">{{ cat.categoryName }}</span>
+          @if (categoryBreakdown.length > 0) {
+            <div class="space-y-3">
+              @for (cat of categoryBreakdown; track cat.categoryId) {
+                <div>
+                  <div class="flex items-center justify-between text-xs font-medium mb-1.5">
+                    <div class="flex items-center gap-2">
+                      <span class="w-2.5 h-2.5 rounded-full" [style.background-color]="cat.categoryColor"></span>
+                      <span class="text-neutral-800 dark:text-neutral-200">{{ cat.categoryName }}</span>
+                    </div>
+                    <div class="font-mono">
+                      <span class="font-medium">\${{ cat.total.toFixed(2) }}</span>
+                      <span class="text-neutral-400 ml-1">({{ cat.percentage.toFixed(1) }}%)</span>
+                    </div>
                   </div>
-                  <div class="font-mono">
-                    <span class="font-medium">\${{ cat.total.toFixed(2) }}</span>
-                    <span class="text-neutral-400 ml-1">({{ cat.percentage }}%)</span>
+                  <!-- Progress bar representation -->
+                  <div class="w-full h-1.5 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+                    <div
+                      class="h-full rounded-full transition-all duration-500"
+                      [style.width.%]="cat.percentage"
+                      [style.background-color]="cat.categoryColor"
+                    ></div>
                   </div>
                 </div>
-                <!-- Progress bar representation -->
-                <div class="w-full h-1.5 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-                  <div
-                    class="h-full rounded-full transition-all duration-500"
-                    [style.width.%]="cat.percentage"
-                    [style.background-color]="cat.categoryColor"
-                  ></div>
-                </div>
-              </div>
-            }
-          </div>
+              }
+            </div>
+          } @else {
+            <div class="py-12 flex flex-col items-center justify-center text-center text-neutral-400 dark:text-neutral-500">
+              <app-icon name="pie-chart" size="32" className="mb-2 opacity-50"></app-icon>
+              <p class="text-xs font-semibold text-neutral-600 dark:text-neutral-400">No spending data for this period yet</p>
+              <p class="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">Transactions logged in this month will appear here</p>
+            </div>
+          }
         </div>
 
       </div>
@@ -238,43 +255,47 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
         <div class="flex flex-wrap items-center justify-between gap-3 mb-4 pb-2 border-b border-neutral-200 dark:border-neutral-800">
           <div>
             <h3 class="font-semibold text-base sm:text-lg text-neutral-900 dark:text-neutral-50 tracking-tight">
-              Daily Spending Rhythm (Sep 1 – 24, 2026)
+              Daily Spending Rhythm ({{ selectedPeriod === 'ALL_6M' ? 'Overview' : (selectedPeriod === '2026-09' ? 'Current Month' : selectedPeriod) }})
             </h3>
             <p class="text-xs text-[var(--color-text-muted)]">Day-by-day expenditure</p>
           </div>
-
-          <div class="text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full">
-            Peak: Sep 05 ($280 Dorm Share)
-          </div>
         </div>
 
-        <!-- 24-day Rhythm Micro Bar Grid -->
-        <div class="h-36 flex items-end gap-1 sm:gap-2 px-1 pt-6 border-b border-neutral-200 dark:border-neutral-800">
-          @for (d of dailySpend; track d.day) {
-            <div class="flex-1 flex flex-col items-center h-full justify-end group relative cursor-pointer">
-              <!-- Tooltip on hover -->
-              <div class="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 bg-neutral-900 text-white text-[9px] font-mono py-0.5 px-1.5 rounded pointer-events-none whitespace-nowrap z-20 shadow-xs">
-                {{ d.day }}: \${{ d.amount }}
+        @if (dailySpend.length > 0) {
+          <!-- Daily Rhythm Micro Bar Grid -->
+          <div class="h-36 flex items-end gap-1 sm:gap-2 px-1 pt-6 border-b border-neutral-200 dark:border-neutral-800">
+            @for (d of dailySpend; track d.day) {
+              <div class="flex-1 flex flex-col items-center h-full justify-end group relative cursor-pointer">
+                <!-- Tooltip on hover -->
+                <div class="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 bg-neutral-900 text-white text-[9px] font-mono py-0.5 px-1.5 rounded pointer-events-none whitespace-nowrap z-20 shadow-xs">
+                  Day {{ d.day }}: \${{ d.amount }}
+                </div>
+
+                <!-- Bar -->
+                <div
+                  class="w-full rounded-t-sm transition-all duration-300"
+                  [style.height.%]="d.amount > 0 ? Math.min(100, Math.max(12, (d.amount / maxDailySpend) * 100)) : 4"
+                  [class.bg-amber-500]="d.amount > 100"
+                  [class.bg-amber-400/70]="d.amount > 0 && d.amount <= 100"
+                  [class.bg-neutral-200]="d.amount === 0"
+                  [class.dark:bg-neutral-800]="d.amount === 0"
+                ></div>
               </div>
-
-              <!-- Bar -->
-              <div
-                class="w-full rounded-t-sm transition-all duration-300"
-                [style.height.%]="d.amount > 0 ? Math.min(100, Math.max(12, (d.amount / 300) * 100)) : 4"
-                [class.bg-amber-500]="d.amount > 100"
-                [class.bg-amber-400/70]="d.amount > 0 && d.amount <= 100"
-                [class.bg-neutral-200]="d.amount === 0"
-                [class.dark:bg-neutral-800]="d.amount === 0"
-              ></div>
-            </div>
-          }
-        </div>
-        <div class="flex justify-between text-[10px] font-mono text-neutral-400 mt-2 px-1">
-          <span>Sep 01</span>
-          <span>Sep 08</span>
-          <span>Sep 15</span>
-          <span>Sep 24 (Today)</span>
-        </div>
+            }
+          </div>
+          <div class="flex justify-between text-[10px] font-mono text-neutral-400 mt-2 px-1">
+            <span>Day 01</span>
+            <span>Day 10</span>
+            <span>Day 20</span>
+            <span>End of Month</span>
+          </div>
+        } @else {
+          <div class="py-8 flex flex-col items-center justify-center text-center text-neutral-400 dark:text-neutral-500">
+            <app-icon name="trending-up" size="28" className="mb-2 opacity-50"></app-icon>
+            <p class="text-xs font-semibold text-neutral-600 dark:text-neutral-400">No daily expenditures recorded yet</p>
+            <p class="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">Daily rhythm will display expenditure bars as you log expenses</p>
+          </div>
+        }
       </div>
 
     </div>
@@ -282,11 +303,13 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
 })
 export class ReportsComponent implements OnInit {
   private txService = inject(TransactionService);
+  private cdr = inject(ChangeDetectorRef);
 
   Math = Math;
 
   selectedFlow: 'ALL' | 'EXPENSE' | 'INCOME' = 'ALL';
   selectedPeriod = '2026-09';
+  isLoading = false;
 
   kpiTotalExpense = 0;
   kpiTotalIncome = 0;
@@ -297,33 +320,107 @@ export class ReportsComponent implements OnInit {
   sixMonthTrend: MonthlyTrendItem[] = [];
   dailySpend: Array<{ day: string; amount: number }> = [];
 
+  get maxTrendValue(): number {
+    const maxVal = Math.max(0, ...this.sixMonthTrend.map(t => Math.max(t.income, t.expense)));
+    return maxVal > 0 ? maxVal : 500;
+  }
+
+  get hasTrendData(): boolean {
+    return this.sixMonthTrend.some(t => t.income > 0 || t.expense > 0);
+  }
+
+  get maxDailySpend(): number {
+    const maxVal = Math.max(0, ...this.dailySpend.map(d => d.amount));
+    return maxVal > 0 ? maxVal : 100;
+  }
+
   ngOnInit(): void {
     this.applyFilters();
   }
 
   applyFilters(): void {
-    // 1. Balances & KPIs
-    const bal = this.txService.getMonthlyBalance(this.selectedPeriod === 'ALL_6M' ? '2026' : this.selectedPeriod);
-    this.kpiTotalExpense = bal.expense;
-    this.kpiTotalIncome = bal.income;
-    this.kpiNetBalance = bal.net;
-    this.kpiSavingsRate = bal.savingsRate;
+    this.isLoading = true;
+    const period = this.selectedPeriod === 'ALL_6M' ? undefined : this.selectedPeriod;
 
-    // 2. Category breakdown
-    this.txService.getCategoryBreakdown(this.selectedPeriod === 'ALL_6M' ? undefined : this.selectedPeriod)
-      .subscribe(res => {
-        this.categoryBreakdown = res;
-      });
+    // Parallel fetch of report and daily spending via forkJoin
+    forkJoin({
+      report: this.txService.getReport(period).pipe(catchError(() => of(null))),
+      dailySpend: this.txService.getDailySpending(period).pipe(catchError(() => of([])))
+    }).subscribe({
+      next: ({ report, dailySpend }) => {
+        this.isLoading = false;
+        this.dailySpend = dailySpend || [];
 
-    // 3. 6-Month Trend
-    this.txService.get6MonthTrend().subscribe(res => {
-      this.sixMonthTrend = res;
+        if (report) {
+          // 1. KPI Balances
+          if (report.totals) {
+            this.kpiTotalIncome = Number(report.totals.income || 0);
+            this.kpiTotalExpense = Number(report.totals.expense || 0);
+            this.kpiNetBalance = Number(report.totals.net || 0);
+            this.kpiSavingsRate = this.kpiTotalIncome > 0
+              ? Math.round((this.kpiNetBalance / this.kpiTotalIncome) * 100)
+              : 0;
+          } else {
+            this.resetMetrics();
+          }
+
+          // 2. Category Breakdown according to selectedFlow
+          let items: any[] = [];
+          if (this.selectedFlow === 'INCOME') {
+            items = report.incomeByCategory || [];
+          } else if (this.selectedFlow === 'EXPENSE') {
+            items = report.expenseByCategory || [];
+          } else {
+            items = [...(report.expenseByCategory || []), ...(report.incomeByCategory || [])];
+          }
+
+          this.categoryBreakdown = items.map(cb => ({
+            categoryId: String(cb.categoryId),
+            categoryName: cb.categoryName,
+            categoryIcon: cb.categoryIcon || 'tag',
+            categoryColor: cb.categoryColor || '#0EA5E9',
+            total: Number(cb.total || 0),
+            percentage: Number(cb.percentage || 0),
+            transactionCount: Number(cb.transactionCount || 0)
+          }));
+
+          // 3. 6-Month Trend
+          this.sixMonthTrend = (report.sixMonthTrend || []).map(st => {
+            const parts = st.periodMonth.split('-');
+            const monthNum = parseInt(parts[1], 10);
+            const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const label = `${monthNames[monthNum] || parts[1]} '${parts[0].slice(2)}`;
+            return {
+              periodCode: st.periodMonth,
+              monthLabel: label,
+              income: Math.round(Number(st.income || 0)),
+              expense: Math.round(Number(st.expense || 0)),
+              net: Math.round(Number(st.net || 0))
+            };
+          });
+        } else {
+          this.resetMetrics();
+          this.categoryBreakdown = [];
+          this.sixMonthTrend = [];
+        }
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.isLoading = false;
+        this.resetMetrics();
+        this.categoryBreakdown = [];
+        this.sixMonthTrend = [];
+        this.dailySpend = [];
+        this.cdr.markForCheck();
+      }
     });
+  }
 
-    // 4. Daily Spend
-    this.txService.getDailySpending('2026-09').subscribe(res => {
-      this.dailySpend = res;
-    });
+  private resetMetrics(): void {
+    this.kpiTotalIncome = 0;
+    this.kpiTotalExpense = 0;
+    this.kpiNetBalance = 0;
+    this.kpiSavingsRate = 0;
   }
 
   exportReport(): void {

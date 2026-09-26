@@ -315,6 +315,76 @@ import { CommonModule } from '@angular/common';
         <!-- Front paws gripping coin -->
         <path d="M9.5 16c.8.2 1.5-.2 2-.5" />
       }
+
+      <!-- Education / Graduation Cap (Scholarship / Academics) -->
+      @if (name === 'graduation-cap' || name === 'education' || name === 'scholarship') {
+        <path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z" />
+        <path d="M22 10v6" />
+        <path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5" />
+      }
+
+      <!-- Repeat / Subscriptions -->
+      @if (name === 'repeat' || name === 'subscriptions') {
+        <path d="m17 2 4 4-4 4" />
+        <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+        <path d="m7 22-4-4 4-4" />
+        <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+      }
+
+      <!-- Film / Entertainment -->
+      @if (name === 'film' || name === 'entertainment') {
+        <rect width="20" height="20" x="2" y="2" rx="2.18" ry="2.18" />
+        <line x1="7" x2="7" y1="2" y2="22" />
+        <line x1="17" x2="17" y1="2" y2="22" />
+        <line x1="2" x2="22" y1="12" y2="12" />
+        <line x1="2" x2="7" y1="7" y2="7" />
+        <line x1="2" x2="7" y1="17" y2="17" />
+        <line x1="17" x2="22" y1="17" y2="17" />
+        <line x1="17" x2="22" y1="7" y2="7" />
+      }
+
+      <!-- More Horizontal / Miscellaneous -->
+      @if (name === 'more-horizontal' || name === 'more' || name === 'miscellaneous') {
+        <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+        <circle cx="19" cy="12" r="1.5" fill="currentColor" />
+        <circle cx="5" cy="12" r="1.5" fill="currentColor" />
+      }
+
+      <!-- Shopping Bag -->
+      @if (name === 'shopping-bag' || name === 'shopping') {
+        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+        <path d="M3 6h18" />
+        <path d="M16 10a4 4 0 0 1-8 0" />
+      }
+
+      <!-- Music -->
+      @if (name === 'music') {
+        <path d="M9 18V5l12-2v13" />
+        <circle cx="6" cy="18" r="3" />
+        <circle cx="18" cy="16" r="3" />
+      }
+
+      <!-- Dumbbell / Fitness -->
+      @if (name === 'dumbbell' || name === 'fitness') {
+        <path d="m6.5 6.5 11 11" />
+        <path d="m21 21-1-1" />
+        <path d="m3 3 1 1" />
+        <path d="m18 22 4-4" />
+        <path d="m2 6 4-4" />
+        <path d="m3 10 7-7" />
+        <path d="m14 21 7-7" />
+      }
+
+      <!-- Shirt / Clothing -->
+      @if (name === 'shirt') {
+        <path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z" />
+      }
+
+      <!-- Fallback Default Icon when name is unknown -->
+      @if (isFallback) {
+        <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" />
+        <circle cx="7" cy="7" r=".5" fill="currentColor" />
+      }
     </svg>
   `
 })
@@ -323,4 +393,21 @@ export class IconComponent {
   @Input() size: number | string = 20;
   @Input() strokeWidth: number | string = 1.5;
   @Input() className: string = '';
+
+  private readonly KNOWN_ICONS = new Set([
+    'home', 'plus', 'plus-circle', 'plus-simple', 'pie-chart', 'reports', 'bar-chart', 'bar-chart-2',
+    'wallet', 'budgets', 'sparkles', 'insights', 'tag', 'categories', 'user', 'profile', 'users',
+    'utensils', 'coffee', 'book-open', 'bus', 'home-sub', 'housing', 'gamepad-2', 'laptop',
+    'heart-pulse', 'briefcase', 'award', 'gift', 'code', 'plane', 'sun', 'moon', 'arrow-up-right',
+    'arrow-down-left', 'trash-2', 'edit-2', 'search', 'filter', 'download', 'upload', 'check',
+    'x', 'chevron-right', 'bookmark', 'alert-triangle', 'log-out', 'map', 'file-text', 'menu',
+    'arrow-right', 'check-circle', 'shield-check', 'zap', 'trending-up', 'bell', 'message-square',
+    'squirrel-logo', 'squirrel-coin', 'graduation-cap', 'education', 'scholarship', 'repeat',
+    'subscriptions', 'film', 'entertainment', 'more-horizontal', 'more', 'miscellaneous',
+    'shopping-bag', 'shopping', 'music', 'dumbbell', 'fitness', 'shirt'
+  ]);
+
+  get isFallback(): boolean {
+    return !this.name || !this.KNOWN_ICONS.has(this.name);
+  }
 }

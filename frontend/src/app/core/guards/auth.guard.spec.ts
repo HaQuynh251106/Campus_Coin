@@ -28,12 +28,14 @@ describe('Auth & Guest Guards', () => {
 
   describe('authGuard', () => {
     it('should redirect unauthenticated users to /auth/login', () => {
+      authService.accessToken.set(null);
       authService.currentUser.set(null);
       const result = TestBed.runInInjectionContext(() => authGuard({} as any, {} as any));
       expect(result.toString()).toBe('/auth/login');
     });
 
     it('should permit authenticated users', () => {
+      authService.accessToken.set('valid-token');
       authService.currentUser.set({ id: 'user-001' } as any);
       const result = TestBed.runInInjectionContext(() => authGuard({} as any, {} as any));
       expect(result).toBe(true);
@@ -42,12 +44,14 @@ describe('Auth & Guest Guards', () => {
 
   describe('guestGuard', () => {
     it('should permit unauthenticated visitors to view the landing page', () => {
+      authService.accessToken.set(null);
       authService.currentUser.set(null);
       const result = TestBed.runInInjectionContext(() => guestGuard({} as any, {} as any));
       expect(result).toBe(true);
     });
 
     it('should redirect authenticated visitors from landing page straight to /app/home', () => {
+      authService.accessToken.set('valid-token');
       authService.currentUser.set({ id: 'user-001' } as any);
       const result = TestBed.runInInjectionContext(() => guestGuard({} as any, {} as any));
       expect(result.toString()).toBe('/app/home');

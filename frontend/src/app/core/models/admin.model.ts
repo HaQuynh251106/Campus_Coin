@@ -31,8 +31,8 @@ export interface AdminTipTemplate {
   defaultPriority: number;
   isActive: boolean;
   createdBy?: number | null;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface SystemSetting {

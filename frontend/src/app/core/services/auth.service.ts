@@ -30,9 +30,16 @@ export class AuthService {
     const token = localStorage.getItem('campus_coin_token');
     const storedUser = localStorage.getItem('campus_coin_user');
 
-    if (token) {
+    if (token && !this.isTokenExpired(token)) {
       this.accessToken.set(token);
+    } else if (token) {
+      // Token exists but is expired — clear stale session to prevent
+      // guard pass followed by immediate 401 redirect on first API call.
+      localStorage.removeItem('campus_coin_token');
+      localStorage.removeItem('campus_coin_user');
+      return;
     }
+
     if (storedUser) {
       try {
         const u = JSON.parse(storedUser);
@@ -40,6 +47,27 @@ export class AuthService {
       } catch (e) {
         console.error('Failed to parse stored user:', e);
       }
+    }
+  }
+
+  /**
+   * Decode a JWT without verifying the signature (client-side only).
+   * Returns true if the token's `exp` claim is in the past (or missing).
+   * The backend is the authority on revocation; this check only prevents
+   * presenting an obviously-expired token to the route guard, which would
+   * let the guard pass but then cause a 401 on the first API call.
+   */
+  private isTokenExpired(token: string): boolean {
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) return true;
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      if (!payload.exp) return false; // No expiry claim — let the backend decide
+      // exp is Unix timestamp in seconds; add 10-second grace to avoid
+      // clock-skew false positives on navigation between protected pages.
+      return payload.exp < (Date.now() / 1000) - 10;
+    } catch {
+      return true; // Malformed token — treat as expired
     }
   }
 

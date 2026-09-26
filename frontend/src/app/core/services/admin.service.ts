@@ -128,7 +128,7 @@ export class AdminService {
         content: t.bodyTemplate,
         audience: 'ALL_STUDENTS',
         isActive: t.isActive,
-        lastUpdated: t.updatedAt ? t.updatedAt.split('T')[0] : t.createdAt.split('T')[0]
+        lastUpdated: t.updatedAt?.split('T')[0] ?? t.createdAt?.split('T')[0] ?? '—'
       })))
     );
   }

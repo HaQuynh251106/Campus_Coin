@@ -1,7 +1,8 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminService } from '../../../core/services/admin.service';
+import { ToastService } from '../../../core/services/toast.service';
 import { User } from '../../../core/models/user.model';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 
@@ -34,6 +35,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
           <input
             type="text"
             [(ngModel)]="searchQuery"
+            (ngModelChange)="onSearchChange()"
             placeholder="Search by student name, ID or email..."
             class="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-neutral-800 border border-slate-300 dark:border-neutral-700 rounded-md focus:outline-none focus:ring-1 focus:ring-slate-900 dark:focus:ring-white"
           />
@@ -44,7 +46,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
 
         <div class="flex items-center gap-2">
           <label class="text-xs font-medium text-[var(--color-text-muted)]">Status:</label>
-          <select [(ngModel)]="statusFilter" class="text-xs py-1.5 px-2 bg-slate-50 dark:bg-neutral-800 border border-slate-300 dark:border-neutral-700 rounded-md text-neutral-900 dark:text-neutral-100">
+          <select [(ngModel)]="statusFilter" (ngModelChange)="onStatusChange()" class="text-xs py-1.5 px-2 bg-slate-50 dark:bg-neutral-800 border border-slate-300 dark:border-neutral-700 rounded-md text-neutral-900 dark:text-neutral-100">
             <option value="ALL">All Statuses</option>
             <option value="ACTIVE">Active Only</option>
             <option value="DISABLED">Disabled Only</option>
@@ -67,7 +69,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-neutral-800">
-              @for (user of filteredUsers; track user.id) {
+              @for (user of paginatedUsers; track user.id) {
                 <tr class="hover:bg-slate-50/80 dark:hover:bg-neutral-800/40 transition-colors">
                   <!-- Name & ID -->
                   <td class="p-3">
@@ -158,6 +160,50 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
             </tbody>
           </table>
         </div>
+
+        <!-- Pagination & Footer Stats Toolbar -->
+        <div class="p-3.5 bg-slate-50 dark:bg-neutral-800/80 border-t border-slate-200 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 dark:text-neutral-300">
+          <div>
+            Showing <span class="font-bold text-slate-900 dark:text-white">{{ startIndex }}</span> to <span class="font-bold text-slate-900 dark:text-white">{{ endIndex }}</span> of <span class="font-bold text-slate-900 dark:text-white">{{ filteredUsers.length }}</span> accounts
+          </div>
+
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-1.5">
+              <label class="text-[11px] text-slate-400">Rows per page:</label>
+              <select
+                [(ngModel)]="pageSize"
+                (ngModelChange)="onPageSizeChange()"
+                class="bg-white dark:bg-neutral-900 border border-slate-300 dark:border-neutral-700 rounded px-2 py-0.5 text-xs text-slate-700 dark:text-neutral-200"
+              >
+                @for (opt of pageSizeOptions; track opt) {
+                  <option [value]="opt">{{ opt }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="flex items-center gap-1">
+              <button
+                type="button"
+                (click)="prevPage()"
+                [disabled]="currentPage <= 1"
+                class="px-2.5 py-1 rounded border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:bg-slate-100 dark:hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                Previous
+              </button>
+              <span class="px-2 font-mono text-[11px]">
+                {{ currentPage }} / {{ totalPages }}
+              </span>
+              <button
+                type="button"
+                (click)="nextPage()"
+                [disabled]="currentPage >= totalPages"
+                class="px-2.5 py-1 rounded border border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:bg-slate-100 dark:hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- User Details Modal -->
@@ -216,11 +262,18 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
 })
 export class AdminUsersComponent implements OnInit {
   private adminService = inject(AdminService);
+  private toast = inject(ToastService);
+  private cdr = inject(ChangeDetectorRef);
 
   users: User[] = [];
   searchQuery = '';
   statusFilter: 'ALL' | 'ACTIVE' | 'DISABLED' = 'ALL';
   selectedUser: User | null = null;
+  isLoading = false;
+
+  currentPage = 1;
+  pageSize = 10;
+  readonly pageSizeOptions = [10, 25, 50];
 
   get filteredUsers(): User[] {
     return this.users.filter(u => {
@@ -236,28 +289,79 @@ export class AdminUsersComponent implements OnInit {
     });
   }
 
+  get totalPages(): number {
+    return Math.ceil(this.filteredUsers.length / this.pageSize) || 1;
+  }
+
+  get paginatedUsers(): User[] {
+    const startIndex = (this.currentPage - 1) * this.pageSize;
+    return this.filteredUsers.slice(startIndex, startIndex + this.pageSize);
+  }
+
+  get startIndex(): number {
+    return this.filteredUsers.length === 0 ? 0 : (this.currentPage - 1) * this.pageSize + 1;
+  }
+
+  get endIndex(): number {
+    return Math.min(this.currentPage * this.pageSize, this.filteredUsers.length);
+  }
+
+  onSearchChange(): void {
+    this.currentPage = 1;
+  }
+
+  onStatusChange(): void {
+    this.currentPage = 1;
+  }
+
+  onPageSizeChange(): void {
+    this.currentPage = 1;
+  }
+
+  prevPage(): void {
+    if (this.currentPage > 1) {
+      this.currentPage--;
+    }
+  }
+
+  nextPage(): void {
+    if (this.currentPage < this.totalPages) {
+      this.currentPage++;
+    }
+  }
+
   ngOnInit(): void {
     this.loadUsers();
   }
 
   loadUsers(): void {
-    this.adminService.getUsers().subscribe(list => {
-      this.users = list.map(u => ({
-        id: u.id,
-        studentId: `STU-${u.id}`,
-        name: u.fullName,
-        email: u.email,
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
-        role: u.role,
-        university: 'Campus University',
-        major: 'General Studies',
-        academicYear: u.academicYear || 'Undergraduate',
-        monthlyAllowance: 0,
-        savingsGoal: 0,
-        settings: { darkMode: false, fontSize: 'medium', currency: '$' },
-        status: u.status,
-        joinedDate: u.createdAt ? u.createdAt.split('T')[0] : '2026-09-01'
-      }));
+    this.isLoading = true;
+    this.adminService.getUsers().subscribe({
+      next: (list) => {
+        this.isLoading = false;
+        this.users = list.map(u => ({
+          id: u.id,
+          studentId: `STU-${u.id}`,
+          name: u.fullName,
+          email: u.email,
+          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
+          role: u.role,
+          university: 'Campus University',
+          major: 'General Studies',
+          academicYear: u.academicYear || 'Undergraduate',
+          monthlyAllowance: 0,
+          savingsGoal: 0,
+          settings: { darkMode: false, fontSize: 'medium', currency: '$' },
+          status: u.status,
+          joinedDate: u.createdAt ? u.createdAt.split('T')[0] : '2026-09-01'
+        }));
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.isLoading = false;
+        this.toast.error(err.error?.message || 'Failed to load user directory');
+        this.cdr.markForCheck();
+      }
     });
   }
 
@@ -265,30 +369,47 @@ export class AdminUsersComponent implements OnInit {
     this.selectedUser = user;
   }
 
-  toggleStatus(user: User): void {
+  async toggleStatus(user: User): Promise<void> {
     const nextStatus = user.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
     const actionLabel = nextStatus === 'DISABLED' ? 'disable' : 'activate';
 
-    if (confirm(`Are you sure you want to ${actionLabel} account for ${user.name}?`)) {
+    const confirmed = await this.toast.confirm(
+      `${nextStatus === 'DISABLED' ? 'Disable' : 'Activate'} User Account`,
+      `Are you sure you want to ${actionLabel} the account for ${user.name} (${user.email})?`,
+      `${nextStatus === 'DISABLED' ? 'Disable Account' : 'Activate Account'}`,
+      'Cancel',
+      nextStatus === 'DISABLED'
+    );
+
+    if (confirmed) {
       this.adminService.setUserStatus(user.id, nextStatus).subscribe({
         next: (updated) => {
           user.status = updated.status;
+          this.toast.success(`Account for ${user.name} has been ${actionLabel}d.`);
         },
         error: (err) => {
-          alert(err.error?.message || 'Failed to update user status');
+          this.toast.error(err.error?.message || 'Failed to update user status');
         }
       });
     }
   }
 
-  triggerPasswordReset(user: User): void {
-    if (confirm(`Send password reset security link for ${user.email}?`)) {
+  async triggerPasswordReset(user: User): Promise<void> {
+    const confirmed = await this.toast.confirm(
+      'Reset Password',
+      `Send password reset security link for ${user.email}?`,
+      'Send Reset Link',
+      'Cancel',
+      false
+    );
+
+    if (confirmed) {
       this.adminService.sendPasswordReset(user.id).subscribe({
         next: (res) => {
-          alert(res.message || `Password reset link dispatched for ${user.email}`);
+          this.toast.success(res.message || `Password reset link dispatched for ${user.email}`);
         },
         error: (err) => {
-          alert(err.error?.message || 'Failed to send password reset');
+          this.toast.error(err.error?.message || 'Failed to send password reset');
         }
       });
     }

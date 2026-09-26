@@ -49,14 +49,6 @@ import { NotificationBellComponent } from '../../shared/components/notification-
                 <app-icon name="moon" [size]="16"></app-icon>
               }
             </button>
-
-            <!-- Admin Profile Link & Quick Exit -->
-            <a
-              routerLink="/app/home"
-              class="text-xs font-medium text-slate-600 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-neutral-100 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-neutral-800 hover:bg-slate-100 dark:hover:bg-neutral-800 transition-colors"
-            >
-              Student App View ↗
-            </a>
           </div>
         </header>
 

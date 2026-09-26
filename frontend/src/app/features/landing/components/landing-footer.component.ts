@@ -48,11 +48,6 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
                   Student Stories
                 </a>
               </li>
-              <li>
-                <a routerLink="/sitemap" class="hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
-                  Sitemap & Routes
-                </a>
-              </li>
             </ul>
           </div>
 
@@ -91,9 +86,6 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
         <div class="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[var(--color-text-muted)]">
           <p>
             &copy; 2026 Campus Coin. A student-centered financial wellness initiative.
-          </p>
-          <p class="font-mono text-[11px]">
-            Built with Angular & Tailwind CSS &bull; No Bank Credentials Required
           </p>
         </div>
       </div>

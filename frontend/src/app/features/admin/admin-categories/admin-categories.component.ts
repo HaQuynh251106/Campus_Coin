@@ -1,8 +1,10 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { forkJoin, of, catchError } from 'rxjs';
 import { CategoryService } from '../../../core/services/category.service';
 import { AdminService, TipTemplate } from '../../../core/services/admin.service';
+import { ToastService } from '../../../core/services/toast.service';
 import { Category } from '../../../core/models/category.model';
 import { CategoryIconComponent } from '../../../shared/components/category-icon/category-icon.component';
 
@@ -248,9 +250,12 @@ import { CategoryIconComponent } from '../../../shared/components/category-icon/
 })
 export class AdminCategoriesComponent implements OnInit {
   private adminService = inject(AdminService);
+  private toast = inject(ToastService);
+  private cdr = inject(ChangeDetectorRef);
 
   defaultCategories: Category[] = [];
   tipTemplates: TipTemplate[] = [];
+  isLoading = false;
 
   showTipModal = false;
   newTipTitle = '';
@@ -259,12 +264,31 @@ export class AdminCategoriesComponent implements OnInit {
   newTipContent = '';
 
   ngOnInit(): void {
-    this.adminService.getDefaultCategories().subscribe(cats => {
-      this.defaultCategories = cats;
-    });
-
-    this.adminService.getTipTemplates().subscribe(tips => {
-      this.tipTemplates = tips;
+    this.isLoading = true;
+    forkJoin({
+      categories: this.adminService.getDefaultCategories().pipe(
+        catchError((err) => {
+          this.toast.error(err.error?.message || 'Failed to load default categories');
+          return of([]);
+        })
+      ),
+      tips: this.adminService.getTipTemplates().pipe(
+        catchError((err) => {
+          this.toast.error(err.error?.message || 'Failed to load tip templates');
+          return of([]);
+        })
+      )
+    }).subscribe({
+      next: ({ categories, tips }) => {
+        this.isLoading = false;
+        this.defaultCategories = categories;
+        this.tipTemplates = tips;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.isLoading = false;
+        this.cdr.markForCheck();
+      }
     });
   }
 
@@ -292,15 +316,35 @@ export class AdminCategoriesComponent implements OnInit {
   }
 
   toggleTipStatus(tip: TipTemplate): void {
-    this.adminService.updateTipTemplate(tip.id, { isActive: !tip.isActive }).subscribe(u => {
-      tip.isActive = u.isActive;
+    this.adminService.updateTipTemplate(tip.id, { isActive: !tip.isActive }).subscribe({
+      next: (u) => {
+        tip.isActive = u.isActive;
+        this.toast.success(`Tip template ${u.isActive ? 'activated' : 'deactivated'}.`);
+      },
+      error: (err) => {
+        this.toast.error(err.error?.message || 'Failed to update tip template');
+      }
     });
   }
 
-  deleteTip(id: string | number): void {
-    if (confirm('Deactivate this tip template?')) {
-      this.adminService.updateTipTemplate(id, { isActive: false }).subscribe(() => {
-        this.adminService.getTipTemplates().subscribe(t => (this.tipTemplates = t));
+  async deleteTip(id: string | number): Promise<void> {
+    const confirmed = await this.toast.confirm(
+      'Deactivate Tip Template',
+      'Are you sure you want to deactivate this tip template?',
+      'Deactivate',
+      'Cancel',
+      true
+    );
+
+    if (confirmed) {
+      this.adminService.updateTipTemplate(id, { isActive: false }).subscribe({
+        next: () => {
+          this.toast.success('Tip template deactivated.');
+          this.adminService.getTipTemplates().subscribe(t => (this.tipTemplates = t));
+        },
+        error: (err) => {
+          this.toast.error(err.error?.message || 'Failed to deactivate tip template');
+        }
       });
     }
   }
