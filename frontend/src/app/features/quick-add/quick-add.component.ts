@@ -1,10 +1,11 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { TransactionService } from '../../core/services/transaction.service';
 import { CategoryService } from '../../core/services/category.service';
 import { MascotService } from '../../core/services/mascot.service';
+import { ToastService } from '../../core/services/toast.service';
 import { Category } from '../../core/models/category.model';
 import { Transaction, TransactionType } from '../../core/models/transaction.model';
 import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadcrumbs.component';
@@ -103,11 +104,11 @@ import { CategoryTagComponent } from '../../shared/components/category-tag/categ
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <!-- Amount -->
             <div>
-              <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1">
+              <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300 mb-1.5">
                 Amount ($ USD) *
               </label>
-              <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 font-medium">
+              <div class="relative flex items-center">
+                <span class="absolute left-3.5 text-neutral-700 dark:text-neutral-200 font-bold text-base pointer-events-none select-none z-10">
                   $
                 </span>
                 <input
@@ -116,7 +117,8 @@ import { CategoryTagComponent } from '../../shared/components/category-tag/categ
                   min="0.01"
                   formControlName="amount"
                   placeholder="0.00"
-                  class="input-brutal pl-7 text-lg font-semibold"
+                  class="input-brutal !pl-9 text-lg font-semibold placeholder:text-neutral-400 dark:placeholder:text-neutral-500"
+                  style="padding-left: 2.25rem !important;"
                 />
               </div>
             </div>
@@ -307,7 +309,9 @@ export class QuickAddComponent implements OnInit {
   private txService = inject(TransactionService);
   private categoryService = inject(CategoryService);
   private mascotService = inject(MascotService);
+  private toast = inject(ToastService);
   private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
 
   categories: Category[] = [];
   filteredCategories: Category[] = [];
@@ -331,14 +335,16 @@ export class QuickAddComponent implements OnInit {
     this.categoryService.getCategories().subscribe(cats => {
       this.categories = cats;
       this.filterCategoriesByType('EXPENSE');
+      this.cdr.markForCheck();
     });
 
     this.loadRecent();
   }
 
   loadRecent(): void {
-    this.txService.getRecentTransactions(10).subscribe(list => {
+    this.txService.getRecentTransactions(10, { from: '2026-08-01', to: '2026-09-30' }).subscribe(list => {
       this.recentList = list;
+      this.cdr.markForCheck();
     });
   }
 
@@ -385,7 +391,7 @@ export class QuickAddComponent implements OnInit {
         },
         error: (err) => {
           this.isSubmitting = false;
-          alert(err.error?.message || 'Failed to update transaction');
+          this.toast.error(err.error?.message || 'Failed to update transaction');
         }
       });
     } else {
@@ -393,6 +399,7 @@ export class QuickAddComponent implements OnInit {
         next: () => {
           this.isSubmitting = false;
           this.successMessage = 'Transaction recorded!';
+          this.toast.success('Transaction recorded successfully!');
           this.resetForm();
           this.loadRecent();
           this.mascotService.onTransactionLogged();
@@ -400,7 +407,7 @@ export class QuickAddComponent implements OnInit {
         },
         error: (err) => {
           this.isSubmitting = false;
-          alert(err.error?.message || 'Failed to record transaction');
+          this.toast.error(err.error?.message || 'Failed to record transaction');
         }
       });
     }

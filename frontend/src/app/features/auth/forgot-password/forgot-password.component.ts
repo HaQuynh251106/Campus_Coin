@@ -3,13 +3,15 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Router, RouterModule, ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
+import { ToastService } from '../../../core/services/toast.service';
+import { IconComponent } from '../../../shared/components/icon/icon.component';
 
 type ResetStep = 'request' | 'sent' | 'reset-token';
 
 @Component({
   selector: 'app-forgot-password',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule, IconComponent],
   template: `
     <div class="card-brutal p-6 sm:p-8 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs">
 
@@ -110,6 +112,12 @@ type ResetStep = 'request' | 'sent' | 'reset-token';
             ✓ Password reset successfully! Redirecting you to sign in...
           </div>
         } @else {
+          @if (errorMessage) {
+            <div class="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 rounded-lg text-xs font-semibold mb-4 flex items-center gap-1.5 animate-fade-in">
+              <app-icon name="alert-triangle" size="14"></app-icon>
+              <span>{{ errorMessage }}</span>
+            </div>
+          }
           <form [formGroup]="resetForm" (ngSubmit)="onResetSubmit()" class="space-y-4">
             <div>
               <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1">
@@ -215,22 +223,27 @@ export class ForgotPasswordComponent {
     this.token = 'campus-demo-8842';
   }
 
+  private toast = inject(ToastService);
+
   onResetSubmit(): void {
     if (this.resetForm.invalid) return;
     this.isLoading = true;
+    this.errorMessage = '';
     const { newPassword, confirmNewPassword } = this.resetForm.value;
 
     this.auth.completePasswordReset(this.token, newPassword!, confirmNewPassword!).subscribe({
       next: () => {
         this.isLoading = false;
         this.resetSuccess = true;
+        this.toast.success('Password reset successfully! Redirecting...');
         setTimeout(() => {
           this.router.navigate(['/auth/login']);
         }, 1500);
       },
       error: (err) => {
         this.isLoading = false;
-        alert(err.error?.message || 'Password reset failed');
+        this.errorMessage = err.error?.message || 'Password reset failed';
+        this.toast.error(this.errorMessage);
       }
     });
   }

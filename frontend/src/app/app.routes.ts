@@ -140,14 +140,6 @@ export const routes: Routes = [
     ]
   },
 
-  // 4. Stated Requirement: Visible Nested Sitemap Page
-  {
-    path: 'sitemap',
-    title: 'Complete Sitemap & Route Index — Campus Coin',
-    loadComponent: () =>
-      import('./features/sitemap/sitemap.component').then(m => m.SitemapComponent)
-  },
-
   // Fallback Wildcard
   {
     path: '**',

@@ -1,10 +1,12 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { forkJoin, of, catchError } from 'rxjs';
 import { TransactionService, MonthlyBalance } from '../../core/services/transaction.service';
 import { BudgetService } from '../../core/services/budget.service';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { AuthService } from '../../core/services/auth.service';
+import { ToastService } from '../../core/services/toast.service';
 import { Transaction } from '../../core/models/transaction.model';
 import { Budget } from '../../core/models/budget.model';
 import { CardComponent } from '../../shared/components/card/card.component';
@@ -256,6 +258,8 @@ export class HomeFeedComponent implements OnInit {
   private budgetService = inject(BudgetService);
   private dashboardService = inject(DashboardService);
   private auth = inject(AuthService);
+  private toast = inject(ToastService);
+  private cdr = inject(ChangeDetectorRef);
 
   balance: MonthlyBalance = { income: 0, expense: 0, net: 0, savingsRate: 0 };
   periodLabel = 'September 2026';
@@ -269,37 +273,46 @@ export class HomeFeedComponent implements OnInit {
   }
 
   refreshAll(): void {
-    // 1. Live Dashboard from Backend (M7)
-    this.dashboardService.getDashboard().subscribe({
-      next: (d) => {
-        if (d && d.summary) {
+    this.isLoadingTxs = true;
+
+    // Parallel fetch via forkJoin with individual error boundaries
+    forkJoin({
+      dashboard: this.dashboardService.getDashboard().pipe(catchError(() => of(null))),
+      budgets: this.budgetService.getBudgets('2026-09').pipe(catchError(() => of([]))),
+      transactions: this.txService.getTransactions({ from: '2026-08-01', to: '2026-09-30' }).pipe(catchError(() => of([])))
+    }).subscribe({
+      next: ({ dashboard, budgets, transactions }) => {
+        // 1. Dashboard summary
+        if (dashboard && dashboard.summary) {
           this.balance = {
-            income: d.summary.totalIncome,
-            expense: d.summary.totalExpense,
-            net: d.summary.netAmount,
-            savingsRate: Math.round(d.summary.savingsGoalPct ?? 0)
+            income: dashboard.summary.totalIncome,
+            expense: dashboard.summary.totalExpense,
+            net: dashboard.summary.netAmount,
+            savingsRate: Math.round(dashboard.summary.savingsGoalPct ?? 0)
           };
-          this.periodLabel = d.periodMonth || '2026-09';
+          this.periodLabel = dashboard.periodMonth || '2026-09';
+        } else {
+          this.balance = this.txService.getMonthlyBalance('2026-09');
         }
+
+        // 2. Budgets
+        this.topBudgets = (budgets || []).slice(0, 4);
+
+        // 3. Transactions
+        this.groupTransactionsByDay((transactions || []).slice(0, 15));
+        this.isLoadingTxs = false;
+        this.cdr.markForCheck();
       },
       error: () => {
-        // Fallback to local transaction sum
-        this.balance = this.txService.getMonthlyBalance('2026-09');
+        this.isLoadingTxs = false;
+        this.cdr.markForCheck();
       }
     });
-
-    // 2. Live Budgets (M6)
-    this.budgetService.getBudgets('2026-09').subscribe(budgets => {
-      this.topBudgets = budgets.slice(0, 4);
-    });
-
-    // 3. Transactions stream (M4)
-    this.loadTransactions();
   }
 
   loadTransactions(): void {
     this.isLoadingTxs = true;
-    this.txService.getTransactions().subscribe({
+    this.txService.getTransactions({ from: '2026-08-01', to: '2026-09-30' }).subscribe({
       next: (txs) => {
         this.groupTransactionsByDay(txs.slice(0, 15));
         this.isLoadingTxs = false;
@@ -350,10 +363,26 @@ export class HomeFeedComponent implements OnInit {
     return limit > 0 ? Math.round((spent / limit) * 100) : 0;
   }
 
-  deleteTx(id: string | number): void {
-    this.txService.deleteTransaction(id).subscribe(() => {
-      this.refreshAll();
-    });
+  async deleteTx(id: string | number): Promise<void> {
+    const confirmed = await this.toast.confirm(
+      'Remove Transaction',
+      'Are you sure you want to remove this transaction?',
+      'Remove',
+      'Cancel',
+      true
+    );
+
+    if (confirmed) {
+      this.txService.deleteTransaction(id).subscribe({
+        next: () => {
+          this.toast.success('Transaction removed successfully');
+          this.refreshAll();
+        },
+        error: (err) => {
+          this.toast.error(err.error?.message || 'Failed to remove transaction');
+        }
+      });
+    }
   }
 
   goToQuickAdd(): void {}

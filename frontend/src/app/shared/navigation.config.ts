@@ -15,13 +15,11 @@ export const STUDENT_NAV_ITEMS: NavItem[] = [
 ];
 
 export const STUDENT_SIDEBAR_EXTRA_ITEMS: NavItem[] = [
-  { label: 'Categories', route: '/app/categories', icon: 'categories' },
-  { label: 'Sitemap', route: '/sitemap', icon: 'map' }
+  { label: 'Categories', route: '/app/categories', icon: 'categories' }
 ];
 
 export const ADMIN_NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', route: '/admin/dashboard', icon: 'reports' },
   { label: 'User Directory', route: '/admin/users', icon: 'users' },
-  { label: 'Categories & Tips', route: '/admin/categories', icon: 'categories' },
-  { label: 'System Sitemap', route: '/sitemap', icon: 'map' }
+  { label: 'Categories & Tips', route: '/admin/categories', icon: 'categories' }
 ];

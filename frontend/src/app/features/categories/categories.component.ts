@@ -1,7 +1,8 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CategoryService } from '../../core/services/category.service';
+import { ToastService } from '../../core/services/toast.service';
 import { Category, CategoryType } from '../../core/models/category.model';
 import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadcrumbs.component';
 import { ButtonComponent } from '../../shared/components/button/button.component';
@@ -162,30 +163,70 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
 
             <div class="space-y-4">
               <div>
-                <label class="block text-xs font-medium uppercase text-neutral-500 mb-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-400 mb-1">
                   Category Name *
                 </label>
                 <input
                   type="text"
                   [(ngModel)]="modalName"
+                  (ngModelChange)="modalNameError = null"
                   placeholder="e.g. Lab Materials, Subscriptions"
                   class="input-brutal"
+                  [class.border-rose-500]="modalNameError"
                 />
+                @if (modalNameError) {
+                  <p class="text-xs text-rose-600 dark:text-rose-400 font-semibold mt-1 flex items-center gap-1 animate-fade-in">
+                    <app-icon name="alert-triangle" size="14"></app-icon>
+                    <span>{{ modalNameError }}</span>
+                  </p>
+                }
               </div>
 
               <div>
-                <label class="block text-xs font-medium uppercase text-neutral-500 mb-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-400 mb-1">
                   Type
                 </label>
-                <select [(ngModel)]="modalType" class="input-brutal">
+                <select [(ngModel)]="modalType" (ngModelChange)="modalNameError = null" class="input-brutal">
                   <option value="EXPENSE">Expense Category</option>
                   <option value="INCOME">Income Category</option>
                 </select>
               </div>
 
+              <!-- Curated Icon Picker -->
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-400 mb-1.5 flex items-center justify-between">
+                  <span>Category Icon</span>
+                  <span class="text-[11px] font-normal text-neutral-400 capitalize">{{ modalIcon }}</span>
+                </label>
+                <div class="grid grid-cols-5 sm:grid-cols-10 gap-1.5 p-2 bg-neutral-50 dark:bg-neutral-800/60 rounded-xl border border-neutral-200 dark:border-neutral-700/80 max-h-36 overflow-y-auto">
+                  @for (ic of availableCategoryIcons; track ic.name) {
+                    <button
+                      type="button"
+                      (click)="modalIcon = ic.name"
+                      [title]="ic.label"
+                      class="h-8 w-8 rounded-lg flex items-center justify-center transition-all cursor-pointer border"
+                      [class.bg-white]="modalIcon !== ic.name"
+                      [class.dark:bg-neutral-800]="modalIcon !== ic.name"
+                      [class.border-transparent]="modalIcon !== ic.name"
+                      [class.hover:bg-neutral-100]="modalIcon !== ic.name"
+                      [class.dark:hover:bg-neutral-700]="modalIcon !== ic.name"
+                      [class.bg-amber-100]="modalIcon === ic.name"
+                      [class.dark:bg-amber-950/80]="modalIcon === ic.name"
+                      [class.border-amber-500]="modalIcon === ic.name"
+                      [class.text-amber-700]="modalIcon === ic.name"
+                      [class.dark:text-amber-300]="modalIcon === ic.name"
+                      [class.ring-2]="modalIcon === ic.name"
+                      [class.ring-amber-500/40]="modalIcon === ic.name"
+                    >
+                      <app-icon [name]="ic.name" size="16"></app-icon>
+                    </button>
+                  }
+                </div>
+              </div>
+
               <!-- Color Palette -->
               <div>
-                <label class="block text-xs font-medium uppercase text-neutral-500 mb-1.5">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-400 mb-1.5">
                   Color Accent
                 </label>
                 <div class="flex flex-wrap gap-2">
@@ -193,9 +234,10 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
                     <button
                       type="button"
                       (click)="modalColor = col"
-                      class="w-7 h-7 rounded-lg border border-neutral-200 dark:border-neutral-700 cursor-pointer transition-transform"
+                      class="w-7 h-7 rounded-lg border border-neutral-200 dark:border-neutral-700 cursor-pointer transition-transform hover:scale-105"
                       [style.background-color]="col"
                       [class.ring-2]="modalColor === col"
+                      [class.ring-offset-2]="modalColor === col"
                       [class.ring-amber-500]="modalColor === col"
                     ></button>
                   }
@@ -203,7 +245,7 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
               </div>
 
               <div>
-                <label class="block text-xs font-medium uppercase text-neutral-500 mb-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-400 mb-1">
                   Description
                 </label>
                 <input
@@ -218,14 +260,14 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
                 <button
                   type="button"
                   (click)="closeModal()"
-                  class="px-3.5 py-2 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded-lg text-xs transition-colors cursor-pointer"
+                  class="px-3.5 py-2 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   (click)="saveModal()"
-                  class="bg-amber-500 hover:bg-amber-600 text-neutral-950 font-medium text-xs py-2 px-4 rounded-lg shadow-xs transition-colors cursor-pointer"
+                  class="bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold text-xs py-2 px-4 rounded-lg shadow-xs transition-colors cursor-pointer"
                 >
                   Save Category ✓
                 </button>
@@ -240,6 +282,8 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
 })
 export class CategoriesComponent implements OnInit {
   private categoryService = inject(CategoryService);
+  private toast = inject(ToastService);
+  private cdr = inject(ChangeDetectorRef);
 
   activeTab: CategoryType = 'EXPENSE';
   categories: Category[] = [];
@@ -247,9 +291,34 @@ export class CategoriesComponent implements OnInit {
   showModal = false;
   editingCategory: Category | null = null;
   modalName = '';
+  modalNameError: string | null = null;
+  modalIcon = 'tag';
   modalType: CategoryType = 'EXPENSE';
   modalColor = '#0EA5E9';
   modalDesc = '';
+
+  readonly availableCategoryIcons = [
+    { name: 'tag', label: 'Tag' },
+    { name: 'utensils', label: 'Food & Dining' },
+    { name: 'coffee', label: 'Coffee & Snacks' },
+    { name: 'bus', label: 'Transport' },
+    { name: 'home', label: 'Housing / Rent' },
+    { name: 'book-open', label: 'Books & Academics' },
+    { name: 'graduation-cap', label: 'Scholarship' },
+    { name: 'briefcase', label: 'Job / Work' },
+    { name: 'wallet', label: 'Allowance / Money' },
+    { name: 'gift', label: 'Gift' },
+    { name: 'repeat', label: 'Subscriptions' },
+    { name: 'film', label: 'Entertainment' },
+    { name: 'gamepad-2', label: 'Gaming' },
+    { name: 'laptop', label: 'Tech & Gadgets' },
+    { name: 'shopping-bag', label: 'Shopping' },
+    { name: 'shirt', label: 'Clothing' },
+    { name: 'heart-pulse', label: 'Health' },
+    { name: 'dumbbell', label: 'Fitness' },
+    { name: 'music', label: 'Music' },
+    { name: 'more-horizontal', label: 'Miscellaneous' }
+  ];
 
   paletteColors = [
     '#EA580C', '#0D9488', '#0EA5E9', '#8B5CF6',
@@ -273,14 +342,22 @@ export class CategoriesComponent implements OnInit {
   }
 
   loadCategories(): void {
-    this.categoryService.getCategories().subscribe(list => {
-      this.categories = list;
+    this.categoryService.getCategories().subscribe({
+      next: (list) => {
+        this.categories = list;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.toast.error(err.error?.message || 'Failed to load categories');
+      }
     });
   }
 
   openAddModal(): void {
     this.editingCategory = null;
     this.modalName = '';
+    this.modalNameError = null;
+    this.modalIcon = 'tag';
     this.modalType = this.activeTab;
     this.modalColor = '#EAB308';
     this.modalDesc = '';
@@ -290,6 +367,8 @@ export class CategoriesComponent implements OnInit {
   openEditModal(cat: Category): void {
     this.editingCategory = cat;
     this.modalName = cat.name;
+    this.modalNameError = null;
+    this.modalIcon = cat.icon || 'tag';
     this.modalType = cat.type;
     this.modalColor = cat.color;
     this.modalDesc = cat.description || '';
@@ -299,49 +378,95 @@ export class CategoriesComponent implements OnInit {
   closeModal(): void {
     this.showModal = false;
     this.editingCategory = null;
+    this.modalNameError = null;
   }
 
   saveModal(): void {
-    if (!this.modalName.trim()) return;
+    const trimmedName = this.modalName.trim();
+    if (!trimmedName) {
+      this.modalNameError = 'Category name cannot be blank.';
+      return;
+    }
+
+    // Client-side duplicate check before submit
+    const duplicate = this.categories.some(c =>
+      c.type === this.modalType &&
+      c.name.trim().toLowerCase() === trimmedName.toLowerCase() &&
+      (!this.editingCategory || String(c.id) !== String(this.editingCategory.id))
+    );
+
+    if (duplicate) {
+      this.modalNameError = `You already have a category named "${trimmedName}" of this type.`;
+      return;
+    }
+
+    this.modalNameError = null;
 
     if (this.editingCategory) {
       this.categoryService.updateCategory(this.editingCategory.id, {
-        name: this.modalName.trim(),
+        name: trimmedName,
+        icon: this.modalIcon,
         color: this.modalColor,
         description: this.modalDesc.trim()
       }).subscribe({
         next: () => {
+          this.toast.success(`Category "${trimmedName}" updated!`);
           this.loadCategories();
           this.closeModal();
         },
         error: (err) => {
-          alert(err.error?.message || 'Failed to update category');
+          if (err.status === 409 || err.error?.errorCode === 'CATEGORY_NAME_TAKEN') {
+            this.modalNameError = err.error?.message || `You already have a category named "${trimmedName}" of this type.`;
+          } else {
+            this.toast.error(err.error?.message || 'Failed to update category');
+          }
         }
       });
     } else {
       this.categoryService.addCategory({
-        name: this.modalName.trim(),
+        name: trimmedName,
         type: this.modalType,
-        icon: 'tag',
+        icon: this.modalIcon,
         color: this.modalColor,
         description: this.modalDesc.trim()
       }).subscribe({
         next: () => {
+          this.toast.success(`Category "${trimmedName}" created!`);
           this.loadCategories();
           this.closeModal();
         },
         error: (err) => {
-          alert(err.error?.message || 'Failed to create category');
+          if (err.status === 409 || err.error?.errorCode === 'CATEGORY_NAME_TAKEN') {
+            this.modalNameError = err.error?.message || `You already have a category named "${trimmedName}" of this type.`;
+          } else {
+            this.toast.error(err.error?.message || 'Failed to create category');
+          }
         }
       });
     }
   }
 
-  deleteCategory(id: string | number): void {
-    if (confirm('Are you sure you want to remove this category?')) {
+  async deleteCategory(id: string | number): Promise<void> {
+    const cat = this.categories.find(c => String(c.id) === String(id));
+    const catName = cat ? ` "${cat.name}"` : '';
+
+    const confirmed = await this.toast.confirm(
+      'Remove Category',
+      `Are you sure you want to remove the category${catName}? This cannot be undone if it has transactions.`,
+      'Remove Category',
+      'Cancel',
+      true
+    );
+
+    if (confirmed) {
       this.categoryService.deleteCategory(id).subscribe({
-        next: () => this.loadCategories(),
-        error: (err) => alert(err.error?.message || err.message)
+        next: () => {
+          this.toast.success(`Category${catName} removed.`);
+          this.loadCategories();
+        },
+        error: (err: any) => {
+          this.toast.error(err.error?.message || err.message || 'Failed to delete category');
+        }
       });
     }
   }

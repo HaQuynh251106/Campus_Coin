@@ -51,8 +51,6 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
       <!-- Footer -->
       <footer class="max-w-md w-full mx-auto text-center py-4 text-xs font-medium text-neutral-400 dark:text-neutral-500 z-10 flex items-center justify-center gap-4">
         <span>© 2026 Campus Coin</span>
-        <span>&bull;</span>
-        <a routerLink="/sitemap" class="hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors">Route Sitemap</a>
       </footer>
     </div>
   `

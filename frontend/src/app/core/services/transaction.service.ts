@@ -3,7 +3,13 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, tap, map, of, catchError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { Transaction, TransactionType } from '../models/transaction.model';
-import { ReportResponse, SpendingReportResponse } from '../models/report.model';
+import {
+  ReportResponse,
+  SpendingSeriesResponse,
+  MonthlyTrendItem,
+  CategoryBreakdownItem,
+  ReportCategoryItem
+} from '../models/report.model';
 
 export interface MonthlyBalance {
   income: number;
@@ -12,23 +18,7 @@ export interface MonthlyBalance {
   savingsRate: number;
 }
 
-export interface CategoryBreakdownItem {
-  categoryId: string;
-  categoryName: string;
-  categoryIcon: string;
-  categoryColor: string;
-  total: number;
-  percentage: number;
-  transactionCount: number;
-}
-
-export interface MonthlyTrendItem {
-  periodCode: string; // '2026-09'
-  monthLabel: string; // 'Sep 26'
-  income: number;
-  expense: number;
-  net: number;
-}
+export type { MonthlyTrendItem, CategoryBreakdownItem };
 
 @Injectable({
   providedIn: 'root'
@@ -92,8 +82,8 @@ export class TransactionService {
     );
   }
 
-  getRecentTransactions(limit = 10): Observable<Transaction[]> {
-    return this.getTransactions().pipe(
+  getRecentTransactions(limit = 10, filter?: { from?: string; to?: string; includeDeleted?: boolean }): Observable<Transaction[]> {
+    return this.getTransactions(filter).pipe(
       map(txs => txs.slice(0, limit))
     );
   }
@@ -180,21 +170,34 @@ export class TransactionService {
     return { income: roundedIncome, expense: roundedExpense, net, savingsRate };
   }
 
-  getCategoryBreakdown(periodCode?: string): Observable<CategoryBreakdownItem[]> {
+  getReport(periodMonth?: string): Observable<ReportResponse> {
     let params = new HttpParams();
-    if (periodCode && periodCode !== 'ALL_6M') {
-      params = params.set('month', periodCode);
+    if (periodMonth && periodMonth !== 'ALL_6M') {
+      params = params.set('month', periodMonth);
     }
-    return this.http.get<ReportResponse>(`${this.baseUrl}/reports`, { params }).pipe(
+    return this.http.get<ReportResponse>(`${this.baseUrl}/reports`, { params });
+  }
+
+  getCategoryBreakdown(periodCode?: string, flowType: 'ALL' | 'EXPENSE' | 'INCOME' = 'EXPENSE'): Observable<CategoryBreakdownItem[]> {
+    return this.getReport(periodCode).pipe(
       map(rep => {
-        return (rep.categoryBreakdown || []).map(cb => ({
+        let items: ReportCategoryItem[] = [];
+        if (flowType === 'INCOME') {
+          items = rep.incomeByCategory || [];
+        } else if (flowType === 'EXPENSE') {
+          items = rep.expenseByCategory || [];
+        } else {
+          items = [...(rep.expenseByCategory || []), ...(rep.incomeByCategory || [])];
+        }
+
+        return items.map(cb => ({
           categoryId: String(cb.categoryId),
           categoryName: cb.categoryName,
           categoryIcon: cb.categoryIcon || 'tag',
           categoryColor: cb.categoryColor || '#0EA5E9',
-          total: Number(cb.totalAmount),
-          percentage: cb.percentage ?? 0,
-          transactionCount: cb.txnCount
+          total: Number(cb.total || 0),
+          percentage: Number(cb.percentage || 0),
+          transactionCount: Number(cb.transactionCount || 0)
         }));
       }),
       catchError(() => of([]))
@@ -202,19 +205,19 @@ export class TransactionService {
   }
 
   get6MonthTrend(): Observable<MonthlyTrendItem[]> {
-    return this.http.get<ReportResponse>(`${this.baseUrl}/reports`).pipe(
+    return this.getReport().pipe(
       map(rep => {
         return (rep.sixMonthTrend || []).map(st => {
           const parts = st.periodMonth.split('-');
           const monthNum = parseInt(parts[1], 10);
           const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-          const label = `${monthNames[monthNum]} ${parts[0].slice(2)}`;
+          const label = `${monthNames[monthNum] || parts[1]} '${parts[0].slice(2)}`;
           return {
             periodCode: st.periodMonth,
             monthLabel: label,
-            income: Math.round(st.totalIncome),
-            expense: Math.round(st.totalExpense),
-            net: Math.round(st.netAmount)
+            income: Math.round(Number(st.income || 0)),
+            expense: Math.round(Number(st.expense || 0)),
+            net: Math.round(Number(st.net || 0))
           };
         });
       }),
@@ -223,13 +226,20 @@ export class TransactionService {
   }
 
   getDailySpending(periodCode = '2026-09'): Observable<Array<{ day: string; amount: number }>> {
-    let params = new HttpParams().set('type', 'DAILY');
-    return this.http.get<SpendingReportResponse>(`${this.baseUrl}/reports/spending`, { params }).pipe(
+    let params = new HttpParams().set('granularity', 'DAILY');
+    if (periodCode && periodCode !== 'ALL_6M') {
+      params = params.set('month', periodCode);
+    }
+    return this.http.get<SpendingSeriesResponse>(`${this.baseUrl}/reports/spending`, { params }).pipe(
       map(res => {
-        return (res.points || []).map(p => ({
-          day: p.label,
-          amount: Number(p.totalExpense)
-        }));
+        return (res.points || []).map(p => {
+          const dayParts = p.intervalStart ? p.intervalStart.split('-') : [];
+          const dayNumber = dayParts[2] ? parseInt(dayParts[2], 10) : p.intervalStart;
+          return {
+            day: String(dayNumber),
+            amount: Number(p.totalExpense || 0)
+          };
+        });
       }),
       catchError(() => of([]))
     );

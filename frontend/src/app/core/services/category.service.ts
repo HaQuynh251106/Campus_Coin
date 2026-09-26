@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap, map } from 'rxjs';
+import { Observable, tap, map, shareReplay } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { Category, CategoryType } from '../models/category.model';
 
@@ -12,6 +12,7 @@ export class CategoryService {
   private baseUrl = `${environment.apiUrl}/v1/categories`;
 
   readonly categories = signal<Category[]>([]);
+  private categoriesCache$?: Observable<Category[]>;
 
   private mapCategory(raw: any): Category {
     return {
@@ -27,11 +28,24 @@ export class CategoryService {
     };
   }
 
-  getCategories(): Observable<Category[]> {
-    return this.http.get<any[]>(this.baseUrl).pipe(
-      map(list => list.map(raw => this.mapCategory(raw))),
-      tap(cats => this.categories.set(cats))
-    );
+  getCategories(forceRefresh = false): Observable<Category[]> {
+    if (!this.categoriesCache$ || forceRefresh) {
+      this.categoriesCache$ = this.http.get<any[]>(this.baseUrl).pipe(
+        map(list => list.map(raw => this.mapCategory(raw))),
+        tap({
+          next: (cats) => this.categories.set(cats),
+          error: () => this.invalidateCache()
+        }),
+        // refCount: true ensures the cache is torn down when no subscribers remain,
+        // preventing a stale empty/error state from being replayed to the next tab.
+        shareReplay({ bufferSize: 1, refCount: true })
+      );
+    }
+    return this.categoriesCache$;
+  }
+
+  invalidateCache(): void {
+    this.categoriesCache$ = undefined;
   }
 
   getCategoryById(id: string | number): Category | undefined {
@@ -67,7 +81,10 @@ export class CategoryService {
   }): Observable<Category> {
     return this.http.post<any>(this.baseUrl, payload).pipe(
       map(raw => this.mapCategory(raw)),
-      tap(newCat => this.categories.update(curr => [...curr, newCat]))
+      tap(newCat => {
+        this.invalidateCache();
+        this.categories.update(curr => [...curr, newCat]);
+      })
     );
   }
 
@@ -80,6 +97,7 @@ export class CategoryService {
     return this.http.patch<any>(`${this.baseUrl}/${id}`, updates).pipe(
       map(raw => this.mapCategory(raw)),
       tap(updated => {
+        this.invalidateCache();
         this.categories.update(curr => curr.map(c => String(c.id) === String(id) ? updated : c));
       })
     );
@@ -88,6 +106,7 @@ export class CategoryService {
   deleteCategory(id: string | number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`).pipe(
       tap(() => {
+        this.invalidateCache();
         this.categories.update(curr => curr.filter(c => String(c.id) !== String(id)));
       })
     );

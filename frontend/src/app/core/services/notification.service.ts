@@ -1,7 +1,8 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap, map, of } from 'rxjs';
+import { Observable, tap, map, of, catchError } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { AuthService } from './auth.service';
 
 export interface NotificationItem {
   id: string | number;
@@ -19,6 +20,7 @@ export interface NotificationItem {
 })
 export class NotificationService {
   private http = inject(HttpClient);
+  private auth = inject(AuthService);
   private baseUrl = `${environment.apiUrl}/v1/notifications`;
 
   readonly notifications = signal<NotificationItem[]>([]);
@@ -32,17 +34,25 @@ export class NotificationService {
   });
 
   constructor() {
-    this.loadNotifications();
+    if (this.auth.isLoggedIn() && this.auth.isStudent()) {
+      this.loadNotifications();
+    }
   }
 
   loadNotifications(): void {
-    this.http.get<any[]>(this.baseUrl).subscribe({
+    if (!this.auth.isLoggedIn() || !this.auth.isStudent()) {
+      return;
+    }
+
+    this.http.get<any[]>(this.baseUrl).pipe(
+      catchError(() => of([]))
+    ).subscribe({
       next: (list) => {
-        const mapped = list.map(item => this.mapBackendNotif(item));
+        const mapped = (list || []).map(item => this.mapBackendNotif(item));
         this.notifications.set(mapped);
       },
       error: () => {
-        // Quiet fallback if not yet authenticated
+        // Quiet fallback
       }
     });
   }
@@ -102,7 +112,7 @@ export class NotificationService {
 
   markAsRead(id: string | number): void {
     this.http.post<any>(`${this.baseUrl}/${id}/read`, {}).subscribe({
-      next: (res) => {
+      next: () => {
         this.notifications.update(items =>
           items.map(item => String(item.id) === String(id) ? { ...item, read: true } : item)
         );

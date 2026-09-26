@@ -1,8 +1,9 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { BudgetService, BudgetAlertNotification } from '../../core/services/budget.service';
 import { CategoryService } from '../../core/services/category.service';
+import { ToastService } from '../../core/services/toast.service';
 import { Budget } from '../../core/models/budget.model';
 import { Category } from '../../core/models/category.model';
 import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadcrumbs.component';
@@ -51,30 +52,44 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
         </button>
       </div>
 
-      <!-- 1. Real-Time Budget Alerts Banner (80%+ or Over-budget) -->
+      <!-- 1. Real-Time In-App Budget Alerts Banner (80%+ or Over-budget) -->
       @if (alerts.length > 0) {
-        <div class="space-y-2">
+        <div class="space-y-2.5">
           @for (alert of alerts; track alert.budgetId) {
             <div
-              class="p-4 rounded-xl border flex items-start justify-between gap-3 animate-fade-in shadow-xs"
+              class="p-4 rounded-xl border-2 flex items-start justify-between gap-3 animate-fade-in shadow-xs backdrop-blur-xs"
               [class.bg-rose-50]="alert.status === 'DANGER'"
-              [class.border-rose-200]="alert.status === 'DANGER'"
+              [class.border-rose-400]="alert.status === 'DANGER'"
               [class.dark:bg-rose-950/40]="alert.status === 'DANGER'"
-              [class.dark:border-rose-900/60]="alert.status === 'DANGER'"
+              [class.dark:border-rose-800]="alert.status === 'DANGER'"
               [class.bg-amber-50]="alert.status === 'WARNING'"
-              [class.border-amber-200]="alert.status === 'WARNING'"
+              [class.border-amber-400]="alert.status === 'WARNING'"
               [class.dark:bg-amber-950/40]="alert.status === 'WARNING'"
-              [class.dark:border-amber-900/60]="alert.status === 'WARNING'"
+              [class.dark:border-amber-800]="alert.status === 'WARNING'"
             >
               <div class="flex items-start gap-3">
-                <span class="text-lg">
-                  {{ alert.status === 'DANGER' ? '🚨' : '⚠️' }}
-                </span>
+                <div
+                  class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border mt-0.5"
+                  [class.bg-rose-100]="alert.status === 'DANGER'"
+                  [class.border-rose-300]="alert.status === 'DANGER'"
+                  [class.text-rose-600]="alert.status === 'DANGER'"
+                  [class.dark:bg-rose-900/60]="alert.status === 'DANGER'"
+                  [class.dark:border-rose-700]="alert.status === 'DANGER'"
+                  [class.dark:text-rose-300]="alert.status === 'DANGER'"
+                  [class.bg-amber-100]="alert.status === 'WARNING'"
+                  [class.border-amber-300]="alert.status === 'WARNING'"
+                  [class.text-amber-600]="alert.status === 'WARNING'"
+                  [class.dark:bg-amber-900/60]="alert.status === 'WARNING'"
+                  [class.dark:border-amber-700]="alert.status === 'WARNING'"
+                  [class.dark:text-amber-300]="alert.status === 'WARNING'"
+                >
+                  <app-icon name="alert-triangle" size="16"></app-icon>
+                </div>
                 <div>
-                  <h4 class="font-semibold text-sm" [class.text-rose-900]="alert.status === 'DANGER'" [class.dark:text-rose-200]="alert.status === 'DANGER'" [class.text-amber-900]="alert.status === 'WARNING'" [class.dark:text-amber-200]="alert.status === 'WARNING'">
+                  <h4 class="font-bold text-sm" [class.text-rose-900]="alert.status === 'DANGER'" [class.dark:text-rose-200]="alert.status === 'DANGER'" [class.text-amber-900]="alert.status === 'WARNING'" [class.dark:text-amber-200]="alert.status === 'WARNING'">
                     {{ alert.status === 'DANGER' ? 'Over Budget Alert' : 'Approaching Budget Limit' }} — {{ alert.categoryName }}
                   </h4>
-                  <p class="text-xs text-neutral-600 dark:text-neutral-300 mt-0.5">
+                  <p class="text-xs text-neutral-600 dark:text-neutral-300 mt-0.5 leading-relaxed font-medium">
                     {{ alert.message }}
                   </p>
                 </div>
@@ -83,10 +98,10 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
               <button
                 type="button"
                 (click)="dismissAlert(alert.budgetId)"
-                class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 p-1 cursor-pointer"
+                class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
                 title="Dismiss Alert"
               >
-                ✕
+                <app-icon name="x" size="14"></app-icon>
               </button>
             </div>
           }
@@ -293,10 +308,13 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
 export class BudgetsComponent implements OnInit {
   private budgetService = inject(BudgetService);
   private categoryService = inject(CategoryService);
+  private toast = inject(ToastService);
+  private cdr = inject(ChangeDetectorRef);
 
   budgets: Budget[] = [];
   alerts: BudgetAlertNotification[] = [];
   dismissedAlertIds: string[] = [];
+  isLoading = false;
 
   availableCategories: Category[] = [];
 
@@ -315,25 +333,65 @@ export class BudgetsComponent implements OnInit {
   }
 
   loadBudgets(): void {
-    this.budgetService.getBudgets('2026-09').subscribe(data => {
-      this.budgets = data;
-      this.totalLimit = data.reduce((acc, b) => acc + b.monthlyLimit, 0);
-      this.totalSpent = data.reduce((acc, b) => acc + b.spent, 0);
-      this.overallPercentage = this.totalLimit > 0
-        ? Math.round((this.totalSpent / this.totalLimit) * 100)
-        : 0;
-    });
+    this.isLoading = true;
+    this.budgetService.getBudgets('2026-09').subscribe({
+      next: (data) => {
+        this.isLoading = false;
+        this.budgets = data;
+        this.totalLimit = data.reduce((acc, b) => acc + b.monthlyLimit, 0);
+        this.totalSpent = data.reduce((acc, b) => acc + b.spent, 0);
+        this.overallPercentage = this.totalLimit > 0
+          ? Math.round((this.totalSpent / this.totalLimit) * 100)
+          : 0;
 
-    this.budgetService.getBudgetAlerts('2026-09').subscribe(alerts => {
-      this.alerts = alerts.filter(a => !this.dismissedAlertIds.includes(a.budgetId));
+        // Derive alerts directly without redundant second HTTP call
+        const computedAlerts: BudgetAlertNotification[] = [];
+        for (const b of data) {
+          const percent = Math.round(b.consumedPct || (b.monthlyLimit > 0 ? (b.spent / b.monthlyLimit) * 100 : 0));
+          if (b.alertStatus === 'DANGER') {
+            computedAlerts.push({
+              budgetId: String(b.id),
+              categoryName: b.categoryName || 'Category',
+              monthlyLimit: b.monthlyLimit,
+              spent: b.spent,
+              percent,
+              status: 'DANGER',
+              message: `Exceeded ${b.categoryName} budget! Spent $${b.spent} of $${b.monthlyLimit}`
+            });
+          } else if (b.alertStatus === 'WARNING') {
+            computedAlerts.push({
+              budgetId: String(b.id),
+              categoryName: b.categoryName || 'Category',
+              monthlyLimit: b.monthlyLimit,
+              spent: b.spent,
+              percent,
+              status: 'WARNING',
+              message: `Approaching limit for ${b.categoryName}: ${percent}% spent ($${b.spent} of $${b.monthlyLimit})`
+            });
+          }
+        }
+        this.alerts = computedAlerts.filter(a => !this.dismissedAlertIds.includes(a.budgetId));
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.isLoading = false;
+        this.toast.error(err.error?.message || 'Failed to load budgets');
+        this.cdr.markForCheck();
+      }
     });
   }
 
   loadCategories(): void {
-    this.categoryService.getExpenseCategories().subscribe(cats => {
-      this.availableCategories = cats;
-      if (cats.length > 0) {
-        this.selectedCategoryId = String(cats[0].id);
+    this.categoryService.getExpenseCategories().subscribe({
+      next: (cats) => {
+        this.availableCategories = cats;
+        if (cats.length > 0 && !this.selectedCategoryId) {
+          this.selectedCategoryId = String(cats[0].id);
+        }
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.toast.error(err.error?.message || 'Failed to load categories');
       }
     });
   }
@@ -370,36 +428,50 @@ export class BudgetsComponent implements OnInit {
     if (this.editingBudget) {
       this.budgetService.updateBudgetLimit(this.editingBudget.id, this.modalLimit).subscribe({
         next: () => {
+          this.toast.success('Budget limit updated successfully');
           this.loadBudgets();
           this.closeModal();
         },
         error: (err) => {
-          alert(err.error?.message || 'Failed to update budget limit');
+          this.toast.error(err.error?.message || 'Failed to update budget limit');
         }
       });
     } else {
       if (!this.selectedCategoryId) return;
       this.budgetService.addBudget(this.selectedCategoryId, this.modalLimit).subscribe({
         next: () => {
+          this.toast.success('Category budget created successfully');
           this.loadBudgets();
           this.closeModal();
         },
         error: (err) => {
-          alert(err.error?.message || 'Failed to set category budget');
+          this.toast.error(err.error?.message || 'Failed to set category budget');
         }
       });
     }
   }
 
-  deleteBudget(id: string | number): void {
-    if (confirm('Are you sure you want to remove this category budget?')) {
+  async deleteBudget(id: string | number): Promise<void> {
+    const budget = this.budgets.find(b => String(b.id) === String(id));
+    const catName = budget?.categoryName ? ` for "${budget.categoryName}"` : '';
+
+    const confirmed = await this.toast.confirm(
+      'Remove Budget',
+      `Are you sure you want to remove the budget${catName}?`,
+      'Remove Budget',
+      'Cancel',
+      true
+    );
+
+    if (confirmed) {
       this.budgetService.deleteBudget(id).subscribe({
         next: () => {
+          this.toast.success('Budget removed successfully');
           this.loadBudgets();
           this.closeModal();
         },
         error: (err) => {
-          alert(err.error?.message || 'Failed to delete budget');
+          this.toast.error(err.error?.message || 'Failed to delete budget');
         }
       });
     }

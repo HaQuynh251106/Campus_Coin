@@ -109,23 +109,6 @@ import { IconComponent } from '../icon/icon.component';
           </div>
         </div>
 
-        <!-- Mode Indicator / Portal Switch Link -->
-        @if (isAdmin) {
-          <a
-            routerLink="/app/home"
-            class="block text-center text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white py-1 hover:underline"
-          >
-            ← View Student Portal
-          </a>
-        } @else {
-          <a
-            routerLink="/auth/admin-login"
-            class="block text-center text-[11px] font-medium text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 py-0.5"
-          >
-            Switch to Admin View ⚙️
-          </a>
-        }
-
         <!-- Logout Action Button -->
         <button
           type="button"
