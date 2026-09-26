@@ -2,10 +2,10 @@
 
 **This is the first document to read before wiring the Angular client to the backend.**
 
-It is the single entry point for the M1–M11 HTTP contract: base URL, authentication, the interceptor
+It is the single entry point for the M1–M12 HTTP contract: base URL, authentication, the interceptor
 to install, the error contract every endpoint shares, the ownership rule, the enum values, a
 complete per-endpoint reference, the integration flows screen by screen, and one master table of all
-61 operations.
+76 operations.
 
 Everything here was verified against the **current working tree** — the Java controllers and DTOs,
 `SecurityConfig`, `ErrorCode`, and the live OpenAPI document at `/api-docs` — not against an earlier
@@ -14,16 +14,21 @@ follows the server.
 
 | | |
 |---|---|
-| **Contract scope** | Modules 1–11 |
-| **Endpoints** | **61 operations on 43 paths** |
+| **Contract scope** | Modules 1–12 |
+| **Endpoints** | **76 operations on 56 paths** |
 | **OpenAPI** | `/api-docs` (OpenAPI 3.1.0) · Swagger UI at `/swagger-ui.html` |
 | **API base path** | `/api/v1` |
 | **Status** | M1–M11 IMPLEMENTATION COMPLETE — M12 LOCKED PENDING PROJECT-OWNER APPROVAL |
 
-**Module 12 is locked.** Several enums in this guide carry members that belong to module 12
-(`INSIGHT`, `INSIGHT_READY`, `LOW_SAVINGS_RATE`). Those members exist in the database `ENUM` and
-appear in the OpenAPI schema, but **no endpoint serves them**. Where that matters the section says
-so. There are no insight, chatbot or AI endpoints, and none should be built against this contract.
+**Module 12 is implemented but still locked pending the project owner's approval.** Endpoints 62–76
+(the CSV import, AI categorisation, monthly insights, anomaly flagging, forecast and recent activity)
+are built, documented and tested, and each has its own section below. **Do not wire the Angular
+client to them until the project owner unlocks the module** — the contract is stable; the decision
+to ship it is not this guide's to make.
+
+The enum members those features use (`DUPLICATE`, `UNUSUAL_AMOUNT`, `IMPORTED`, `RULE`, `AI`,
+`RULE_BASED`, and the rest) exist in the database `ENUM` and appear in the OpenAPI schema. Where a
+section describes an M12 endpoint it says so.
 
 ---
 
@@ -1163,8 +1168,9 @@ There is **no** `/tips/{id}` read, no create, no edit, no delete, and no `/pin`,
 Statuses: `201` · `400` · `404` · `409` `BOOKMARK_ALREADY_EXISTS` · `401`.
 
 - **`INSIGHT` is refused with a `400` field error naming UC-17.** The value exists in the database
-  `ENUM`, so the OpenAPI schema accepts it, but insights belong to module 12 and no read path exists.
-  Do not offer it in the UI.
+  `ENUM`, so the OpenAPI schema accepts it, and module 12 has since built the insight read path
+  (endpoints 69–71) — but the bookmark branch that would attach one is still not written, because
+  module 12 is locked. Do not offer it in the UI. See OB-015.
 - **A repeat save is `409`, not an idempotent success.** `uk_bookmark_dedupe` makes it impossible;
   answering `201` would claim a bookmark was made when none was. Recover by treating the item as
   already saved — navigate to the existing entry, or `PATCH` the note the user just typed.
@@ -1376,8 +1382,140 @@ categories appear with zeros. Statuses: `200` · `401` · `403`.
 | `GET /api/v1/admin/audit-log` | UC-22 B5 requires the administrator to *log*, not to view. There is no view over the table and no endpoint |
 | `DELETE` anywhere | Retirement (`isActive: false`) is BR-07's answer, and there is no delete procedure for announcements or templates |
 | `PUT` anywhere | Every writable resource has a `PATCH` |
-| `/admin/insights/**`, `/admin/anomalies/**`, `/admin/ai/**` | Module 12, locked. No route, no settings key |
+| `/admin/insights/**`, `/admin/anomalies/**`, `/admin/ai/**` | No route and no settings key. Module 12 serves these features to the **student** (endpoints 68–76) and deliberately builds no administrator view of another student's insight, flag or suggestion |
 | `GET /admin/users/{id}` | 47 and 48 return the account |
+
+---
+
+### 7.12 CSV import, AI categorisation, insights, anomalies, forecast and recent activity — endpoints 62–76
+
+**Module 12 is implemented and tested but still locked pending the project owner's approval.** The
+contract below is stable and complete; whether the frontend ships against it is not this guide's
+decision. See the notice at the top of §7.
+
+Every operation needs a bearer token with the `STUDENT` role, and every one touches only the caller's
+own data — another student's batch, insight or transaction answers exactly as one that does not exist
+does. No operation takes a user id; identity comes from the token.
+
+| # | Method | Endpoint | Auth | Role | Success |
+|---|---|---|---|---|---|
+| 62 | `POST` | `/api/v1/imports` | Bearer | `STUDENT` | `201` the stored preview |
+| 63 | `GET` | `/api/v1/imports` | Bearer | `STUDENT` | `200` my past imports |
+| 64 | `GET` | `/api/v1/imports/{batchId}` | Bearer | `STUDENT` | `200` one batch and its rows |
+| 65 | `PATCH` | `/api/v1/imports/{batchId}/rows/{rowId}` | Bearer | `STUDENT` | `200` the row, in its new state |
+| 66 | `POST` | `/api/v1/imports/{batchId}/commit` | Bearer | `STUDENT` | `200` the batch after importing |
+| 67 | `POST` | `/api/v1/imports/{batchId}/cancel` | Bearer | `STUDENT` | `200` the cancelled batch |
+| 68 | `POST` | `/api/v1/ai/suggest-category` | Bearer | `STUDENT` | `200` a proposal, or `source: NONE` |
+| 69 | `GET` | `/api/v1/insights` | Bearer | `STUDENT` | `200` the month's insight |
+| 70 | `GET` | `/api/v1/insights/months` | Bearer | `STUDENT` | `200` `{months:[...]}` |
+| 71 | `POST` | `/api/v1/insights/generate` | Bearer | `STUDENT` | `200` the insight after generating |
+| 72 | `GET` | `/api/v1/anomalies` | Bearer | `STUDENT` | `200` my flagged records |
+| 73 | `POST` | `/api/v1/anomalies/scan` | Bearer | `STUDENT` | `200` the scan's tally and list |
+| 74 | `GET` | `/api/v1/forecast` | Bearer | `STUDENT` | `200` the current month and projection |
+| 75 | `GET` | `/api/v1/recent-activity` | Bearer | `STUDENT` | `200` my recent activity |
+| 76 | `POST` | `/api/v1/recent-activity` | Bearer | `STUDENT` | `201` the recorded entry |
+
+Full contracts: [imports.md](imports.md) (62–67), [ai-and-insights.md](ai-and-insights.md) (68–71),
+[advanced.md](advanced.md) (72–76).
+
+#### Query parameters
+
+| Endpoint | Parameter | Default | Max | Notes |
+|---|---|---|---|---|
+| 63 | `limit` | `20` | `100` | A larger value is `400`, not a clamp |
+| 69, 71 | `month` | current month | — | `yyyy-MM`; malformed is `400` |
+| 72 | `limit` | `20` | `100` | A larger value is `400` |
+| 75 | `limit` | `10` | `50` | A larger value is `400` |
+
+Each list response echoes the limit it applied, which is why an over-large value is refused rather
+than silently reduced — a reduced answer would make the echoed field untrue.
+
+#### 62–67 — The CSV import, in four steps
+
+1. **Upload (62).** The file goes in the **JSON body as text**, not as a multipart upload:
+   `{"filename": "september-expenses.csv", "content": "<the file, decoded UTF-8>"}`. A byte-order mark
+   is handled. **There is no `MultipartFile` anywhere in this build** — send `content` as a string.
+   The file needs a header row naming `date`, `amount` and `type`; `description` and `category` are
+   optional. A file missing a required column is `400` and **nothing is stored**. Limits: **2000 rows**
+   and about **2,000,000 characters**.
+2. **Review (64).** `ImportBatchResponse` carries `status`, `modifiable`, five counters and `rows[]`.
+   Each `ImportRowResponse` says what will happen to it (`rowStatus`: `VALID` | `ERROR` | `DUPLICATE` |
+   `IMPORTED` | `SKIPPED`), the values the importer read (`parsedDate`, `parsedAmount`, `parsedType`,
+   `parsedDescription`, `parsedCategoryName`) and the original line (`rawData`). **A row the importer
+   could not read does not stop the file** — it is stored as `ERROR` with a sentence in the student's
+   terms, and the rows around it preview normally. `csvRowNo` counts the header as line 1, which is the
+   number the student sees in their spreadsheet. Show `errorMessage` on an `ERROR` row and
+   `rawData` beside the parsed values — that is how a student sees the importer read `1.234,50` as
+   `1.23`.
+3. **Correct (65).** `{"categoryId": n}` records which category one row should be filed under, and
+   **the commit treats that as authoritative**. The category also decides the record's type (BR-05),
+   so choosing a category is how a wrong `type` in the file is fixed. Changing the category **re-runs
+   the duplicate check** for that row. There is no way to undo a choice — the field is required and
+   never cleared. Only an open batch can be changed; a committed or cancelled one is `409`.
+4. **Commit (66) or cancel (67).** **Which rows are imported is decided by the preview, not by the
+   commit call** — a `VALID` row becomes a transaction, an `ERROR` or `DUPLICATE` row does not.
+   Committing also writes the learned category mappings for the imported rows (UC-08's `IMPORT`
+   rules). Cancel abandons the batch; it imports nothing.
+
+`DUPLICATE` is decided from the student's own records — a row matching one of theirs on **category,
+amount and a date within a few days**. **It cannot be set from a request.**
+
+#### 68 — Category suggestion
+
+`SuggestCategoryRequest` is `{"transactionId": n}` — one of the caller's own, not in the trash, else
+`404`. `CategorySuggestionResponse`: `transactionId`, `source` (`NONE` | `RULE` | `AI`), and — present
+only when `source` is not `NONE` — `categoryId`, `categoryName`, `type`, `confidence` and `reason`.
+`LearnedCategoryRuleResponse` reports the mapping the call left stored: `keyword`, `categoryId`,
+`categoryName`, `source` (`ACCEPTED` | `OVERRIDE` | `IMPORT`).
+
+**It proposes; it does not file.** The record keeps the category the student chose — **do not move the
+record on the strength of this response.** `source: NONE` is a result, not an error: the UI should say
+nothing rather than show an empty suggestion. The student's own learned mappings are consulted first;
+only when there is no mapping is an AI service asked, and it is given the description and the
+student's category names only — no amount, no date, no identifier.
+
+#### 69–71 — Monthly insights
+
+`MonthlyInsightResponse`: `periodMonth`, `totalIncome`, `totalExpense`, `netAmount`, `summary`,
+`advice`, `generatedBy` (`AI` | `RULE_BASED` | `MANUAL`), `model` *(optional — null when rule-based)*,
+`flaggedCategories[]`, `generatedAt`. `FlaggedCategoryResponse`: `categoryId`, `categoryName`,
+`currentTotal`, `baselineAvg`, `pctChange`.
+
+**Show `generatedBy`.** It is the field that distinguishes a narrative a model wrote from the
+rule-based summary the database produced, and this build serves `RULE_BASED` whenever no AI provider is
+configured. **An insight is a suggestion, not financial advice.** 70 returns the months that have one —
+newest first, empty when none — which is what a month picker should offer. Generating is idempotent:
+a second call in the same month adds nothing.
+
+#### 72–73 — Anomalies
+
+`FlaggedTransactionResponse`: `transactionId`, `categoryId`, `categoryName`, `categoryType`, `amount`,
+`txnDate`, `description` *(optional — decrypted)*, `flagType` (`DUPLICATE` | `UNUSUAL_AMOUNT`),
+`flagNote`. `AnomalyScanResponse`: `examined`, `flagged`, `cleared`, `unchanged`, `entries[]`.
+
+**The flag is decided by the server and can never be set by a client** — there is no request field for
+it anywhere in this API, and none should be invented. `examined = flagged + cleared + unchanged` holds
+on every scan, and a second scan over unchanged data reports everything under `unchanged` and writes
+nothing, so a refresh button is safe. The thresholds behind it (`anomaly.duplicate_window_days`,
+`anomaly.unusual_multiplier`) are **not** administrator-adjustable — see OB-017.
+
+#### 74 — Forecast
+
+`ForecastResponse`: `nextMonth`, `currentMonth`, `basedOnMonths`, `recentMonths[]`,
+`currentMonthTotals` *(optional — absent when nothing is recorded yet)*, `projected` *(optional —
+absent when there is no complete month to average)*. `currentMonthTotals` and `projected` are
+`{income, expense, net}` and `{income, expense, savings}`; **`savings` may be negative.** The
+projection is the average of the student's last three complete months. **An absent `projected` is a
+real answer, not an error** — a student in their first month has nothing to average, and the UI should
+say so rather than render zeros.
+
+#### 75–76 — Recent activity
+
+`RecentActivityResponse`: `transactionId`, `action` (`VIEWED` | `EDITED`), `occurredAt`, `categoryId`,
+`categoryType`, `amount`, `description` *(optional)*, `txnDate`. 76 takes
+`{"transactionId": n, "action": "VIEWED"|"EDITED"}` — one of the caller's own, else `404` — and answers
+`201`. **This is the client's own record of what the student opened or changed**: call 76 after the
+student views or edits a transaction, and read 75 to show the list.
 
 ---
 
@@ -1530,12 +1668,50 @@ One call: `GET /api/v1/dashboard`.
 6. Statistics: `GET /admin/stats` and `GET /admin/stats/top-categories`. Both are aggregates; there is
    no per-student drill-down and no audit-log route.
 
+### 8.14 Module 12 flows — CSV import, insights, anomalies, forecast, activity
+
+**Locked pending the project owner's approval.** Wire nothing here until that decision is made.
+
+**Import a file (62 → 64 → 65* → 66).**
+
+1. Read the file in the browser, send `POST /api/v1/imports` with `{"filename", "content"}` — `content`
+   is the file's **text**, not a multipart body. Keep the returned `id` and `rows`.
+2. Render `rows[]` as a review table: `csvRowNo`, `rawData`, the `parsed*` values and `rowStatus`.
+   Highlight `ERROR` rows with their `errorMessage`; that is the fix-it list.
+3. Optionally `PATCH …/rows/{rowId}` with `{"categoryId": n}` for any row the student disagrees with.
+   Send it again after a correction — the duplicate verdict can change.
+4. `POST …/{batchId}/commit` to import. **Tell the student which rows were skipped** — the preview
+   decided, so re-reading the batch after the commit is what shows the outcome.
+
+Show `modifiable` to decide whether the review controls are live; a committed or cancelled batch
+answers `409` on 65.
+
+**Categories as the student types (68).** After the student picks a description, call
+`POST /ai/suggest-category` with `{"transactionId"}` and, when `source` is not `NONE`, show
+`categoryName` as a suggestion. **Never apply it automatically** — the student files the record, and
+the category they choose is what teaches the mapping. `source: NONE` means no suggestion; say nothing.
+
+**Monthly insights (70 → 69 or 71).** Populate a month picker from `GET /insights/months`, read
+`GET /insights?month=…` for the selection, and offer a refresh that calls
+`POST /insights/generate?month=…`. Show `generatedBy` so the student knows whether a model wrote the
+narrative. Frame `advice` as a suggestion.
+
+**Anomalies (72, 73).** List `GET /anomalies`; a manual "check my records" button calls
+`POST /anomalies/scan` and can then re-render from its `entries[]`. Never send a flag.
+
+**Forecast (74).** Render `projected` and `recentMonths[]`. If `projected` is absent the student has
+no complete month to average — say that rather than showing zeros. `savings` may be negative.
+
+**Recent activity (75, 76).** Call `POST /recent-activity` with `VIEWED` after opening a transaction
+screen and `EDITED` after a successful change, then read `GET /recent-activity` for the list. This is
+the client's own record; nothing else writes it.
+
 ---
 
 ## 9. Master quick-reference table
 
-All 61 operations in inventory order. This table matches `API_INVENTORY.md` and the live OpenAPI
-document exactly: 61 rows, numbering 1–61 contiguous, 43 distinct paths.
+All 76 operations in inventory order. This table matches `API_INVENTORY.md` and the live OpenAPI
+document exactly: 76 rows, numbering 1–76 contiguous, 56 distinct paths.
 
 | Module | Method | Endpoint | Auth | Role | Purpose |
 |--------|--------|----------|------|------|---------|
@@ -1600,8 +1776,28 @@ document exactly: 61 rows, numbering 1–61 contiguous, 43 distinct paths.
 | M11 — Administration | `PATCH` | `/api/v1/admin/settings/{key}` | Bearer | `ADMIN` | Change a business threshold |
 | M11 — Administration | `GET` | `/api/v1/admin/stats` | Bearer | `ADMIN` | System-wide usage figures |
 | M11 — Administration | `GET` | `/api/v1/admin/stats/top-categories` | Bearer | `ADMIN` | Categories ranked by usage |
+| M12 — CSV Import | `POST` | `/api/v1/imports` | Bearer | `STUDENT` | Upload a CSV and get the parsed preview |
+| M12 — CSV Import | `GET` | `/api/v1/imports` | Bearer | `STUDENT` | List my past import batches |
+| M12 — CSV Import | `GET` | `/api/v1/imports/{batchId}` | Bearer | `STUDENT` | Read one batch and its rows |
+| M12 — CSV Import | `PATCH` | `/api/v1/imports/{batchId}/rows/{rowId}` | Bearer | `STUDENT` | Correct one previewed row |
+| M12 — CSV Import | `POST` | `/api/v1/imports/{batchId}/commit` | Bearer | `STUDENT` | Import the batch's valid rows |
+| M12 — CSV Import | `POST` | `/api/v1/imports/{batchId}/cancel` | Bearer | `STUDENT` | Abandon a batch |
+| M12 — Categorisation | `POST` | `/api/v1/ai/suggest-category` | Bearer | `STUDENT` | Propose a category for a description |
+| M12 — Insights | `GET` | `/api/v1/insights` | Bearer | `STUDENT` | Read a month's insight |
+| M12 — Insights | `GET` | `/api/v1/insights/months` | Bearer | `STUDENT` | List the months that have one |
+| M12 — Insights | `POST` | `/api/v1/insights/generate` | Bearer | `STUDENT` | Generate this month's insight |
+| M12 — Anomalies | `GET` | `/api/v1/anomalies` | Bearer | `STUDENT` | List my flagged records |
+| M12 — Anomalies | `POST` | `/api/v1/anomalies/scan` | Bearer | `STUDENT` | Re-scan my records for flags |
+| M12 — Forecast | `GET` | `/api/v1/forecast` | Bearer | `STUDENT` | Project next month's spending |
+| M12 — Recent Activity | `GET` | `/api/v1/recent-activity` | Bearer | `STUDENT` | List what I recently opened or changed |
+| M12 — Recent Activity | `POST` | `/api/v1/recent-activity` | Bearer | `STUDENT` | Record a view or an edit |
 
-**Total: 61 operations on 43 paths.**
+**Total: 76 operations on 56 paths.**
+
+> **Module 12 is implemented but locked.** Rows 62–76 are built, tested and documented, and their
+> contract is stable. Do not wire the Angular client to them until the project owner unlocks the
+> module. Full contracts: [imports.md](imports.md), [ai-and-insights.md](ai-and-insights.md) and
+> [advanced.md](advanced.md).
 
 ---
 

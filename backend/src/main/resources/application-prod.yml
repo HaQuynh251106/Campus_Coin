@@ -19,9 +19,16 @@ spring:
 campuscoin:
   security:
     password-reset:
-      # Production must send the link through the email provider. Until a provider is
-      # wired up this stays disabled so the link is never written to disk on a server.
+      # Production sends the link through the SMTP server named by MAIL_HOST (see the smtp block
+      # in application.yml). The sink stays disabled so the link is never written to disk on a
+      # server; with it false, delivery is SMTP when MAIL_HOST and MAIL_FROM_ADDRESS are both set,
+      # and the no-op otherwise - never a silent fallback to writing tokens to a file.
       sink-enabled: false
+      # The verified sender the reset email is sent from. Must be one the SMTP account is
+      # permitted to send as, or the provider rejects the message as spoofing. No default:
+      # an unset address means SMTP delivery is unavailable and the no-op is installed.
+      from-address: ${MAIL_FROM_ADDRESS:}
+      from-name: ${MAIL_FROM_NAME:Campus Coin}
 
 # Production must be served over HTTPS/TLS (see docs/SECURITY.md). Terminate TLS at the
 # reverse proxy or enable the certificate here; plain HTTP is not acceptable for

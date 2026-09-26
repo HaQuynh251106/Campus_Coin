@@ -45,3 +45,4 @@ docker-compose.override.yml
 frontend/.vite/
 backend/bin/
 backend/obj/
+*.zip

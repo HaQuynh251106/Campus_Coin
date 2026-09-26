@@ -39,7 +39,11 @@ class CampusCoinApplicationTests extends AbstractMySqlIntegrationTest {
                     "SELECT COUNT(*) FROM information_schema.routines "
                             + "WHERE routine_schema = 'campuscoin' AND routine_type = 'PROCEDURE'")) {
                 assertThat(procedures.next()).isTrue();
-                assertThat(procedures.getInt(1)).isEqualTo(24);
+                // 25 procedures: 24 carried by modules 1-11, plus sp_flag_transaction, which module
+                // 12 added as UC-24's only write path (see OB-016). The count is asserted exactly
+                // so a procedure dropped from the script - or added without its call site - is
+                // caught here rather than by whichever integration test happens to use it.
+                assertThat(procedures.getInt(1)).isEqualTo(25);
             }
 
             // The three procedures this module calls must exist by name, not merely in number.

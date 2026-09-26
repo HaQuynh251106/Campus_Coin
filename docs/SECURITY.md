@@ -21,6 +21,7 @@ weaker copy tends to be the one that ends up protecting the data.
 10. [401 vs 403, and error disclosure](#10-401-vs-403-and-error-disclosure)
 11. [Brute-force and flood protection](#11-brute-force-and-flood-protection)
 12. [Application-Level Field Encryption using AES-256-GCM](#12-application-level-field-encryption-using-aes-256-gcm)
+13. [The external AI provider boundary](#13-the-external-ai-provider-boundary)
 
 ---
 
@@ -193,12 +194,33 @@ second caller re-reads the committed version, matches nothing, and is refused. S
 and "consume" into two statements would introduce a race that produces two password resets from
 one link.
 
-**Delivery.** The link is written to `backend/target/password-reset-dev.log` by the development
-`FilePasswordResetNotifier`. **Neither the link nor the recipient address is logged** — the link
-contains the token, and the address would reveal which accounts exist. The file is gitignored and
-must never be shipped. Production uses `NoopPasswordResetNotifier`, a stub that logs a warning
-without the link; **a real mail provider must be wired in before deployment**, otherwise resets
-silently do nothing.
+**Delivery.** One of three notifiers is installed by configuration, never by a code change — the
+selection lives in `PasswordResetConfig` and is pinned by `PasswordResetConfigTest`:
+
+| When | Notifier | What leaves the process |
+|---|---|---|
+| A dev-profile sink is enabled and no SMTP host is set | `FilePasswordResetNotifier` | The link is written to `backend/target/password-reset-dev.log` (gitignored, never to be shipped) |
+| `MAIL_HOST` and `MAIL_FROM_ADDRESS` are both set | `SmtpPasswordResetNotifier` | A real email through `campuscoin.security.password-reset.smtp` |
+| Neither | `NoopPasswordResetNotifier` | Nothing; a warning naming the missing configuration |
+
+**Neither the link nor the recipient address is logged**, whichever notifier runs — the link
+contains the token, and the address would reveal which accounts exist. The dev sink **must not be
+enabled in production**; set `RESET_SINK_ENABLED=false` there.
+
+Two details worth knowing:
+
+- **The SMTP block is `campuscoin.security.password-reset.smtp`, not Spring Boot's `spring.mail`.**
+  `MailSenderConditions` treats a *present* `spring.mail.host` as configured even when its value is
+  the empty string, so a `${MAIL_HOST:}` placeholder would create a `JavaMailSender` aimed at a blank
+  host and turn every reset into a failed send. The `spring.mail` block is therefore absent from
+  every profile; the empty host yields the no-op instead.
+- **With no mail credentials the request still succeeds and answers the same generic message.**
+  That is deliberate: the reset flow is not a place where configuration errors become observable to
+  an unauthenticated caller, which would itself be an enumeration channel.
+
+**A real mail provider must be configured before deployment**, otherwise resets reach nobody.
+
+**The AI provider is a separate external dependency with its own boundary** — see §13.
 
 **Account enumeration is prevented from both directions:** the request endpoint returns the same
 message for a known and an unknown address (UC-03 B3, A2), and the throttle is keyed on the
@@ -474,7 +496,7 @@ aggregates it.
 | `transaction_history.old_values` / `new_values` | **Not encrypted — see 12.4** | The snapshot includes `amount`, which is not encrypted. |
 | `transactions.amount`, `recurring_rules.amount` | **Not encrypted — see 12.5** | Eleven views and six procedures aggregate them. |
 | `budget_alert_log.spent_amount` / `limit_amount` | **Not encrypted — see 12.5** | Written by `sp_check_budget_alerts` from `SUM(amount)`. |
-| `insights.summary_text` / `advice_text` / `flagged_categories`, `import_rows.parsed_description` | **Not encrypted — see 12.5** | Written only by procedures belonging to the locked M12 surface; no Java read path exists. |
+| `insights.summary_text` / `advice_text` / `flagged_categories`, `import_rows.parsed_description` | **Not encrypted — see 12.5** | Belong to the module-12 surface. A Java read path now exists — module 12 was implemented and is **locked pending the project owner's approval** — so these columns are served, still in plaintext. Recorded as OB-012. |
 | `insights.total_income` / `total_expense` / `net_amount`, `import_rows.parsed_amount` | **Not encrypted — see 12.5** | Amounts, computed and compared by the procedures that write them. |
 | All identifiers, foreign keys, ownership columns, dates, enums, flags | **Not encrypted** | Deliberately. They are operational metadata that must stay queryable; encrypting them would break the keys and ownership checks the schema depends on. |
 | `categories.description`, `announcements.body`, `tip_templates.title_template` / `body_template` | **Not encrypted** | Not personal student data — content authored by the student or an administrator, and read by SQL that would otherwise have to move into Java. |
@@ -541,9 +563,17 @@ Encrypting amounts would mean moving the entire reporting tier — modules 6, 7,
 This is recorded as **OB-013**, to be done as its own piece of work with its own approval. Until
 then, stated plainly: **a direct `SELECT` on `transactions` still reveals amounts.**
 
-**Values owned by the locked M12 surface** (`insights`, `import_rows`) are written only by
-procedures belonging to features that are not built. Encrypting them now would mean rewriting those
-procedures, which is implementing a locked module by the back door. Recorded as **OB-012**.
+**Values owned by the module-12 surface** (`insights`, `import_rows`) were left plaintext while the
+module was unbuilt. **Module 12 has since been implemented** — endpoints 62–76 — and those columns
+are now read and served: an imported row leaves an encrypted `transactions.description` beside a
+plaintext `import_rows.parsed_description`, and a monthly insight's narrative is plaintext. The
+exposure is therefore live, not hypothetical, and is recorded as **OB-012** rather than closed.
+Encrypting these columns now would mean rewriting `sp_apply_csv_batch`, `sp_generate_monthly_insight`
+and `sp_flag_transaction`; that is a schema decision for the project owner, not something module 12
+should take on itself.
+
+The module's own AI boundary is unaffected — see §13. The provider receives only aggregates and a
+description, never a stored column value in bulk.
 
 ### 12.6 Key management
 
@@ -574,9 +604,72 @@ or by recreating the data. Demo/seed rows written by `06_demo.sql` hold plaintex
 
 ---
 
+## 13. The external AI provider boundary
+
+Module 12 calls an external AI provider for two features: UC-08's category suggestion and UC-17's
+monthly narrative. That is the only place in this build where student data leaves the server, so the
+rule is stated here rather than in the module's own document.
+
+**The provider is Google's Gemini API**, reached through the `com.google.genai:google-genai` SDK by
+`GeminiAiSuggestionPort`. The deployment's own values are `campuscoin.ai.api-key` (from
+`GEMINI_API_KEY`), `model` (from `AI_MODEL`, default `gemini-3.5-flash`), `max-tokens`,
+`timeout-seconds` and `base-url`. Which provider sits behind the port is a deployment concern and
+nothing above the port names one: the services call `AiSuggestionPort`, so swapping the provider
+again means writing one more implementation and changing one bean in `AiConfig` — not touching UC-08
+or UC-17.
+
+**The provider is never given access to the database.** The flow is one-way and the server is the
+only party that can read or write a row:
+
+```
+Angular → Spring Boot → the backend reads and filters the student's own data
+                      → the backend reduces it to the context the feature needs
+                      → the AI provider
+                      → the backend validates the answer
+                      → Angular
+```
+
+Concretely:
+
+- **The port is `AiSuggestionPort`**, and it holds **no repository and no DAO**. There is no method on
+  it that takes an entity, a query or a connection — only prepared context. The provider cannot ask a
+  follow-up question, because there is nothing to ask it with.
+- **Only the signed-in student's own data is read**, narrowed by the existing ownership rule, and only
+  after being reduced. UC-08 sends the **description** and the student's own category **names** —
+  not the amount, not the date, not any identifier. UC-17 sends the month's **totals** and category
+  names, never a transaction.
+- **The backend validates the answer before it is used.** A suggestion naming a category that is not
+  the student's own (or not a shared default) is discarded, and `source` is `NONE`. A provider cannot
+  cause a write to or against a category the student does not have: the suggestion is stored as
+  advice beside the record (BR-13) and **never** applied to it.
+- **`ai.enabled` and `ai.send_aggregates_only` are respected as the existing setting defines them.**
+  With `ai.enabled` false no call is made at all; with `send_aggregates_only` true only the aggregate
+  form leaves, never a free-text description.
+- **A provider failure is not a request failure.** A timeout, a refusal or a malformed answer is
+  treated as "no suggestion": UC-08 answers from the student's learned `category_rules` and UC-17
+  keeps the rule-based narrative the database wrote. `insights.generated_by` records `RULE_BASED`
+  rather than `AI`, so the distinction is visible in the stored row and not only in the response.
+
+**The credential is read from `GEMINI_API_KEY` and goes nowhere else.** It is never exposed to
+Angular — not in a response, not in the OpenAPI document, not in a JWT; never written to MySQL, not
+even in `system_settings`; never committed, and never logged. `campuscoin.ai.*` holds no literal
+credential in any profile.
+
+**The model is deployment configuration, not a setting an administrator may change.** Changing the
+model changes where student data is sent, so it is not in the adjustable-key allow-list and a `PATCH`
+on it is refused. The same reasoning keeps the AI feature itself out of the administrator's reach:
+module 12 builds **no** `/admin/ai/**`, `/admin/insights/**` or `/admin/anomalies/**` route, so no
+administrator can read another student's insight, flag or suggestion.
+
+**With no credential the build is still correct, and says so.** The no-op implementation is installed
+by `@ConditionalOnMissingBean`, UC-08 answers `source: NONE` when nothing has been learned, and
+UC-17's `generated_by` is `RULE_BASED`. Nothing is faked and nothing is claimed to be AI.
+
+---
+
 ## Summary of verification
 
-Every claim above that can be checked by machine is checked by the test suite (535 tests, all
+Every claim above that can be checked by machine is checked by the test suite (1090 tests, all
 passing):
 
 | Claim | Test |

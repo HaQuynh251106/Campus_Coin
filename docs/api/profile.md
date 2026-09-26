@@ -476,7 +476,7 @@ writes the columns without duplicating any database logic.
 
 - [FRONTEND_API_GUIDE.md](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for the
   frontend: base URL, interceptors, the shared error contract, the enum reference and the master
-  table of all 61 operations
+  table of all 76 operations
 - [API_INVENTORY.md](API_INVENTORY.md) — the authoritative endpoint list
 - [authentication.md](authentication.md) — how to obtain the token these endpoints need
 - [../SECURITY.md](../SECURITY.md) — the security decisions behind these endpoints

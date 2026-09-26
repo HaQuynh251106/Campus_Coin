@@ -199,6 +199,77 @@ public class SecurityConfig {
                         // table - so refusing the role costs nothing. Without this rule the route would
                         // fall to /api/** below, which admits any authenticated account.
                         .requestMatchers("/api/v1/bookmarks/**").hasRole("STUDENT")
+                        // UC-26 is a student's own recent activity: which of their transactions they
+                        // opened, when, and which they changed. The entries name a transaction and its
+                        // date, so they are one student's movements through their own records rather
+                        // than a figure about anybody else - an administrator has no use case for
+                        // them, and UC-23's usage statistics are aggregates over many students, not one
+                        // student's browsing. The path matches none of the prefixes above, and without
+                        // this rule it would fall to /api/** below, which admits any authenticated
+                        // account. This route is the reason the list above is exhaustive rather than
+                        // illustrative: a student-facing path added to a later module has to be added
+                        // here too, or it silently widens to every role.
+                        .requestMatchers("/api/v1/recent-activity/**").hasRole("STUDENT")
+                        // UC-24 is a student's own records examined for mistakes: the flagged
+                        // duplicates and unusual amounts the detector concluded from their own history,
+                        // each carrying the student's amount, date and description. The rules it
+                        // applies are relative to their own spending, so an entry says as much about
+                        // one student's habits as the dashboard or the tips list does - an
+                        // administrator has no use case for them and UC-23's statistics are aggregates
+                        // over many students rather than one student's rows. This path also matches
+                        // none of the prefixes above, so without this rule it would fall to the
+                        // catch-all below and admit any authenticated account. The scan is the reason
+                        // that matters more here than for a read: it writes, and a role admitted by
+                        // accident could mark a student's records from a route with no use case for
+                        // them.
+                        .requestMatchers("/api/v1/anomalies/**").hasRole("STUDENT")
+                        // UC-25 is a student's own spending projected from their own recent months:
+                        // the figures are their income, their expense and the net they imply, so an
+                        // entry says as much about one student's habits as the dashboard or the
+                        // reports screen does. An administrator has no use case for it and UC-23's
+                        // statistics are aggregates over many students rather than one student's
+                        // months. This path matches none of the prefixes above, so without this rule
+                        // it would fall to the catch-all below and admit any authenticated account.
+                        .requestMatchers("/api/v1/forecast/**").hasRole("STUDENT")
+                        // UC-08 is a student's own record being categorised from the description they
+                        // typed for it, and the mapping it teaches is derived from the category they
+                        // filed it under. Both are one student's own words and their own filing, so an
+                        // administrator has no use case for the route and UC-23's statistics are
+                        // aggregates over many students rather than one student's text. The route also
+                        // writes - it leaves the proposal on the record and a keyword mapping behind -
+                        // so a role admitted by accident could put suggestions on a student's records
+                        // from a screen that has no reason to. This path matches none of the prefixes
+                        // above, and without this rule it would fall to the catch-all below, which
+                        // admits any authenticated account. Note it is deliberately not covered by
+                        // /api/v1/admin/** above: those two paths differ after /api/v1/, so an
+                        // administrator token reaches neither.
+                        .requestMatchers("/api/v1/ai/**").hasRole("STUDENT")
+                        // UC-17 is a student's own month described back to them: the figures are their
+                        // income, their expense and their net balance, and the prose is advice about
+                        // their own spending written from those figures. An insight says more about one
+                        // student than any other read in this application - it is a financial summary
+                        // rather than a slice of one - so an administrator has no use case for it, and
+                        // UC-23's statistics are aggregates over many students rather than one
+                        // student's month. The route also writes: generating recomputes the month and
+                        // may spend a call to an external provider, so a role admitted by accident
+                        // could both rewrite a student's stored advice and send their aggregates to a
+                        // third party from a screen with no reason to. This path matches none of the
+                        // prefixes above, and without this rule it would fall to the catch-all below,
+                        // which admits any authenticated account.
+                        .requestMatchers("/api/v1/insights/**").hasRole("STUDENT")
+                        // UC-11 is a student's own file uploaded and imported into their own records:
+                        // every batch is owned by the account that uploaded it, every row is reached
+                        // through that batch, and the duplicate check compares the file against the
+                        // student's own transactions. An administrator has no use case for the route,
+                        // and UC-23's statistics are aggregates over many students rather than one
+                        // student's file. The route also writes - an upload stores a batch and its
+                        // rows, and a commit generates transactions and teaches keyword mappings - so a
+                        // role admitted by accident could put records on a student's account from a
+                        // screen that has no reason to. This path matches none of the prefixes above
+                        // (it is deliberately not /api/v1/insights/**, and not /api/v1/admin/**, whose
+                        // paths differ after /api/v1/), and without this rule it would fall to the
+                        // catch-all below, which admits any authenticated account.
+                        .requestMatchers("/api/v1/imports/**").hasRole("STUDENT")
                         .requestMatchers("/api/**").authenticated()
                         // Kept permissive because Spring's own /error dispatch and the static
                         // Swagger UI assets live outside /api/**. Every application endpoint is

@@ -553,7 +553,7 @@ with the wrong month.
 
 - [`FRONTEND_API_GUIDE.md`](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for the
   frontend: base URL, interceptors, the shared error contract, the enum reference and the master
-  table of all 61 operations
+  table of all 76 operations
 - [`API_INVENTORY.md`](API_INVENTORY.md) — endpoint 35
 - [`budgets.md`](budgets.md) — UC-13's limits and consumption, deliberately not repeated here
 - [`notifications.md`](notifications.md) — UC-14's messages and their read state

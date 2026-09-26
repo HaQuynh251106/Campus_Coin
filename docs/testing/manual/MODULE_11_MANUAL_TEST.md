@@ -1096,9 +1096,10 @@ and restores it in step 5.** Note the `admin_audit_log` row count first
   list already carries each account's `role`, so a filter would be a second expression of a rule the
   contract does not have. **A `200` returning only administrators would be a finding.**
 - The OpenAPI document at `/api-docs` lists **exactly sixteen** administration operations on thirteen
-  paths, and 61 in total across 43 paths. This is machine-checked by `OpenApiContractIT`, and the
-  counts are asserted deliberately — adding a route without adding it to `docs/api/API_INVENTORY.md`
-  fails that test on purpose.
+  paths. At the time this procedure was written the document held 61 operations across 43 paths; with
+  module 12 built it holds **76 on 56**, of which this procedure covers only the sixteen. This is
+  machine-checked by `OpenApiContractIT`, and the counts are asserted deliberately — adding a route
+  without adding it to `docs/api/API_INVENTORY.md` fails that test on purpose.
 
 **Result:** [ ] Pass   [ ] Fail
 

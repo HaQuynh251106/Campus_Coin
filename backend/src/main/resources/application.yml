@@ -70,6 +70,32 @@ campuscoin:
       #   {base-url}?token={raw-token}
       # The raw token is never logged and never returned in an HTTP response (UC-03 B2).
       link-base-url: ${RESET_LINK_BASE_URL:http://localhost:4200/reset-password}
+      # The verified sender a reset email is sent from. Must be an address the SMTP account is
+      # permitted to send as, or the provider rejects the message as spoofing. Blank - the
+      # default here - means SMTP delivery is unavailable and the no-op notifier is installed.
+      from-address: ${MAIL_FROM_ADDRESS:}
+      from-name: ${MAIL_FROM_NAME:Campus Coin}
+      # The mail server that delivers the reset link. Deliberately NOT Spring Boot's spring.mail
+      # block: that one is switched on by the mere presence of spring.mail.host, which an empty
+      # value satisfies, so `host: ${MAIL_HOST:}` would build a sender aimed at a blank host in
+      # every deployment that has no mail server. PasswordResetConfig reads these values directly
+      # and treats a blank host as "no mail server", installing the no-op notifier instead.
+      #
+      # The password is a secret and lives in the environment only: never in this file, never in
+      # git, never in MySQL, never in a JWT, never sent to Angular, never logged.
+      smtp:
+        host: ${MAIL_HOST:}
+        # 587 is the submission port, which pairs with STARTTLS below. For implicit TLS use port
+        # 465 and set MAIL_SSL=true together.
+        port: ${MAIL_PORT:587}
+        # Blank means no authentication, which is the ordinary case for a local catcher
+        # (MailHog, Mailpit) and for some relays that identify the caller by IP.
+        username: ${MAIL_USERNAME:}
+        password: ${MAIL_PASSWORD:}
+        # On by default: the message carries a one-time token, so an unencrypted hop would expose
+        # account access. Set false only for a local catcher with no TLS.
+        starttls: ${MAIL_STARTTLS:true}
+        ssl: ${MAIL_SSL:false}
     login:
       # Fallback only; the live value is auth.max_login_attempts in system_settings.
       # Brute-force counters are held in memory per instance - see docs/SECURITY.md.
@@ -94,6 +120,34 @@ campuscoin:
       # not matter: the procedure is date-based rather than interval-based, so a late or repeated
       # run posts the same periods and no others (BR-16).
       cron: ${RECURRING_SCHEDULER_CRON:0 5 0 * * *}
+  ai:
+    # The external AI provider (UC-08 category suggestion, UC-17 monthly narrative).
+    #
+    # The provider is NEVER given database access. The flow is:
+    #   Angular -> Spring Boot -> this backend reads and filters the student's own rows
+    #                          -> a prepared context object -> provider
+    #           <- this backend validates the answer <-
+    # The port (AiSuggestionPort) has no repository, so an implementation cannot fetch anything
+    # for itself; it can only send what a service deliberately handed it.
+    #
+    # With no credential the application starts normally and installs NoopAiSuggestionPort:
+    # UC-08 falls back to the student's own category_rules keyword match, and UC-17 keeps the
+    # RULE_BASED summary sp_generate_monthly_insight already wrote. Nothing is faked - the
+    # insights.generated_by column records RULE_BASED rather than AI.
+    #
+    # The credential lives in the environment only: never in this file, never in git, never in
+    # MySQL, never in a JWT, never sent to Angular. Empty is a supported deployment.
+    api-key: ${GEMINI_API_KEY:}
+    # The model to call. Changing this changes where student data is sent, which is why it is
+    # deployment configuration rather than an administrator-tunable setting.
+    model: ${AI_MODEL:gemini-3.5-flash}
+    # A sentence or two of prose, or a small typed object. The cap is a guard, not a target.
+    max-tokens: ${AI_MAX_TOKENS:1024}
+    # Left unset in a real deployment so the SDK's own endpoint applies. Overridable so a test
+    # can point at a stub.
+    base-url: ${AI_BASE_URL:}
+    # One call's latency bound. A timeout is treated as "no suggestion" and the caller continues.
+    timeout-seconds: ${AI_TIMEOUT_SECONDS:20}
   tips:
     scheduler:
       # UC-18: the job that generates each active student's saving tips for the current month.
@@ -135,3 +189,11 @@ management:
       # 7.7 keeps out of an unauthenticated response. `/actuator/health` stays public so a
       # container health probe still works, and answers with the summary status only.
       show-details: never
+  health:
+    mail:
+      # Off, deliberately. The mail health indicator is auto-registered once an SMTP host is
+      # configured, and it reports DOWN whenever the mail server cannot be reached - which would
+      # turn `/actuator/health` red, and fail a container's health probe, for a fault that affects
+      # exactly one feature. Every other use case the API serves works with the mail server down,
+      # so password-reset delivery is not this service's health.
+      enabled: false
