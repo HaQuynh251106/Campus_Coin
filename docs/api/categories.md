@@ -173,8 +173,8 @@ A JSON **array**, ordered by `type` and then by `sortOrder`.
   },
   {
     "id": 13,
-    "name": "Campus Cafe",
-    "type": "INCOME",
+    "name": "Coffee & Snacks",
+    "type": "EXPENSE",
     "isDefault": false,
     "isActive": true,
     "sortOrder": 0
@@ -196,6 +196,12 @@ The order is stable and is the order to display in. Note that within a type the 
 categories usually come **first**, because a new category defaults to `sortOrder` 0 while the
 seeded defaults start at 1 (income) and 10 (expense). On a tie of both type and `sortOrder`, the
 shared default is listed before the personal one.
+
+> The `id` and `name` values above are an illustration, not rows you are guaranteed to have.
+> `Allowance` and `Food` are seeded by `db/05_seed.sql` so a fresh database does have them, but the
+> personal `Coffee & Snacks` row exists only if someone created it. Never hard-code a category id:
+> read it from this response first. Ids are assigned by the database and are not part of the
+> contract.
 
 ### Failures
 
@@ -267,7 +273,7 @@ curl -X POST http://localhost:8080/api/v1/categories \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-        "name": "Campus Cafe",
+        "name": "Coffee & Snacks",
         "type": "EXPENSE",
         "icon": "coffee",
         "color": "#F59E0B",

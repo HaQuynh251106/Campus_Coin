@@ -34,7 +34,7 @@ import jakarta.validation.constraints.Pattern;
 public record UpsertDefaultCategoryRequest(
 
         @Schema(description = "Display name. Cannot be blank, and is unique among default "
-                + "categories of the same type.", example = "Campus Cafe")
+                + "categories of the same type.", example = "Coffee & Snacks")
         @NotNull(message = "Name is required.")
         @Pattern(regexp = "^\\s*\\S.{0,79}\\s*$",
                 message = "Name must be between 1 and 80 characters and cannot be blank.")
