@@ -270,6 +270,10 @@ import { CommonModule } from '@angular/common';
         <path d="m12 5 7 7-7 7" />
       }
 
+      @if (name === 'arrow-up') {
+        <path d="m18 15-6-6-6 6" />
+      }
+
       @if (name === 'check-circle') {
         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
         <polyline points="22 4 12 14.01 9 11.01" />
@@ -401,7 +405,7 @@ export class IconComponent {
     'heart-pulse', 'briefcase', 'award', 'gift', 'code', 'plane', 'sun', 'moon', 'arrow-up-right',
     'arrow-down-left', 'trash-2', 'edit-2', 'search', 'filter', 'download', 'upload', 'check',
     'x', 'chevron-right', 'bookmark', 'alert-triangle', 'log-out', 'map', 'file-text', 'menu',
-    'arrow-right', 'check-circle', 'shield-check', 'zap', 'trending-up', 'bell', 'message-square',
+    'arrow-right', 'arrow-up', 'check-circle', 'shield-check', 'zap', 'trending-up', 'bell', 'message-square',
     'squirrel-logo', 'squirrel-coin', 'graduation-cap', 'education', 'scholarship', 'repeat',
     'subscriptions', 'film', 'entertainment', 'more-horizontal', 'more', 'miscellaneous',
     'shopping-bag', 'shopping', 'music', 'dumbbell', 'fitness', 'shirt'

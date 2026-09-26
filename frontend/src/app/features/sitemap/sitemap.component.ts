@@ -65,7 +65,7 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
               <a routerLink="/auth/login" class="font-mono font-medium text-amber-600 dark:text-amber-400 hover:underline block mb-0.5">
                 /auth/login
               </a>
-              <span class="text-neutral-500">Student login with validation and 1-click demo filler.</span>
+              <span class="text-neutral-500">Unified login for both Students & Institutional Admins with quick demo helpers and automatic role-based redirect.</span>
             </li>
             <li class="p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
               <a routerLink="/auth/register" class="font-mono font-medium text-amber-600 dark:text-amber-400 hover:underline block mb-0.5">
@@ -78,12 +78,6 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
                 /auth/forgot-password
               </a>
               <span class="text-neutral-500">3-step password recovery flow with simulated email token link.</span>
-            </li>
-            <li class="p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
-              <a routerLink="/auth/admin-login" class="font-mono font-medium text-amber-600 dark:text-amber-400 hover:underline block mb-0.5">
-                /auth/admin-login
-              </a>
-              <span class="text-neutral-500">Distinct enterprise/academic dashboard administrative login.</span>
             </li>
           </ul>
         </div>

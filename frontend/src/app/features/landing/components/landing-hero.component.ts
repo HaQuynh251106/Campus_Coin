@@ -19,9 +19,9 @@ import { CategoryIconComponent } from '../../../shared/components/category-icon/
 
           <!-- Left Column: Copy & Value Proposition (7 cols) -->
           <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
-            <!-- Pill Tag -->
-            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs font-medium">
-              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+            <!-- Sub-headline Tag -->
+            <div class="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
               <span>Built for University Students &bull; Zero Bank Link Required</span>
             </div>
 

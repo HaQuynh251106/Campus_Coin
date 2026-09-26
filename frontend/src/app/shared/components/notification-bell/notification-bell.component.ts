@@ -42,8 +42,8 @@ import { IconComponent } from '../icon/icon.component';
                 Notifications
               </span>
               @if (unreadCount() > 0) {
-                <span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-                  {{ unreadCount() }} new
+                <span class="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                  ({{ unreadCount() }} new)
                 </span>
               }
             </div>

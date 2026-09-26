@@ -94,11 +94,11 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
                 </div>
 
                 @if (cat.isDefault) {
-                  <span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700">
+                  <span class="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
                     System Default
                   </span>
                 } @else {
-                  <span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                  <span class="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
                     Custom
                   </span>
                 }

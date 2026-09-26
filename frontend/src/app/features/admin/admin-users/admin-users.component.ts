@@ -100,14 +100,14 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
                     \${{ user.savingsGoal }}
                   </td>
 
-                  <!-- Status -->
+                  <!-- Status (Restrained text label with status dot) -->
                   <td class="p-3">
                     @if (user.status === 'ACTIVE') {
-                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                      <span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
                       </span>
                     } @else {
-                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                      <span class="inline-flex items-center gap-1.5 text-xs font-medium text-rose-600 dark:text-rose-400">
                         <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Disabled
                       </span>
                     }

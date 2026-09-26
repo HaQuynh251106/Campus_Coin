@@ -1,5 +1,5 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, OnDestroy, inject, PLATFORM_ID, signal } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { LandingNavbarComponent } from './components/landing-navbar.component';
 import { LandingHeroComponent } from './components/landing-hero.component';
 import { LandingFeaturesComponent } from './components/landing-features.component';
@@ -8,7 +8,8 @@ import { LandingSocialProofComponent } from './components/landing-social-proof.c
 import { LandingCtaComponent } from './components/landing-cta.component';
 import { LandingFooterComponent } from './components/landing-footer.component';
 import { CoinBackgroundComponent } from '../../shared/components/coin-background/coin-background.component';
-import { SquirrelMascotComponent } from '../../shared/components/squirrel-mascot/squirrel-mascot.component';
+import { ChatbotWidgetComponent } from '../../shared/components/chatbot-widget/chatbot-widget.component';
+import { IconComponent } from '../../shared/components/icon/icon.component';
 
 @Component({
   selector: 'app-landing',
@@ -16,7 +17,8 @@ import { SquirrelMascotComponent } from '../../shared/components/squirrel-mascot
   imports: [
     CommonModule,
     CoinBackgroundComponent,
-    SquirrelMascotComponent,
+    ChatbotWidgetComponent,
+    IconComponent,
     LandingNavbarComponent,
     LandingHeroComponent,
     LandingFeaturesComponent,
@@ -53,9 +55,22 @@ import { SquirrelMascotComponent } from '../../shared/components/squirrel-mascot
         <app-landing-cta></app-landing-cta>
       </main>
 
-      <!-- Squirrel Mascot (Guest Roaming Mode) -->
+      <!-- Full Chatbot Assistant Widget with Mascot (Guest Roaming Mode with Gated Login Panel) -->
       @defer (on idle) {
-        <app-squirrel-mascot initialAnchor="mid-right"></app-squirrel-mascot>
+        <app-chatbot-widget initialAnchor="mid-right" [isGuestMode]="true"></app-chatbot-widget>
+      }
+
+      <!-- 1. Floating Back-to-Top Button (Fixed Bottom-Left) -->
+      @if (showBackToTop()) {
+        <button
+          type="button"
+          (click)="scrollToTop()"
+          class="fixed bottom-6 left-6 z-40 p-3 rounded-full bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border border-neutral-200 dark:border-neutral-800 shadow-subtle-md hover:shadow-subtle-lg text-neutral-600 dark:text-neutral-300 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/30 transition-all duration-300 flex items-center justify-center cursor-pointer animate-fade-in group active:scale-95"
+          title="Scroll back to top"
+          aria-label="Scroll back to top"
+        >
+          <app-icon name="arrow-up" [size]="18" strokeWidth="2" className="group-hover:-translate-y-0.5 transition-transform"></app-icon>
+        </button>
       }
 
       <!-- 7. Footer -->
@@ -63,4 +78,34 @@ import { SquirrelMascotComponent } from '../../shared/components/squirrel-mascot
     </div>
   `
 })
-export class LandingComponent {}
+export class LandingComponent implements OnInit, OnDestroy {
+  private platformId = inject(PLATFORM_ID);
+  private isBrowser = isPlatformBrowser(this.platformId);
+
+  readonly showBackToTop = signal(false);
+  private scrollListener?: () => void;
+
+  ngOnInit(): void {
+    if (this.isBrowser) {
+      this.scrollListener = () => {
+        const scrolled = window.scrollY > 350;
+        if (this.showBackToTop() !== scrolled) {
+          this.showBackToTop.set(scrolled);
+        }
+      };
+      window.addEventListener('scroll', this.scrollListener, { passive: true });
+    }
+  }
+
+  scrollToTop(): void {
+    if (this.isBrowser) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (this.isBrowser && this.scrollListener) {
+      window.removeEventListener('scroll', this.scrollListener);
+    }
+  }
+}
