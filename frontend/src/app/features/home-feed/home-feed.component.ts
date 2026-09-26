@@ -38,15 +38,15 @@ interface GroupedDayTransactions {
   template: `
     <div class="space-y-6">
 
-      <!-- 1. Top Balance & Allowance Hero Banner (Refined Modern SaaS) -->
-      <div class="card-brutal p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs relative overflow-hidden border-t-2 border-t-amber-500">
+      <!-- 1. Top Balance & Allowance Hero Banner (Refined Modern SaaS with Subtle Gold Accent) -->
+      <div class="card-brutal p-6 bg-white dark:bg-neutral-900 border border-amber-500/25 dark:border-amber-400/20 rounded-xl shadow-xs relative overflow-hidden border-t-2 border-t-amber-500">
         <!-- Subtle Gold Ambient Glow -->
         <div class="absolute -right-16 -top-16 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
         <div class="relative z-10">
           <div class="flex flex-wrap items-center justify-between gap-4 mb-5">
             <div>
-              <span class="inline-flex items-center text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full">
+              <span class="text-xs font-semibold text-amber-600 dark:text-amber-400 tracking-wider uppercase block">
                 September 2026
               </span>
               <h2 class="text-3xl sm:text-4xl font-semibold tracking-tight text-neutral-950 dark:text-white mt-1.5">
@@ -77,20 +77,20 @@ interface GroupedDayTransactions {
           </div>
 
           <!-- 3-Metric Mini Strip -->
-          <div class="grid grid-cols-3 gap-3 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-            <div class="bg-neutral-50/80 dark:bg-neutral-800/40 p-3 rounded-lg border border-neutral-200/80 dark:border-neutral-800">
+          <div class="grid grid-cols-3 gap-3 pt-4 border-t border-amber-500/15 dark:border-amber-400/10">
+            <div class="bg-neutral-50/80 dark:bg-neutral-800/40 p-3 rounded-lg border border-amber-500/20 dark:border-amber-400/15">
               <span class="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 block mb-0.5">Total Income</span>
               <span class="font-semibold text-sm sm:text-base text-emerald-600 dark:text-emerald-400">
                 +\${{ balance.income.toFixed(2) }}
               </span>
             </div>
-            <div class="bg-neutral-50/80 dark:bg-neutral-800/40 p-3 rounded-lg border border-neutral-200/80 dark:border-neutral-800">
+            <div class="bg-neutral-50/80 dark:bg-neutral-800/40 p-3 rounded-lg border border-amber-500/20 dark:border-amber-400/15">
               <span class="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 block mb-0.5">Total Expenses</span>
               <span class="font-semibold text-sm sm:text-base text-rose-600 dark:text-rose-400">
                 -\${{ balance.expense.toFixed(2) }}
               </span>
             </div>
-            <div class="bg-neutral-50/80 dark:bg-neutral-800/40 p-3 rounded-lg border border-neutral-200/80 dark:border-neutral-800">
+            <div class="bg-neutral-50/80 dark:bg-neutral-800/40 p-3 rounded-lg border border-amber-500/20 dark:border-amber-400/15">
               <span class="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 block mb-0.5">Savings Rate</span>
               <span class="font-semibold text-sm sm:text-base text-amber-600 dark:text-amber-400">
                 {{ balance.savingsRate }}%
@@ -116,7 +116,7 @@ interface GroupedDayTransactions {
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           @for (bgt of topBudgets; track bgt.id) {
-            <div class="card-brutal p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs">
+            <div class="card-brutal p-4 bg-white dark:bg-neutral-900 border border-amber-500/25 dark:border-amber-400/20 hover:border-amber-500/40 dark:hover:border-amber-400/35 rounded-xl shadow-xs transition-colors">
               <div class="flex items-center justify-between mb-2.5">
                 <div class="flex items-center gap-2 min-w-0">
                   <app-category-icon
@@ -127,13 +127,13 @@ interface GroupedDayTransactions {
                   ></app-category-icon>
                   <span class="font-medium text-xs text-neutral-900 dark:text-neutral-100 truncate max-w-[120px]">{{ bgt.categoryName }}</span>
                 </div>
-                <!-- Status Badge -->
+                <!-- Status Badge (Restrained text label) -->
                 @if (bgt.alertStatus === 'DANGER') {
-                  <span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800">Over</span>
+                  <span class="text-[11px] font-semibold text-rose-600 dark:text-rose-400">Over</span>
                 } @else if (bgt.alertStatus === 'WARNING') {
-                  <span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">80%+</span>
+                  <span class="text-[11px] font-semibold text-amber-600 dark:text-amber-400">80%+</span>
                 } @else {
-                  <span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">Safe</span>
+                  <span class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Safe</span>
                 }
               </div>
 

@@ -41,7 +41,7 @@ describe('ChatbotWidgetComponent', () => {
     expect(component.isOpen()).toBe(false);
   });
 
-  it('should send quick prompt on button click', () => {
+  it('should send quick prompt on button click in student mode', () => {
     component.sendQuickPrompt('What is my budget status?');
     expect(chatbotService.messages().some(m => m.text === 'What is my budget status?')).toBe(true);
   });
@@ -79,5 +79,58 @@ describe('ChatbotWidgetComponent', () => {
     fixture.detectChanges();
 
     expect(sendBtn.disabled).toBe(false);
+  });
+
+  describe('Guest Gated Mode (Landing Page)', () => {
+    beforeEach(() => {
+      component.isGuestMode = true;
+      fixture.detectChanges();
+    });
+
+    it('should render gated panel without message input or quick prompts when opened', () => {
+      component.toggleOpen();
+      fixture.detectChanges();
+
+      const el: HTMLElement = fixture.nativeElement;
+
+      // Gated locked message present
+      expect(el.textContent).toContain('Log in first to chat with Sooc!');
+      expect(el.textContent).toContain('Sign in with your campus account');
+
+      // Login and Sign up buttons present
+      const loginLink = el.querySelector('a[href="/auth/login"], a[routerLink="/auth/login"]');
+      const signupLink = el.querySelector('a[href="/auth/register"], a[routerLink="/auth/register"]');
+      expect(loginLink).toBeTruthy();
+      expect(signupLink).toBeTruthy();
+
+      // No chat input, no quick prompts
+      expect(el.querySelector('input[name="chatInput"]')).toBeNull();
+      expect(el.querySelector('.chat-scrollbar')).toBeNull();
+    });
+
+    it('should close gated panel when close button is clicked and restore mascot', () => {
+      component.toggleOpen();
+      fixture.detectChanges();
+      expect(component.isOpen()).toBe(true);
+
+      const closeBtn = fixture.nativeElement.querySelector('button[aria-label="Close panel"]') as HTMLButtonElement;
+      expect(closeBtn).toBeTruthy();
+      closeBtn.click();
+      fixture.detectChanges();
+
+      expect(component.isOpen()).toBe(false);
+      expect(mascotService.isChatOpen()).toBe(false);
+    });
+
+    it('should close gated panel when Escape key is pressed', () => {
+      component.toggleOpen();
+      fixture.detectChanges();
+      expect(component.isOpen()).toBe(true);
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      fixture.detectChanges();
+
+      expect(component.isOpen()).toBe(false);
+    });
   });
 });

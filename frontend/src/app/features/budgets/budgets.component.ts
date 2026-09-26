@@ -108,11 +108,11 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
         </div>
       }
 
-      <!-- 2. Overall Budget Health Meter Card -->
-      <div class="card-brutal p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs">
-        <div class="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b border-neutral-200 dark:border-neutral-800">
+      <!-- 2. Overall Budget Health Meter Card (with Subtle Gold Accent) -->
+      <div class="card-brutal p-6 bg-white dark:bg-neutral-900 border border-amber-500/25 dark:border-amber-400/20 rounded-xl shadow-xs">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b border-amber-500/15 dark:border-amber-400/10">
           <div>
-            <span class="inline-flex items-center text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+            <span class="text-xs font-semibold text-amber-600 dark:text-amber-400 tracking-wider uppercase block mb-1">
               Macro Envelope
             </span>
             <h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-50 mt-1 tracking-tight">

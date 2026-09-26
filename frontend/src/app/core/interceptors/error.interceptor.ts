@@ -32,10 +32,7 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
           isRedirecting = true;
           auth.logoutLocally();
 
-          const isAdminRoute = router.url.startsWith('/admin') || req.url.includes('/admin');
-          const targetLogin = isAdminRoute ? '/auth/admin-login' : '/auth/login';
-
-          router.navigate([targetLogin]).finally(() => {
+          router.navigate(['/auth/login']).finally(() => {
             setTimeout(() => {
               isRedirecting = false;
             }, 1000);

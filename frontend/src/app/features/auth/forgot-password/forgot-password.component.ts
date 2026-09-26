@@ -18,7 +18,7 @@ type ResetStep = 'request' | 'sent' | 'reset-token';
       <!-- Step 1: Request Email -->
       @if (step === 'request') {
         <div class="mb-5">
-          <span class="inline-flex items-center text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 mb-2">
+          <span class="text-xs font-semibold text-amber-600 dark:text-amber-400 tracking-wider uppercase block mb-1">
             Account Recovery
           </span>
           <h2 class="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
@@ -48,7 +48,10 @@ type ResetStep = 'request' | 'sent' | 'reset-token';
             class="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-medium rounded-lg text-sm shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
           >
             @if (isLoading) {
-              <span class="inline-block animate-spin">⏳</span>
+              <svg class="animate-spin h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
             }
             <span>Send Reset Instructions →</span>
           </button>
@@ -64,8 +67,8 @@ type ResetStep = 'request' | 'sent' | 'reset-token';
       <!-- Step 2: "Check Your Email" Confirmation -->
       @if (step === 'sent') {
         <div class="text-center py-2">
-          <div class="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800 flex items-center justify-center mx-auto mb-3 text-xl">
-            📬
+          <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25 flex items-center justify-center mx-auto mb-3 shadow-xs">
+            <app-icon name="bell" [size]="22" strokeWidth="1.75"></app-icon>
           </div>
           <h2 class="text-xl font-semibold text-neutral-900 dark:text-neutral-50 mb-1.5 tracking-tight">
             Check Your Campus Inbox
@@ -96,7 +99,7 @@ type ResetStep = 'request' | 'sent' | 'reset-token';
       <!-- Step 3: Reset With Token Form -->
       @if (step === 'reset-token') {
         <div class="mb-5">
-          <span class="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 mb-2">
+          <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 tracking-wider uppercase block mb-1">
             Token Verified
           </span>
           <h2 class="text-2xl font-semibold text-neutral-900 dark:text-neutral-50 tracking-tight">
@@ -149,7 +152,10 @@ type ResetStep = 'request' | 'sent' | 'reset-token';
               class="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-medium rounded-lg text-sm shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
             >
               @if (isLoading) {
-                <span class="inline-block animate-spin">⏳</span>
+                <svg class="animate-spin h-4 w-4 text-current" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
               }
               <span>Update Password & Continue →</span>
             </button>

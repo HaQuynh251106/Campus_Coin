@@ -134,6 +134,6 @@ export class NavSidebarComponent {
 
   onLogout(): void {
     this.auth.logout();
-    this.router.navigate([this.isAdmin ? '/auth/admin-login' : '/auth/login']);
+    this.router.navigate(['/auth/login']);
   }
 }
