@@ -10,6 +10,6 @@ export const adminGuard: CanActivateFn = () => {
     return true;
   }
 
-  // Redirect to admin login
-  return router.createUrlTree(['/auth/admin-login']);
+  // Redirect to unified login
+  return router.createUrlTree(['/auth/login']);
 };

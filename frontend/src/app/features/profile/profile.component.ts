@@ -5,6 +5,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { User, FontSizePreference } from '../../core/models/user.model';
 import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadcrumbs.component';
+import { IconComponent } from '../../shared/components/icon/icon.component';
 
 @Component({
   selector: 'app-profile',
@@ -12,7 +13,8 @@ import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadc
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    BreadcrumbsComponent
+    BreadcrumbsComponent,
+    IconComponent
   ],
   template: `
     <div class="space-y-6">
@@ -55,10 +57,9 @@ import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadc
                 <span class="text-xs font-mono text-neutral-500">
                   {{ user()?.studentId }} &bull; {{ user()?.email }}
                 </span>
-                <div class="mt-1">
-                  <span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
-                    Verified Campus Account
-                  </span>
+                <div class="mt-1 flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  <app-icon name="check-circle" [size]="13" strokeWidth="2"></app-icon>
+                  <span>Verified Campus Account</span>
                 </div>
               </div>
             </div>

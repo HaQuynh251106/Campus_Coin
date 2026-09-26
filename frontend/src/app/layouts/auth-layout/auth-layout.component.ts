@@ -15,9 +15,9 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
 
       <!-- Header with Brand & Theme Toggle -->
       <header class="max-w-md w-full mx-auto flex items-center justify-between pt-2 pb-6 z-10">
-        <a routerLink="/app/home" class="flex items-center gap-2.5 group">
-          <div class="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-base font-bold shadow-xs">
-            🪙
+        <a routerLink="/" class="flex items-center gap-2.5 group cursor-pointer" title="Return to Landing Page">
+          <div class="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-600 dark:text-amber-400 shadow-xs group-hover:scale-105 transition-transform">
+            <app-icon name="squirrel-logo" [size]="20" strokeWidth="1.75"></app-icon>
           </div>
           <div>
             <span class="font-semibold text-xl tracking-tight text-neutral-900 dark:text-neutral-50 block leading-tight">

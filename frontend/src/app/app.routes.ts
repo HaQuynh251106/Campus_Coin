@@ -28,7 +28,7 @@ export const routes: Routes = [
       },
       {
         path: 'login',
-        title: 'Student Login — Campus Coin',
+        title: 'Sign In — Campus Coin',
         loadComponent: () =>
           import('./features/auth/login/login.component').then(m => m.LoginComponent)
       },
@@ -46,9 +46,8 @@ export const routes: Routes = [
       },
       {
         path: 'admin-login',
-        title: 'Admin Portal Login — Campus Coin',
-        loadComponent: () =>
-          import('./features/auth/admin-login/admin-login.component').then(m => m.AdminLoginComponent)
+        redirectTo: 'login',
+        pathMatch: 'full'
       }
     ]
   },

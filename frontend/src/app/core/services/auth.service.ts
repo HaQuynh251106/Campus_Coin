@@ -1,7 +1,7 @@
 import { Injectable, signal, computed, PLATFORM_ID, inject } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, tap, catchError, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthResponse, User, UserSummary, ProfileResponse } from '../models/user.model';
 
@@ -90,6 +90,18 @@ export class AuthService {
 
   login(email: string, password: string): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.baseUrl}/auth/login`, { email, password }).pipe(
+      catchError((err: HttpErrorResponse) => {
+        // If backend responds with 403 because it's an administrator account, transparently authenticate via admin endpoint
+        const isForbiddenAdmin = err.status === 403 &&
+          (err.error?.message?.toLowerCase().includes('administrator') ||
+           err.message?.toLowerCase().includes('administrator') ||
+           email.toLowerCase().includes('admin'));
+
+        if (isForbiddenAdmin) {
+          return this.adminLogin(email, password);
+        }
+        return throwError(() => err);
+      }),
       tap(res => this.persistSession(res))
     );
   }
