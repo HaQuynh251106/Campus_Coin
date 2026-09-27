@@ -19,12 +19,6 @@ import { CategoryIconComponent } from '../../../shared/components/category-icon/
 
           <!-- Left Column: Copy & Value Proposition (7 cols) -->
           <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
-            <!-- Sub-headline Tag -->
-            <div class="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
-              <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-              <span>Built for University Students &bull; Zero Bank Link Required</span>
-            </div>
-
             <!-- Main Headline -->
             <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-neutral-950 dark:text-white leading-[1.1]">
               Smart campus spending.
@@ -92,21 +86,12 @@ import { CategoryIconComponent } from '../../../shared/components/category-icon/
             <!-- Decorative Border Highlight -->
             <div class="card-brutal p-5 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-subtle-lg relative space-y-4 border-t-2 border-t-amber-500">
 
-              <!-- Mock Header: Month & Net Balance -->
-              <div class="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-neutral-800">
-                <div>
-                  <span class="text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
-                    September 2026
-                  </span>
-                  <div class="text-2xl sm:text-3xl font-bold text-neutral-950 dark:text-white mt-1">
-                    $423.50
-                  </div>
-                  <span class="text-[11px] text-[var(--color-text-muted)]">Net Campus Balance</span>
+              <!-- Mock Header: Net Balance -->
+              <div class="pb-3 border-b border-neutral-100 dark:border-neutral-800">
+                <div class="text-2xl sm:text-3xl font-bold text-neutral-950 dark:text-white">
+                  $423.50
                 </div>
-
-                <div class="w-9 h-9 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 text-sm font-semibold">
-                  SV
-                </div>
+                <span class="text-[11px] text-[var(--color-text-muted)]">Net Campus Balance</span>
               </div>
 
               <!-- 3-Metric Mini Strip -->

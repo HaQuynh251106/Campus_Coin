@@ -115,7 +115,9 @@ class OpenApiContractIT extends AbstractMySqlIntegrationTest {
             "GET /api/v1/imports/{batchId}",
             "PATCH /api/v1/imports/{batchId}/rows/{rowId}",
             "POST /api/v1/imports/{batchId}/commit",
-            "POST /api/v1/imports/{batchId}/cancel");
+            "POST /api/v1/imports/{batchId}/cancel",
+            "GET /api/v1/chat",
+            "POST /api/v1/chat");
 
     /**
      * Endpoints that must stay reachable without a token. Each is either a sign-in step - nobody
@@ -428,7 +430,7 @@ class OpenApiContractIT extends AbstractMySqlIntegrationTest {
         // no multi-method path: /anomalies and /anomalies/scan are each one method, because the scan
         // is a sub-resource rather than a POST to the collection - it computes the marks across the
         // student's whole history rather than creating one record in the list it is named beside. So
-        // 40 single-method paths and 76 operations in all. The
+        // 41 single-method paths and 78 operations in all. The
         // two report paths and the four single-method tip paths are among those forty: each
         // serves one method and no other, because a report is read and never written and a tip's
         // month, its months list and its generator are three distinct reads-or-actions rather than
@@ -477,8 +479,16 @@ class OpenApiContractIT extends AbstractMySqlIntegrationTest {
         // are POST sub-resources rather than a status update, because each is an action whose effect
         // exceeds any single column: a commit walks every importable row, generates transactions and
         // rewrites five counters. So the count rose by five paths and by one multi-method path.
-        // That is 40 single-method paths and 16 multi-method ones - 56 paths for 76 operations.
-        assertThat(paths).hasSize(56);
+        // That is 40 single-method paths and 17 multi-method ones - 57 paths for 78 operations. The
+        // seventeenth is /chat, which serves GET (is the assistant available) and POST (ask it
+        // something) - a list-and-create pair in form only: the GET creates nothing and reports a fact
+        // about the deployment, and the POST creates nothing either, so the two are not two views of
+        // one collection. They share the URL anyway because they are one feature seen two ways, the
+        // same reason /profile/me is one path with a GET and a PATCH, and because a client that cannot
+        // ask needs to be able to find that out from the resource it would have asked. It is the one
+        // addition here that implements no numbered use case, because the SRS's twenty-seven have no
+        // conversational assistant among them; it was requested after module 12.
+        assertThat(paths).hasSize(57);
     }
 
     @Test

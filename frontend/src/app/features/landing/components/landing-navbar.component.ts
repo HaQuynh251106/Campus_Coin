@@ -21,9 +21,6 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
             <span class="font-bold text-base sm:text-lg tracking-tight text-neutral-900 dark:text-neutral-50">
               Campus Coin
             </span>
-            <span class="hidden sm:inline-block text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
-              Student Edition
-            </span>
           </div>
         </a>
 

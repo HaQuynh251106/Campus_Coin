@@ -3,16 +3,19 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { TransactionService } from '../../core/services/transaction.service';
+import { RecurringRuleService } from '../../core/services/recurring-rule.service';
+import { RecurringFrequency } from '../../core/models/recurring-rule.model';
 import { CategoryService } from '../../core/services/category.service';
 import { MascotService } from '../../core/services/mascot.service';
 import { ToastService } from '../../core/services/toast.service';
 import { Category } from '../../core/models/category.model';
 import { Transaction, TransactionType } from '../../core/models/transaction.model';
-import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadcrumbs.component';
 import { CardComponent } from '../../shared/components/card/card.component';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { CategoryTagComponent } from '../../shared/components/category-tag/category-tag.component';
+import { CategorisationService } from '../../core/services/categorisation.service';
+import { CategorySuggestion } from '../../core/models/categorisation.model';
 
 @Component({
   selector: 'app-quick-add',
@@ -21,17 +24,11 @@ import { CategoryTagComponent } from '../../shared/components/category-tag/categ
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
-    BreadcrumbsComponent,
     IconComponent,
     CategoryTagComponent
   ],
   template: `
     <div class="space-y-6">
-
-      <!-- Breadcrumbs -->
-      <app-breadcrumbs
-        [items]="[{ label: 'Quick Add' }]"
-      ></app-breadcrumbs>
 
       <!-- Page Header -->
       <div class="flex items-center justify-between">
@@ -136,7 +133,7 @@ import { CategoryTagComponent } from '../../shared/components/category-tag/categ
             </div>
           </div>
 
-          <!-- Category & Recurring Grid -->
+          <!-- Category & Repeat Grid -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <!-- Category Dropdown -->
             <div>
@@ -152,17 +149,35 @@ import { CategoryTagComponent } from '../../shared/components/category-tag/categ
               </select>
             </div>
 
-            <!-- Make Recurring Toggle -->
+            <!--
+              Repeat. This saves the transaction and then creates a separate recurring rule for it,
+              because the two are separate records: the transaction happened once on a date, and the
+              rule is the schedule that repeats it. There is no frequency field on a transaction to
+              send it in, so the rule is a second call (module 5).
+            -->
             <div>
               <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1">
-                Recurring Frequency
+                Repeat
               </label>
-              <select formControlName="recurringFrequency" class="input-brutal">
-                <option value="NONE">One-time only (No repeat)</option>
-                <option value="DAILY">Repeat Daily</option>
-                <option value="WEEKLY">Repeat Weekly</option>
-                <option value="MONTHLY">Repeat Monthly</option>
-              </select>
+              @if (editingTxId) {
+                <div class="input-brutal opacity-70 text-[var(--color-text-muted)] flex items-center">
+                  Manage this on the Recurring page
+                </div>
+              } @else {
+                <select formControlName="repeatFrequency" class="input-brutal">
+                  <option value="NONE">One-time only (no repeat)</option>
+                  <option value="DAILY">Every day</option>
+                  <option value="WEEKLY">Every week</option>
+                  <option value="MONTHLY">Every month</option>
+                  <option value="QUARTERLY">Every quarter</option>
+                  <option value="YEARLY">Every year</option>
+                </select>
+              }
+              @if (!editingTxId && repeatFrequency !== 'NONE') {
+                <p class="text-[10px] text-neutral-400 mt-0.5">
+                  Saves this entry and starts a repeating rule from {{ txForm.get('date')?.value }}.
+                </p>
+              }
             </div>
           </div>
 
@@ -176,19 +191,6 @@ import { CategoryTagComponent } from '../../shared/components/category-tag/categ
               formControlName="description"
               placeholder="e.g. Campus Cafeteria Burrito Lunch"
               class="input-brutal"
-            />
-          </div>
-
-          <!-- Optional Notes -->
-          <div>
-            <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1">
-              Optional Note
-            </label>
-            <input
-              type="text"
-              formControlName="note"
-              placeholder="Split with study group / saved receipt"
-              class="input-brutal text-xs"
             />
           </div>
 
@@ -276,6 +278,24 @@ import { CategoryTagComponent } from '../../shared/components/category-tag/categ
                   </td>
                   <td class="py-2.5 px-3 text-center whitespace-nowrap">
                     <div class="flex items-center justify-center gap-1">
+                      <!--
+                        Asks for a category proposal for this entry (M12, UC-08). It is a suggestion
+                        and nothing more: the row's category is unchanged until the student accepts
+                        it below.
+                      -->
+                      <button
+                        type="button"
+                        (click)="suggestCategory(tx)"
+                        [disabled]="suggestingTxId === tx.id"
+                        title="Suggest a category"
+                        class="p-1 text-neutral-400 hover:text-amber-600 disabled:opacity-50 rounded cursor-pointer"
+                      >
+                        @if (suggestingTxId === tx.id) {
+                          <span class="inline-block animate-spin text-[11px]">⏳</span>
+                        } @else {
+                          <app-icon name="sparkles" [size]="14" strokeWidth="1.5"></app-icon>
+                        }
+                      </button>
                       <button
                         type="button"
                         (click)="startEdit(tx)"
@@ -295,6 +315,81 @@ import { CategoryTagComponent } from '../../shared/components/category-tag/categ
                     </div>
                   </td>
                 </tr>
+
+                <!--
+                  The proposal sits under its own row, beside the record rather than in it (BR-13).
+                  Accepting is a normal category update; dismissing leaves the entry exactly as it
+                  was. Nothing is applied on its own.
+                -->
+                @if (suggestion && suggestion.transactionId === +tx.id) {
+                  <tr class="bg-amber-50/60 dark:bg-amber-950/20">
+                    <td colspan="6" class="px-4 py-3">
+                      @if (suggestion.source === 'NONE') {
+                        <div class="flex items-start justify-between gap-3">
+                          <p class="text-xs text-neutral-600 dark:text-neutral-400">
+                            No suggestion for this entry.
+                            @if (suggestion.learned) {
+                              Your choice was remembered: “{{ suggestion.learned.keyword }}” is now
+                              filed under {{ suggestion.learned.categoryName }}.
+                            } @else {
+                              Nothing in your own rules matches this description, and no AI provider
+                              is configured, so the category is yours to choose.
+                            }
+                          </p>
+                          <button type="button" (click)="dismissSuggestion()"
+                            class="text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 shrink-0 cursor-pointer">
+                            Close
+                          </button>
+                        </div>
+                      } @else {
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                          <div class="min-w-0">
+                            <span class="block text-[10px] uppercase font-medium tracking-wider text-amber-700 dark:text-amber-400 mb-1">
+                              Suggested category
+                            </span>
+                            <span class="font-medium text-sm text-neutral-900 dark:text-neutral-100">
+                              {{ suggestion.categoryName }}
+                            </span>
+                            <span class="text-[11px] text-neutral-500 ml-2">
+                              <!--
+                                The source is stated plainly: a learned rule and a provider-produced
+                                proposal are different claims, and only one of them is AI.
+                              -->
+                              {{ suggestion.source === 'RULE' ? 'from a rule you taught' : 'from the AI provider' }}
+                              @if (suggestion.reason) {
+                                — {{ suggestion.reason }}
+                              }
+                            </span>
+                            @if (suggestion.learned) {
+                              <span class="block text-[11px] text-neutral-500 mt-1">
+                                Your choice was remembered: “{{ suggestion.learned.keyword }}” will be
+                                filed under {{ suggestion.learned.categoryName }} next time.
+                              </span>
+                            }
+                          </div>
+
+                          <div class="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              (click)="acceptSuggestion(tx)"
+                              [disabled]="applyingSuggestion"
+                              class="text-xs font-semibold text-neutral-950 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                            >
+                              {{ applyingSuggestion ? 'Applying…' : 'Use this category' }}
+                            </button>
+                            <button
+                              type="button"
+                              (click)="dismissSuggestion()"
+                              class="text-xs font-semibold text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 px-2 py-1.5 cursor-pointer"
+                            >
+                              Keep mine
+                            </button>
+                          </div>
+                        </div>
+                      }
+                    </td>
+                  </tr>
+                }
               }
             </tbody>
           </table>
@@ -308,14 +403,21 @@ export class QuickAddComponent implements OnInit {
   private fb = inject(FormBuilder);
   private txService = inject(TransactionService);
   private categoryService = inject(CategoryService);
+  private ruleService = inject(RecurringRuleService);
   private mascotService = inject(MascotService);
   private toast = inject(ToastService);
   private router = inject(Router);
   private cdr = inject(ChangeDetectorRef);
+  private categorisationService = inject(CategorisationService);
 
   categories: Category[] = [];
   filteredCategories: Category[] = [];
   recentList: Transaction[] = [];
+
+  /** The proposal currently on screen, if any. At most one — asking for another replaces it. */
+  suggestion: CategorySuggestion | null = null;
+  suggestingTxId: string | null = null;
+  applyingSuggestion = false;
 
   isSubmitting = false;
   successMessage = '';
@@ -324,12 +426,15 @@ export class QuickAddComponent implements OnInit {
   txForm = this.fb.group({
     type: ['EXPENSE' as TransactionType, [Validators.required]],
     amount: [null as number | null, [Validators.required, Validators.min(0.01)]],
-    date: ['2026-09-24', [Validators.required]],
+    date: [this.today(), [Validators.required]],
     categoryId: ['', [Validators.required]],
     description: ['', [Validators.required, Validators.minLength(2)]],
-    recurringFrequency: ['NONE'],
-    note: ['']
+    repeatFrequency: ['NONE']
   });
+
+  get repeatFrequency(): string {
+    return this.txForm.get('repeatFrequency')?.value || 'NONE';
+  }
 
   ngOnInit(): void {
     this.categoryService.getCategories().subscribe(cats => {
@@ -354,7 +459,10 @@ export class QuickAddComponent implements OnInit {
   }
 
   private filterCategoriesByType(type: TransactionType): void {
-    this.filteredCategories = this.categories.filter(c => c.type === type);
+    // BR-07: a retired category keeps its history but must not be offered for new records. The
+    // list has to be filtered here rather than left to the server, because `GET /categories`
+    // deliberately returns retired rows so the student can still find them on the Categories page.
+    this.filteredCategories = this.categories.filter(c => c.type === type && c.isActive !== false);
     if (this.filteredCategories.length > 0 && !this.txForm.get('categoryId')?.value) {
       this.txForm.patchValue({ categoryId: String(this.filteredCategories[0].id) });
     }
@@ -397,12 +505,18 @@ export class QuickAddComponent implements OnInit {
     } else {
       this.txService.addTransaction(payload).subscribe({
         next: () => {
-          this.isSubmitting = false;
-          this.successMessage = 'Transaction recorded!';
-          this.toast.success('Transaction recorded successfully!');
+          this.mascotService.onTransactionLogged();
+          // The repeat is a second record, so it is a second call. The rule copies this
+          // transaction's amount, category and description — the server does not do that link.
+          if (this.repeatFrequency !== 'NONE') {
+            this.createRepeatRule();
+          } else {
+            this.isSubmitting = false;
+            this.successMessage = 'Transaction recorded!';
+            this.toast.success('Transaction recorded successfully!');
+          }
           this.resetForm();
           this.loadRecent();
-          this.mascotService.onTransactionLogged();
           setTimeout(() => this.successMessage = '', 3500);
         },
         error: (err) => {
@@ -413,6 +527,98 @@ export class QuickAddComponent implements OnInit {
     }
   }
 
+  /**
+   * Creates the recurring rule that repeats the transaction just saved.
+   *
+   * The transaction is already recorded by the time this runs, so a failure here must not look
+   * like a failure to save. It says what did happen and points at the page where the rule can be
+   * set up directly.
+   */
+  private createRepeatRule(): void {
+    const val = this.txForm.getRawValue();
+    this.ruleService.createRule({
+      categoryId: Number(val.categoryId),
+      amount: Number(val.amount),
+      description: (val.description || '').trim(),
+      frequency: this.repeatFrequency as RecurringFrequency,
+      startDate: val.date as string
+    }).subscribe({
+      next: rule => {
+        this.isSubmitting = false;
+        this.successMessage = 'Transaction recorded and set to repeat!';
+        this.toast.success(`Transaction recorded. Repeats ${RecurringRuleService.describeSchedule(rule).toLowerCase()}.`);
+      },
+      error: (err) => {
+        this.isSubmitting = false;
+        this.successMessage = 'Transaction recorded!';
+        this.toast.warning(
+          'The transaction was saved, but the repeat could not be set up' +
+          (err.error?.message ? `: ${err.error.message}` : '.') +
+          ' You can add it on the Recurring page.'
+        );
+      }
+    });
+  }
+
+  /**
+   * Asks for a category proposal for one entry (M12, UC-08).
+   *
+   * This never writes the category. The proposal is stored beside the record as advice, and the
+   * entry keeps whatever category it already had until the student presses "Use this category" —
+   * at which point it is an ordinary `PATCH` on the transactions endpoint, the same write the
+   * category dropdown performs.
+   */
+  suggestCategory(tx: Transaction): void {
+    this.suggestingTxId = String(tx.id);
+    this.categorisationService.suggestCategory(Number(tx.id)).subscribe({
+      next: res => {
+        this.suggestingTxId = null;
+        this.suggestion = res;
+        this.cdr.markForCheck();
+      },
+      error: err => {
+        this.suggestingTxId = null;
+        this.toast.error(err.error?.message || 'Could not ask for a category suggestion.');
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  /** Files the entry under the proposed category — a normal update, on the student's say-so. */
+  acceptSuggestion(tx: Transaction): void {
+    if (!this.suggestion?.categoryId) return;
+    this.applyingSuggestion = true;
+
+    this.txService
+      .updateTransaction(tx.id, {
+        categoryId: this.suggestion.categoryId,
+        amount: tx.amount,
+        txnDate: tx.date || tx.txnDate,
+        description: tx.description
+      })
+      .subscribe({
+        next: () => {
+          this.applyingSuggestion = false;
+          const name = this.suggestion?.categoryName;
+          this.suggestion = null;
+          this.toast.success(`Filed under ${name}.`);
+          this.loadRecent();
+          this.cdr.markForCheck();
+        },
+        error: err => {
+          this.applyingSuggestion = false;
+          this.toast.error(err.error?.message || 'Could not change the category.');
+          this.cdr.markForCheck();
+        }
+      });
+  }
+
+  /** Leaves the entry exactly as it was. The proposal is advice, so declining it costs nothing. */
+  dismissSuggestion(): void {
+    this.suggestion = null;
+    this.cdr.markForCheck();
+  }
+
   startEdit(tx: Transaction): void {
     this.editingTxId = String(tx.id);
     this.txForm.patchValue({
@@ -421,8 +627,9 @@ export class QuickAddComponent implements OnInit {
       date: tx.date || tx.txnDate,
       categoryId: String(tx.categoryId),
       description: tx.description,
-      recurringFrequency: tx.recurringFrequency || 'NONE',
-      note: tx.note || ''
+      // A transaction carries no frequency, so an edit never offers one. Whether this row repeats
+      // is a rule, and a rule is changed on the Recurring page.
+      repeatFrequency: 'NONE'
     });
     this.filterCategoriesByType(tx.type);
     window.scrollTo({ top: 300, behavior: 'smooth' });
@@ -433,9 +640,35 @@ export class QuickAddComponent implements OnInit {
     this.resetForm();
   }
 
-  onDelete(id: string | number): void {
-    this.txService.deleteTransaction(id).subscribe(() => {
-      this.loadRecent();
+  /**
+   * Deletes the entry (a soft delete — the row is kept and can be restored).
+   *
+   * Deleting twice answers `409` rather than a second `204`, because reporting success for a
+   * removal that did not happen would be false. That means the local list is stale, so it reloads.
+   */
+  async onDelete(id: string | number): Promise<void> {
+    const ok = await this.toast.confirm(
+      'Delete Transaction',
+      'Move this entry to the trash? It stops counting toward your balances and reports.',
+      'Delete',
+      'Cancel',
+      true
+    );
+    if (!ok) return;
+
+    this.txService.deleteTransaction(id).subscribe({
+      next: () => {
+        this.toast.success('Transaction deleted.');
+        this.loadRecent();
+      },
+      error: (err) => {
+        if (err.error?.errorCode === 'TRANSACTION_ALREADY_DELETED') {
+          this.toast.warning('That entry was already deleted. Refreshing the list.');
+          this.loadRecent();
+          return;
+        }
+        this.toast.error(err.error?.message || 'Failed to delete transaction');
+      }
     });
   }
 
@@ -443,10 +676,14 @@ export class QuickAddComponent implements OnInit {
     this.txForm.reset({
       type: 'EXPENSE',
       amount: null,
-      date: '2026-09-24',
+      date: this.today(),
       categoryId: this.filteredCategories[0]?.id ? String(this.filteredCategories[0].id) : '',
-      recurringFrequency: 'NONE',
-      note: ''
+      repeatFrequency: 'NONE'
     });
+  }
+
+  /** `sv-SE` yields `YYYY-MM-DD`; `toISOString()` would convert to UTC and can shift the day. */
+  private today(): string {
+    return new Date().toLocaleDateString('sv-SE');
   }
 }

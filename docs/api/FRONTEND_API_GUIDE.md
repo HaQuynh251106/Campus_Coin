@@ -5,7 +5,7 @@
 It is the single entry point for the M1–M12 HTTP contract: base URL, authentication, the interceptor
 to install, the error contract every endpoint shares, the ownership rule, the enum values, a
 complete per-endpoint reference, the integration flows screen by screen, and one master table of all
-76 operations.
+78 operations.
 
 Everything here was verified against the **current working tree** — the Java controllers and DTOs,
 `SecurityConfig`, `ErrorCode`, and the live OpenAPI document at `/api-docs` — not against an earlier
@@ -14,8 +14,8 @@ follows the server.
 
 | | |
 |---|---|
-| **Contract scope** | Modules 1–12 |
-| **Endpoints** | **76 operations on 56 paths** |
+| **Contract scope** | Modules 1–12, plus the post-module chat assistant |
+| **Endpoints** | **78 operations on 57 paths** |
 | **OpenAPI** | `/api-docs` (OpenAPI 3.1.0) · Swagger UI at `/swagger-ui.html` |
 | **API base path** | `/api/v1` |
 | **Status** | M1–M11 IMPLEMENTATION COMPLETE — M12 LOCKED PENDING PROJECT-OWNER APPROVAL |
@@ -1414,9 +1414,11 @@ does. No operation takes a user id; identity comes from the token.
 | 74 | `GET` | `/api/v1/forecast` | Bearer | `STUDENT` | `200` the current month and projection |
 | 75 | `GET` | `/api/v1/recent-activity` | Bearer | `STUDENT` | `200` my recent activity |
 | 76 | `POST` | `/api/v1/recent-activity` | Bearer | `STUDENT` | `201` the recorded entry |
+| 77 | `GET` | `/api/v1/chat` | Bearer | `STUDENT` | `200` whether the assistant is available |
+| 78 | `POST` | `/api/v1/chat` | Bearer | `STUDENT` | `200` the assistant's reply |
 
 Full contracts: [imports.md](imports.md) (62–67), [ai-and-insights.md](ai-and-insights.md) (68–71),
-[advanced.md](advanced.md) (72–76).
+[advanced.md](advanced.md) (72–76), [chat-assistant.md](chat-assistant.md) (77–78).
 
 #### Query parameters
 
@@ -1516,6 +1518,51 @@ say so rather than render zeros.
 `{"transactionId": n, "action": "VIEWED"|"EDITED"}` — one of the caller's own, else `404` — and answers
 `201`. **This is the client's own record of what the student opened or changed**: call 76 after the
 student views or edits a transaction, and read 75 to show the list.
+
+#### 77–78 — Chat assistant
+
+**These two are a post-module addition, not module 12, and not a numbered use case.** The use case
+specification runs UC-01…UC-27 and has no conversational assistant in it; the feature was requested
+after module 12. Its contract is stable and it is ready to wire, and it is listed separately from the
+module 12 lock note below for that reason.
+
+`GET /chat` answers `{available, model?, reason?}` — `model` and `reason` are omitted when they do not
+apply, so `available: true` carries a model and no reason, and `available: false` carries a reason and
+no model. Call it when the chat panel opens: a panel that knows the assistant is off can say so
+instead of accepting a question it cannot answer. **It asks the provider nothing** — it reports
+whether a credential is installed and whether `ai.enabled` is on, so it costs no quota.
+
+`POST /chat` takes `{"message": "...", "history": [{"role": "USER"|"ASSISTANT", "text": "..."}]}` and
+answers `{reply, model, toolsUsed}`.
+
+| Field | Notes |
+|---|---|
+| `message` | Required, non-blank, ≤ 2000 characters. |
+| `history` | **Optional, and it is the whole conversation.** Oldest turn first, the new question in `message` last. ≤ 30 turns; earlier ones are dropped from the front. There is no session — nothing is stored server-side, so send the transcript on every call. |
+| `reply` | The assistant's answer, written by the model. |
+| `model` | Which model wrote it — the same provenance disclosure the monthly insight makes. |
+| `toolsUsed` | The reads that grounded the answer, in the order the model asked for them. Empty for an answer that needed no data, which is the shape a refusal takes. |
+
+**There is no `userId` field, and sending one changes nothing.** Jackson ignores an unknown property,
+so a body carrying extra keys is answered normally rather than refused — do not build a client that
+relies on a `400`. Identity is the bearer token, and that is the whole ownership guarantee: student B
+cannot ask about student A, because there is no field in the request that could name A. The
+integration suite asserts exactly that, by sending one student's id in another student's request and
+checking the caller is still read their own figures.
+
+**`503 AI_UNAVAILABLE` is the failure to expect**, and it is not a bug. Unlike UC-08 and UC-17, which
+fall back to a deterministic answer, this route has no non-model answer to give: a rate limit, an
+expired quota, a timeout or a blank reply all surface as `503` with a student-readable message. **The
+client must render that as an error and offer a retry — it must never render a locally composed
+sentence as if the assistant had written it.**
+
+```ts
+// Minimal wiring. Send the transcript, render an error rather than composing a reply.
+this.http.post<ChatResponse>(`${api}/v1/chat`, { message, history }).pipe(
+  catchError(err => err.status === 503 ? this.showUnavailable(err.error.message) : throwError(() => err)));
+```
+
+Full contract: [chat-assistant.md](chat-assistant.md).
 
 ---
 
@@ -1710,8 +1757,8 @@ the client's own record; nothing else writes it.
 
 ## 9. Master quick-reference table
 
-All 76 operations in inventory order. This table matches `API_INVENTORY.md` and the live OpenAPI
-document exactly: 76 rows, numbering 1–76 contiguous, 56 distinct paths.
+All 78 operations in inventory order. This table matches `API_INVENTORY.md` and the live OpenAPI
+document exactly: 78 rows, numbering 1–78 contiguous, 57 distinct paths.
 
 | Module | Method | Endpoint | Auth | Role | Purpose |
 |--------|--------|----------|------|------|---------|
@@ -1791,13 +1838,20 @@ document exactly: 76 rows, numbering 1–76 contiguous, 56 distinct paths.
 | M12 — Forecast | `GET` | `/api/v1/forecast` | Bearer | `STUDENT` | Project next month's spending |
 | M12 — Recent Activity | `GET` | `/api/v1/recent-activity` | Bearer | `STUDENT` | List what I recently opened or changed |
 | M12 — Recent Activity | `POST` | `/api/v1/recent-activity` | Bearer | `STUDENT` | Record a view or an edit |
+| Post-module — Chat assistant | `GET` | `/api/v1/chat` | Bearer | `STUDENT` | Is the assistant available? |
+| Post-module — Chat assistant | `POST` | `/api/v1/chat` | Bearer | `STUDENT` | Ask it about my own records |
 
-**Total: 76 operations on 56 paths.**
+**Total: 78 operations on 57 paths.**
 
 > **Module 12 is implemented but locked.** Rows 62–76 are built, tested and documented, and their
 > contract is stable. Do not wire the Angular client to them until the project owner unlocks the
 > module. Full contracts: [imports.md](imports.md), [ai-and-insights.md](ai-and-insights.md) and
 > [advanced.md](advanced.md).
+
+> **The chat assistant (77–78) is not module 12 and not under that lock.** It was built after module
+> 12 at the project owner's request, implements no numbered use case, and is listed as its own
+> post-module row rather than inside the M12 lock block — so the two notes are not read as one.
+> Full contract: [chat-assistant.md](chat-assistant.md).
 
 ---
 

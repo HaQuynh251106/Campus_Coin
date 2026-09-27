@@ -613,7 +613,7 @@ Requirements with no endpoint here, and why:
 
 - [FRONTEND_API_GUIDE.md](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for the
   frontend: base URL, the auth and error interceptors to install, the shared error contract, the
-  enum reference and the master table of all 76 operations
+  enum reference and the master table of all 78 operations
 - [API_INVENTORY.md](API_INVENTORY.md) — the authoritative endpoint list
 - [profile.md](profile.md) — module 2, the profile these tokens give access to
 - [../testing/manual/MODULE_01_MANUAL_TEST.md](../testing/manual/MODULE_01_MANUAL_TEST.md) — the

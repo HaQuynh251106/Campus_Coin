@@ -47,7 +47,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(description = "One category's total for the month, as a slice of the report (UC-15).")
 public record ReportCategoryResponse(
 
-        @Schema(description = "The category's identifier.", example = "1")
+        @Schema(description = "The category's identifier. `6` is `Food`, a shared default category "
+                + "`db/05_seed.sql` creates, so the id and the name in this example belong "
+                + "together.", example = "6")
         Long categoryId,
 
         @Schema(description = "The category's name.", example = "Food")

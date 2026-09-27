@@ -177,6 +177,13 @@ development database is untouched. Docker must be available.
 verification, so the running database is the pristine seed — 3 users, 31 transactions, 31 history
 rows, 2 recurring rules, 0 audit rows, and the seeded administrator `ACTIVE`.
 
+> **Updated for `db/06_demo.sql`.** The figures in the line above are the ones this gate was verified
+> against and are left as written. The demo file now seeds a **second** student (Bella Tran) as well as
+> Alex, so a freshly initialised volume holds 3 users, **69** transactions, 69 history rows,
+> **4** recurring rules, 13 categories, 10 budgets, 3 alerts and 0 audit rows. What the second account
+> contains, and why it is not a copy of the first, is described in `CREDENTIALS.md` and
+> `DATA_CLEANUP_REPORT.md`.
+
 ---
 
 ## 7. What module 12 has since added — the delta against this gate

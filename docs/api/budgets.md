@@ -100,15 +100,15 @@ always present, because every other field has a value in every state.
 ```json
 {
   "id": 3,
-  "categoryId": 5,
-  "categoryName": "Food & Drinks",
+  "categoryId": 6,
+  "categoryName": "Food",
   "categoryIcon": "utensils",
   "categoryColor": "#F97316",
   "periodMonth": "2026-09",
-  "limitAmount": 300.00,
-  "spentAmount": 244.50,
-  "remainingAmount": 55.50,
-  "consumedPct": 81.50,
+  "limitAmount": 30.00,
+  "spentAmount": 24.00,
+  "remainingAmount": 6.00,
+  "consumedPct": 80.00,
   "consumptionStatus": "NEAR"
 }
 ```
@@ -243,23 +243,28 @@ Authorization: Bearer <accessToken>
 
 ### Response `200 OK`
 
-An unordered-then-ordered array — ordered by `categoryId` ascending so the list is stable between
-calls — with one row per category the caller has a limit for. **Only categories with a limit
+An array ordered by `categoryName` ascending and then `budgetId` ascending, so the list is stable
+between calls — with one row per category the caller has a limit for. **Only categories with a limit
 appear**; a category with no limit has nothing to report and is not a zero row.
+
+**The order is by name, not by id, and it says nothing about severity.** A client that shows a subset
+of this list must not take the first rows and assume they are the ones that need attention: an
+`EXCEEDED` budget can sort last. Rank on `consumptionStatus` first (`EXCEEDED`, then `NEAR`, then
+`ON_TRACK`) and only then cap the list — the dashboard's budget strip does exactly that.
 
 ```json
 [
   {
     "id": 3,
-    "categoryId": 5,
-    "categoryName": "Food & Drinks",
+    "categoryId": 6,
+    "categoryName": "Food",
     "categoryIcon": "utensils",
     "categoryColor": "#F97316",
     "periodMonth": "2026-09",
-    "limitAmount": 300.00,
-    "spentAmount": 244.50,
-    "remainingAmount": 55.50,
-    "consumedPct": 81.50,
+    "limitAmount": 30.00,
+    "spentAmount": 24.00,
+    "remainingAmount": 6.00,
+    "consumedPct": 80.00,
     "consumptionStatus": "NEAR"
   },
   {
@@ -336,9 +341,9 @@ Set a monthly limit for one expense category, owned by the caller.
 
 ```json
 {
-  "categoryId": 5,
+  "categoryId": 6,
   "periodMonth": "2026-09",
-  "limitAmount": 300.00
+  "limitAmount": 30.00
 }
 ```
 
@@ -357,14 +362,14 @@ The limit as the database now holds it, including its `id` and the month's consu
 ```json
 {
   "id": 21,
-  "categoryId": 5,
-  "categoryName": "Food & Drinks",
+  "categoryId": 6,
+  "categoryName": "Food",
   "categoryIcon": "utensils",
   "categoryColor": "#F97316",
   "periodMonth": "2026-09",
-  "limitAmount": 300.00,
+  "limitAmount": 30.00,
   "spentAmount": 0.00,
-  "remainingAmount": 300.00,
+  "remainingAmount": 30.00,
   "consumedPct": 0.00,
   "consumptionStatus": "ON_TRACK"
 }
@@ -878,7 +883,7 @@ test would leave it unverified.
 
 - [FRONTEND_API_GUIDE.md](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for the
   frontend: base URL, interceptors, the shared error contract, the enum reference and the master
-  table of all 76 operations
+  table of all 78 operations
 - [API_INVENTORY.md](API_INVENTORY.md) — the authoritative endpoint list
 - [authentication.md](authentication.md) — how to obtain the token these endpoints need
 - [categories.md](categories.md) — module 3, whose `categoryId` rule and retired-category behaviour this module inherits

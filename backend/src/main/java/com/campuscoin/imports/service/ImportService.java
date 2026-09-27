@@ -1,5 +1,6 @@
 package com.campuscoin.imports.service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -12,6 +13,7 @@ import com.campuscoin.auth.security.TokenHashService;
 import com.campuscoin.categorisation.entity.CategoryRuleRow;
 import com.campuscoin.categorisation.repository.CategoryRuleDao;
 import com.campuscoin.category.entity.Category;
+import com.campuscoin.common.crypto.EncryptionService;
 import com.campuscoin.common.exception.ApiError;
 import com.campuscoin.common.exception.DataConflictException;
 import com.campuscoin.common.exception.NotFoundException;
@@ -30,6 +32,7 @@ import com.campuscoin.imports.repository.ImportWriteDao;
 import com.campuscoin.imports.service.ImportDuplicateDetector.Candidate;
 import com.campuscoin.imports.service.ImportPreviewer.PreviewedFile;
 import com.campuscoin.imports.service.ImportPreviewer.RowVerdict;
+import com.campuscoin.transaction.repository.TransactionDescriptionEncryptionDao;
 
 /**
  * The CSV import: preview, correct, commit, abandon (UC-11).
@@ -115,6 +118,8 @@ public class ImportService {
     private final CategoryRuleDao categoryRuleDao;
     private final ImportMapper importMapper;
     private final TokenHashService tokenHashService;
+    private final EncryptionService encryptionService;
+    private final TransactionDescriptionEncryptionDao descriptionEncryptionDao;
 
     public ImportService(ImportPreviewer importPreviewer,
                          ImportCategoryResolver importCategoryResolver,
@@ -124,7 +129,9 @@ public class ImportService {
                          ImportRuleLearner importRuleLearner,
                          CategoryRuleDao categoryRuleDao,
                          ImportMapper importMapper,
-                         TokenHashService tokenHashService) {
+                         TokenHashService tokenHashService,
+                         EncryptionService encryptionService,
+                         TransactionDescriptionEncryptionDao descriptionEncryptionDao) {
         this.importPreviewer = importPreviewer;
         this.importCategoryResolver = importCategoryResolver;
         this.importViewDao = importViewDao;
@@ -134,6 +141,8 @@ public class ImportService {
         this.categoryRuleDao = categoryRuleDao;
         this.importMapper = importMapper;
         this.tokenHashService = tokenHashService;
+        this.encryptionService = encryptionService;
+        this.descriptionEncryptionDao = descriptionEncryptionDao;
     }
 
     /**
@@ -313,6 +322,21 @@ public class ImportService {
 
         List<Category> visible = importCategoryResolver.visibleCategories(userId);
         List<ImportRow> rows = importViewDao.findRows(userId, batchId);
+
+        // The procedure inserted each description as it read it from the file, which is plaintext:
+        // a MySQL procedure cannot produce an envelope, because that needs the application key and
+        // the key never reaches the database. `transactions.description` is an encrypted column
+        // (SECURITY.md §12.2), so the rows the commit just created are put into the one storage form
+        // the column is documented to have before anything else reads them. See OB-018 and
+        // TransactionDescriptionEncryptionDao for why this is the writer's job and not the
+        // procedure's.
+        reencryptImportedDescriptions(userId, rows);
+
+        // Read back after the rewrite, so the learner and the response both see the stored state
+        // rather than a list captured before it. The description is the field that changed and it is
+        // not one the learner reads, but re-reading keeps one list for both and removes the question
+        // of which snapshot is authoritative.
+        rows = importViewDao.findRows(userId, batchId);
         int learned = importRuleLearner.learn(userId, rows, visible);
 
         log.info("CSV import committed userId={} batchId={} learnedRules={}", userId, batchId, learned);
@@ -438,6 +462,73 @@ public class ImportService {
         }
 
         importWriteDao.refreshBatchCounters(userId, batchId);
+    }
+
+    /**
+     * Puts the descriptions the commit just inserted into the storage form the column is documented to
+     * have (OB-018).
+     *
+     * <p><b>What was wrong.</b> {@code docs/SECURITY.md} §12.2 lists {@code transactions.description} as
+     * encrypted, and {@code db/01_schema.sql} labels the column the same way. Two writers reach it, and
+     * only one of them agreed: {@code TransactionService} encrypts before storing, so every row the API
+     * writes holds an envelope, while {@code sp_apply_csv_batch} inserted {@code import_rows
+     * .parsed_description} exactly as the file spelled it. So a committed import produced rows whose
+     * column held plaintext, and the column's documented state was true of some rows and not others -
+     * including within one batch, where a later {@code PATCH} would re-encode a single row and leave its
+     * neighbours as they were.
+     *
+     * <p><b>Why the procedure could not be made to do this instead.</b> It has no way to. The envelope
+     * needs the application key, and the key deliberately never reaches MySQL - that separation is the
+     * whole point of {@link EncryptionService} and is what makes a stolen data file unreadable. A
+     * procedure asked to encrypt would have to be handed the key, which trades the protection for the
+     * symmetry. So the writer that holds the key finishes the write, at the same service boundary
+     * {@code TransactionService} writes through, and {@code TransactionDescriptionEncryptionDao} records
+     * the alternatives and why this one was chosen.
+     *
+     * <p><b>Only rows the import created are touched.</b> The pairs come from
+     * {@code import_rows.transaction_id}, which the procedure sets when it inserts, so the ids are
+     * exactly the transactions this commit made and nothing else. The statement additionally requires
+     * {@code source = 'CSV'} and the caller's own {@code user_id}, so even a stale id cannot reach a row
+     * somebody else owns. Rewriting a row the API wrote would be worse than pointless: replacing one
+     * valid envelope with another still appends a {@code transaction_history} row through
+     * {@code trg_transactions_after_update}, recording a change no student made.
+     *
+     * <p><b>The plaintext comes from the batch row, not from the transaction.</b> Reading
+     * {@code transactions.description} back would be reading whatever is there - which is the plaintext
+     * this method exists to remove, so a second commit-phase run would be encrypting an envelope. The
+     * file's own parsed description is the value the student's record should hold, and taking it from
+     * there makes the operation idempotent with respect to what it reads.
+     *
+     * <p>A row whose description is {@code null} is passed through as {@code null} rather than skipped,
+     * so the statement stays one statement per batch; {@link EncryptionService#encrypt} returns null for
+     * null, and the {@code CASE} assigns the same null the procedure already stored.
+     */
+    private void reencryptImportedDescriptions(Long userId, List<ImportRow> rows) {
+        List<Long> transactionIds = new ArrayList<>();
+        List<String> envelopes = new ArrayList<>();
+
+        for (ImportRow row : rows) {
+            if (row.transactionId() == null) {
+                continue;
+            }
+            transactionIds.add(row.transactionId());
+            envelopes.add(encryptionService.encrypt(row.parsedDescription()));
+        }
+
+        int rewritten = descriptionEncryptionDao.reencryptImportedDescriptions(
+                userId, transactionIds, envelopes);
+
+        if (rewritten != transactionIds.size()) {
+            // Not a refusal - the enclosing transaction is about to roll back on any exception, so this
+            // would surface as the import failing rather than as a log line. It is worth recording
+            // loudly anyway, because the only way the two numbers can differ is a row this commit
+            // created being missing or not CSV-sourced, and that would mean the count the response
+            // reports and the state the table holds disagree.
+            throw new IllegalStateException("CSV import commit rewrote " + rewritten + " of "
+                    + transactionIds.size() + " imported descriptions; the batch and the table disagree.");
+        }
+
+        log.debug("CSV import descriptions re-encoded userId={} rows={}", userId, rewritten);
     }
 
     /**

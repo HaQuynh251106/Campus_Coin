@@ -104,8 +104,8 @@ modules set, and there is one rule to apply — "no value means the key is absen
 {
   "id": 17,
   "type": "BUDGET_NEAR",
-  "title": "Approaching budget limit: Food & Drinks",
-  "body": "You have used 81.5% of your Food & Drinks budget (244.50 of 300.00).",
+  "title": "Approaching budget limit: Food",
+  "body": "You have used 80.00% of your Food budget (24.00 of 30.00).",
   "linkUrl": "/budgets",
   "refEntityType": "BUDGET",
   "refEntityId": 3,
@@ -219,8 +219,8 @@ The prose is written by the procedure, not by this API. These are its literal st
 {
   "id": 17,
   "type": "BUDGET_NEAR",
-  "title": "Approaching budget limit: Food & Drinks",
-  "body": "You have used 81.5% of your Food & Drinks budget (244.50 of 300.00).",
+  "title": "Approaching budget limit: Food",
+  "body": "You have used 80.00% of your Food budget (24.00 of 30.00).",
   "linkUrl": "/budgets",
   "refEntityType": "BUDGET",
   "refEntityId": 3,
@@ -233,8 +233,8 @@ The prose is written by the procedure, not by this API. These are its literal st
 {
   "id": 21,
   "type": "BUDGET_EXCEEDED",
-  "title": "Budget exceeded: Food & Drinks",
-  "body": "You have spent 320.00 of 300.00 (106.67%) on Food & Drinks.",
+  "title": "Budget exceeded: Food",
+  "body": "You have spent 30.00 of 25.00 (120.00%) on Food.",
   "linkUrl": "/budgets",
   "refEntityType": "BUDGET",
   "refEntityId": 3,
@@ -317,8 +317,8 @@ equal rows in either order, making the list appear to shuffle between two identi
   {
     "id": 21,
     "type": "BUDGET_EXCEEDED",
-    "title": "Budget exceeded: Food & Drinks",
-    "body": "You have spent 320.00 of 300.00 (106.67%) on Food & Drinks.",
+    "title": "Budget exceeded: Food",
+    "body": "You have spent 30.00 of 25.00 (120.00%) on Food.",
     "linkUrl": "/budgets",
     "refEntityType": "BUDGET",
     "refEntityId": 3,
@@ -328,8 +328,8 @@ equal rows in either order, making the list appear to shuffle between two identi
   {
     "id": 17,
     "type": "BUDGET_NEAR",
-    "title": "Approaching budget limit: Food & Drinks",
-    "body": "You have used 81.5% of your Food & Drinks budget (244.50 of 300.00).",
+    "title": "Approaching budget limit: Food",
+    "body": "You have used 80.00% of your Food budget (24.00 of 30.00).",
     "linkUrl": "/budgets",
     "refEntityType": "BUDGET",
     "refEntityId": 3,
@@ -412,8 +412,8 @@ The notification as it now is: `isRead: true` and `readAt` set to the moment it 
 {
   "id": 17,
   "type": "BUDGET_NEAR",
-  "title": "Approaching budget limit: Food & Drinks",
-  "body": "You have used 81.5% of your Food & Drinks budget (244.50 of 300.00).",
+  "title": "Approaching budget limit: Food",
+  "body": "You have used 80.00% of your Food budget (24.00 of 30.00).",
   "linkUrl": "/budgets",
   "refEntityType": "BUDGET",
   "refEntityId": 3,
@@ -698,7 +698,7 @@ differ (`2026-09-24T18:02:11` vs `...Z`) and the comparison would be meaningless
 
 - [FRONTEND_API_GUIDE.md](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for the
   frontend: base URL, interceptors, the shared error contract, the enum reference and the master
-  table of all 76 operations
+  table of all 78 operations
 - [API_INVENTORY.md](API_INVENTORY.md) — the authoritative endpoint list
 - [authentication.md](authentication.md) — how to obtain the token these endpoints need
 - [budgets.md](budgets.md) — module 6's other half, UC-13, where the limits these alerts are about are set

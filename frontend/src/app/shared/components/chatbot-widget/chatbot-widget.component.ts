@@ -4,9 +4,11 @@ import {
   ViewChild,
   ElementRef,
   AfterViewChecked,
+  OnInit,
   ChangeDetectionStrategy,
   Input,
   signal,
+  computed,
   HostListener
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -101,7 +103,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
           </div>
         </div>
       } @else {
-        <!-- Full Mock Chat Panel for Logged-In Student Portal -->
+        <!-- Chat Panel for Logged-In Student Portal. Every reply here comes from the backend. -->
         <div
           class="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 h-[460px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-subtle-lg flex flex-col overflow-hidden animate-scale-up z-50 select-none"
         >
@@ -138,6 +140,21 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
             #scrollContainer
             class="flex-1 p-3.5 overflow-y-auto space-y-3 bg-neutral-50/40 dark:bg-neutral-900/60 chat-scrollbar"
           >
+            <!-- Empty state: what the assistant can do, shown before anything is asked. It is not a
+                 transcript entry, so it is not replayed to the model as a previous reply. -->
+            @if (messages().length === 0) {
+              <div class="flex items-start gap-2 max-w-[88%]">
+                <div class="w-6 h-6 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-700 dark:text-amber-400 shrink-0 mt-0.5 shadow-xs">
+                  <app-icon name="squirrel-logo" [size]="13" strokeWidth="1.8"></app-icon>
+                </div>
+                <div
+                  class="rounded-2xl rounded-tl-xs p-3 text-xs leading-relaxed break-words bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border border-neutral-200/80 dark:border-neutral-700/80 shadow-xs"
+                >
+                  {{ greetingText() }}
+                </div>
+              </div>
+            }
+
             @for (msg of messages(); track msg.id) {
               @if (msg.sender === 'assistant') {
                 <!-- Assistant Message with Bot Mascot Avatar (A.4) -->
@@ -147,10 +164,35 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
                   </div>
                   <div class="flex flex-col items-start">
                     <div
-                      class="rounded-2xl p-3 text-xs leading-relaxed bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border border-neutral-200/80 dark:border-neutral-700/80 rounded-tl-xs shadow-xs"
+                      class="rounded-2xl p-3 text-xs leading-relaxed break-words whitespace-pre-wrap border shadow-xs"
+                      [class.bg-white]="!msg.failed"
+                      [class.dark:bg-neutral-800]="!msg.failed"
+                      [class.text-neutral-800]="!msg.failed"
+                      [class.dark:text-neutral-200]="!msg.failed"
+                      [class.border-neutral-200/80]="!msg.failed"
+                      [class.dark:border-neutral-700/80]="!msg.failed"
+                      [class.rounded-tl-xs]="!msg.failed"
+                      [class.bg-rose-50]="!!msg.failed"
+                      [class.dark:bg-rose-950/40]="!!msg.failed"
+                      [class.text-rose-700]="!!msg.failed"
+                      [class.dark:text-rose-300]="!!msg.failed"
+                      [class.border-rose-200]="!!msg.failed"
+                      [class.dark:border-rose-900/60]="!!msg.failed"
                     >
                       {{ msg.text }}
                     </div>
+                    <!-- A failed turn is a retry affordance, not a reply: the panel offers to send
+                         the same question again rather than leaving the student to retype it. -->
+                    @if (msg.failed && msg.retryText) {
+                      <button
+                        type="button"
+                        (click)="retry(msg.retryText!)"
+                        [disabled]="isTyping()"
+                        class="mt-1 px-2 py-0.5 text-[10px] font-medium rounded-md border border-rose-300 dark:border-rose-900/60 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-950/60 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                      >
+                        Retry
+                      </button>
+                    }
                     <span class="text-[9px] text-[var(--color-text-muted)] mt-1 px-1 font-mono">
                       {{ msg.time }}
                     </span>
@@ -160,7 +202,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
                 <!-- User Message -->
                 <div class="flex flex-col items-end self-end max-w-[85%]">
                   <div
-                    class="rounded-2xl p-3 text-xs leading-relaxed bg-amber-500/15 text-neutral-950 dark:text-amber-100 border border-amber-500/30 rounded-tr-xs shadow-xs"
+                    class="rounded-2xl p-3 text-xs leading-relaxed break-words whitespace-pre-wrap bg-amber-500/15 text-neutral-950 dark:text-amber-100 border border-amber-500/30 rounded-tr-xs shadow-xs"
                   >
                     {{ msg.text }}
                   </div>
@@ -211,17 +253,27 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
             </button>
           </div>
 
+          <!-- Unavailable Notice. Shown only when the backend has told us the assistant cannot
+               answer, so the panel says so instead of accepting a question it will fail to send. -->
+          @if (isUnavailable()) {
+            <div class="px-3 py-1.5 border-t border-amber-200/70 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 text-[10px] text-amber-800 dark:text-amber-300 leading-snug">
+              {{ unavailableReason() }}
+            </div>
+          }
+
           <!-- Chat Input Footer with Accessible Contrast (A.3) -->
-          <form (ngSubmit)="onSend()" class="p-2.5 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex items-center gap-2">
-            <input
-              type="text"
+          <form (ngSubmit)="onSend()" class="p-2.5 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex items-end gap-2">
+            <textarea
+              #inputField
+              rows="1"
               [value]="userInput()"
-              (input)="userInput.set($any($event.target).value)"
+              (input)="userInput.set($any($event.target).value); autoGrow($event)"
+              (keydown)="onKeydown($event)"
               name="chatInput"
               placeholder="Ask about budgets, meals, allowance…"
               [disabled]="isTyping()"
-              class="flex-1 px-3 py-1.5 text-xs bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-600 dark:placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
-            />
+              class="flex-1 px-3 py-1.5 text-xs bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-600 dark:placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none max-h-24 overflow-y-auto chat-scrollbar"
+            ></textarea>
             <button
               type="submit"
               [disabled]="!userInput().trim() || isTyping()"
@@ -286,7 +338,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
     }
   `]
 })
-export class ChatbotWidgetComponent implements AfterViewChecked {
+export class ChatbotWidgetComponent implements OnInit, AfterViewChecked {
   @Input() initialAnchor: MascotAnchor = 'bottom-right';
   @Input() isGuestMode: boolean = false;
 
@@ -294,12 +346,51 @@ export class ChatbotWidgetComponent implements AfterViewChecked {
   private mascotService = inject(MascotService);
 
   @ViewChild('scrollContainer') private scrollContainer?: ElementRef;
+  @ViewChild('inputField') private inputField?: ElementRef<HTMLTextAreaElement>;
 
   userInput = signal('');
 
   isOpen = this.mascotService.isChatOpen;
   messages = this.chatbotService.messages;
+  greetingText = this.chatbotService.greetingText;
   isTyping = this.chatbotService.isTyping;
+
+  /** The assistant's availability, once the backend has reported it. */
+  availability = this.chatbotService.availability;
+
+  /** True only once the backend has positively said the assistant cannot answer. */
+  isUnavailable = computed(() => this.availability()?.available === false);
+
+  /**
+   * Why, in the backend's own words when it gave a reason.
+   *
+   * A generic sentence stands in when it did not, so the panel never renders an empty amber bar.
+   */
+  unavailableReason = computed(
+    () => this.availability()?.reason || 'The assistant is unavailable right now.'
+  );
+
+  ngOnInit(): void {
+    // Asks the provider nothing - the endpoint reports configuration - so this costs no quota and is
+    // safe to fire once the panel exists rather than lazily on open.
+    //
+    // Only when a student is signed in, though. The endpoint requires the STUDENT role, and a guest
+    // panel on the landing page is mounted before anyone logs in: asking there would get a 401, and
+    // the error interceptor answers a 401 by clearing the session and redirecting to the login page.
+    // A guest who merely loaded the landing page would be bounced to /auth/login by a status check
+    // the gated panel never needed - it offers that link itself. The guest panel reports
+    // "sign in to ask" from its own copy and asks the backend nothing.
+    //
+    // This is `ngOnInit` and not the constructor specifically because `isGuestMode` is an `@Input()`:
+    // Angular binds inputs after the constructor runs, so a check made there would always read the
+    // default `false` and would fire the request for guests anyway.
+    if (!this.isGuestMode) {
+      // Drop a transcript left by a different account before the panel renders it, so a previous
+      // student's replies are never shown to the next one even for a frame.
+      this.chatbotService.syncToSignedInUser();
+      this.chatbotService.checkAvailability();
+    }
+  }
 
   @HostListener('document:keydown.escape')
   onEscapeKey(): void {
@@ -320,11 +411,46 @@ export class ChatbotWidgetComponent implements AfterViewChecked {
     this.chatbotService.sendMessage(prompt);
   }
 
+  /** Sends the same question again after a failed turn. */
+  retry(prompt: string): void {
+    if (this.isTyping()) return;
+    this.chatbotService.sendMessage(prompt);
+  }
+
   onSend(): void {
     const text = this.userInput().trim();
     if (!text || this.isTyping()) return;
     this.userInput.set('');
+    this.resetInputHeight();
     this.chatbotService.sendMessage(text);
+  }
+
+  /**
+   * Enter sends; Shift+Enter adds a newline.
+   *
+   * The textarea is the widget's only multiline input, so the modifier is what separates "I have
+   * finished typing" from "I am still typing". Without this, Enter would either always send — making
+   * a multi-line question impossible — or never send, which is not what a chat box does.
+   */
+  onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      this.onSend();
+    }
+  }
+
+  /** Grows the input to fit what has been typed, up to the CSS `max-h-24` cap. */
+  autoGrow(event: Event): void {
+    const el = event.target as HTMLTextAreaElement;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }
+
+  private resetInputHeight(): void {
+    const el = this.inputField?.nativeElement;
+    if (el) {
+      el.style.height = 'auto';
+    }
   }
 
   ngAfterViewChecked(): void {

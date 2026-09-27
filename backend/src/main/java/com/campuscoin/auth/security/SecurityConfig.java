@@ -270,6 +270,26 @@ public class SecurityConfig {
                         // paths differ after /api/v1/), and without this rule it would fall to the
                         // catch-all below, which admits any authenticated account.
                         .requestMatchers("/api/v1/imports/**").hasRole("STUDENT")
+                        // The conversational assistant is a student's own records being described back to
+                        // them in conversation. It is not one of the SRS's numbered use cases - that
+                        // specification runs UC-01..UC-27 and has no conversational assistant in it - and
+                        // it is not part of a locked module; it was requested as a separate feature after
+                        // module 12, which is why it is under a prefix of its own rather than folded into
+                        // /api/v1/ai/**. The route is the most exposing read in the application: a
+                        // question can reach the dashboard summary, any month's figures, a category's
+                        // spending, a budget's consumption, individual transactions, the forecast, the
+                        // flagged records and the recent activity, all for the bearer of the token. So
+                        // it is one student's finances end to end, which UC-23's aggregates over many
+                        // students are not, and an administrator has no use case for it. The route also
+                        // writes nothing but does spend a provider call carrying the student's own
+                        // aggregates, so a role admitted by accident could send a student's figures to
+                        // a third party from a screen with no reason to. This path matches none of the
+                        // prefixes above - it is deliberately not /api/v1/ai/**, whose paths differ
+                        // after /api/v1/ - and without this rule it would fall to the catch-all below,
+                        // which admits any authenticated account. Both the GET and the POST are
+                        // covered: the bare prefix matches a `/**` pattern, the same way the
+                        // /api/v1/dashboard rule above covers a controller mapped at that path.
+                        .requestMatchers("/api/v1/chat/**").hasRole("STUDENT")
                         .requestMatchers("/api/**").authenticated()
                         // Kept permissive because Spring's own /error dispatch and the static
                         // Swagger UI assets live outside /api/**. Every application endpoint is

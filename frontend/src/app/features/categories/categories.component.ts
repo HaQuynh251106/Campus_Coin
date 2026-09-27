@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { CategoryService } from '../../core/services/category.service';
 import { ToastService } from '../../core/services/toast.service';
 import { Category, CategoryType } from '../../core/models/category.model';
-import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadcrumbs.component';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { CategoryIconComponent } from '../../shared/components/category-icon/category-icon.component';
@@ -12,14 +11,9 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
 @Component({
   selector: 'app-categories',
   standalone: true,
-  imports: [CommonModule, FormsModule, BreadcrumbsComponent, IconComponent, CategoryIconComponent],
+  imports: [CommonModule, FormsModule, IconComponent, CategoryIconComponent],
   template: `
     <div class="space-y-6">
-      <!-- Breadcrumbs -->
-      <app-breadcrumbs
-        [items]="[{ label: 'Categories' }]"
-      ></app-breadcrumbs>
-
       <!-- Page Header -->
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -73,7 +67,10 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
       <!-- Categories Grid -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         @for (cat of currentList; track cat.id) {
-          <div class="card-brutal p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs flex flex-col justify-between hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors">
+          <div
+            class="card-brutal p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs flex flex-col justify-between hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors"
+            [class.opacity-60]="!cat.isActive"
+          >
             <div>
               <div class="flex items-center justify-between mb-2">
                 <div class="flex items-center gap-3">
@@ -82,6 +79,7 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
                     [icon]="cat.icon"
                     [color]="cat.color"
                     size="md"
+                    [class.grayscale]="!cat.isActive"
                   ></app-category-icon>
                   <div>
                     <h4 class="font-medium text-sm text-neutral-900 dark:text-neutral-50">
@@ -93,7 +91,14 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
                   </div>
                 </div>
 
-                @if (cat.isDefault) {
+                @if (!cat.isActive) {
+                  <!-- BR-07: a retired category keeps its history and stays in the list, but is no
+                       longer offered for new records. docs/api/categories.md requires it to be
+                       shown as disabled; without this badge it looked identical to an active one. -->
+                  <span class="text-[11px] font-semibold text-rose-600 dark:text-rose-400">
+                    Retired
+                  </span>
+                } @else if (cat.isDefault) {
                   <span class="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
                     System Default
                   </span>

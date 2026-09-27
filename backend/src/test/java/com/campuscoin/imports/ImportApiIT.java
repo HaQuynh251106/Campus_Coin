@@ -414,6 +414,54 @@ class ImportApiIT extends AbstractImportApiIT {
     }
 
     @Test
+    @DisplayName("OB-018: an imported description is ciphertext at rest the moment the commit returns")
+    void anImportedDescriptionIsAnEnvelopeAsSoonAsTheCommitReturns() throws Exception {
+        String token = loginNewStudent();
+
+        // A second row with no description at all, so the repair is shown to leave a null alone rather
+        // than to have skipped it: the CASE assigns the same null the procedure stored.
+        JsonNode preview = uploadExpectingCreated(token, csv(
+                rowOf(EARLIER, "12.50", "EXPENSE", "M12 verify snack", FOOD),
+                rowOf(EARLIER, "8.00", "EXPENSE", "", FOOD)));
+
+        JsonNode committed = commitExpectingOk(token, batchIdOf(preview));
+        List<Long> ids = importedTransactionIds(committed);
+        assertThat(ids).hasSize(2);
+
+        // The direct SELECT an attacker with the database file runs. Sp_apply_csv_batch inserted this
+        // value as the file spelled it, so before the repair this row held the words in the clear and
+        // read back correctly anyway - which is why the defect survived a suite that only ever asked
+        // the API. The assertion is on the stored form, not on what a read returns.
+        String stored = storedDescriptionOf(ids.get(0));
+        assertThat(stored).isNotNull().doesNotContain("M12 verify snack");
+        // ...and it is a real envelope rather than merely an encoding: the app recovers the text.
+        assertThat(decryptField(stored)).isEqualTo("M12 verify snack");
+
+        // A row with no description stays null. Encrypting an empty string would make "the student gave
+        // no note" indistinguishable from "the student gave a note" without reading the key.
+        assertThat(storedDescriptionOf(ids.get(1))).isNull();
+
+        // The owner still sees the words through the API, which is what makes the repair invisible to
+        // the student. Read through the record endpoint rather than the batch, so the value has come
+        // the whole way back out of the column the repair rewrote.
+        assertThat(send(HttpMethod.GET, TRANSACTIONS_URL + "/" + ids.get(0), token, null).getBody())
+                .contains("M12 verify snack");
+
+        // And no row of the batch is left holding the file's own words. Compared against
+        // import_rows.parsed_description - the value the procedure copied - so the check states the
+        // defect itself: "the transaction's stored form is still the file's text". Restricted to rows
+        // that had a description to copy, because two nulls are equal and a row with no note is not a
+        // row holding plaintext.
+        assertThat(countOf("SELECT COUNT(*) FROM transactions t JOIN import_rows r "
+                        + "ON r.transaction_id = t.id "
+                        + "WHERE r.batch_id = ? AND r.parsed_description IS NOT NULL "
+                        + "AND t.description <=> r.parsed_description",
+                batchIdOf(preview)))
+                .as("rows of the batch whose stored description is still the file's plaintext")
+                .isZero();
+    }
+
+    @Test
     @DisplayName("UC-08 during UC-11: a learned mapping suggests a category, which is advice and not a filing")
     void aLearnedMappingSuggestsACategoryWithoutFilingTheRow() throws Exception {
         String token = loginNewStudent();

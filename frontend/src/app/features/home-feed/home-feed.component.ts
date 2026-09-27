@@ -8,7 +8,9 @@ import { DashboardService } from '../../core/services/dashboard.service';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../core/services/toast.service';
 import { Transaction } from '../../core/models/transaction.model';
-import { Budget } from '../../core/models/budget.model';
+import { Budget, rankBudgetsBySeverity } from '../../core/models/budget.model';
+import { DashboardAnnouncement } from '../../core/models/dashboard.model';
+import { AnnouncementBannerComponent } from '../../shared/components/announcement-banner/announcement-banner.component';
 import { CardComponent } from '../../shared/components/card/card.component';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { ProgressRingComponent } from '../../shared/components/progress-ring/progress-ring.component';
@@ -33,7 +35,8 @@ interface GroupedDayTransactions {
     EmptyStateComponent,
     LoadingSkeletonComponent,
     IconComponent,
-    CategoryIconComponent
+    CategoryIconComponent,
+    AnnouncementBannerComponent
   ],
   template: `
     <div class="space-y-6">
@@ -99,6 +102,26 @@ interface GroupedDayTransactions {
           </div>
         </div>
       </div>
+
+      <!--
+        Live system announcements (UC-12 B3, written by UC-21).
+
+        The array arrives already filtered to this student's audience and already scoped to its
+        window, so the only decision left here is whether there is anything to show. An empty array
+        means "nothing to show" rather than "the call failed" - the two are distinguished upstream,
+        where a failed dashboard call leaves the payload null and every block on this screen stays
+        empty together.
+
+        Nothing is rendered when the list is empty: a heading with no notices under it would be a
+        worse answer than no section at all.
+      -->
+      @if (announcements.length > 0) {
+        <div class="space-y-2.5">
+          @for (notice of announcements; track notice.id) {
+            <app-announcement-banner [announcement]="notice"></app-announcement-banner>
+          }
+        </div>
+      }
 
       <!-- 2. Category Budget Progress Cards Strip -->
       <div>
@@ -210,10 +233,20 @@ interface GroupedDayTransactions {
                           </h4>
                           <div class="flex items-center gap-2 text-xs text-[var(--color-text-muted)] mt-0.5">
                             <span>{{ tx.categoryName }}</span>
-                            @if (tx.recurringFrequency !== 'NONE') {
+                            <!--
+                              A transaction publishes its source and nothing else about its rule:
+                              no rule id, no frequency. So the badge can honestly say the row came
+                              from a rule but cannot name which one. The frequency lives on the
+                              Recurring page, where the rules are.
+                            -->
+                            @if (tx.source === 'RECURRING') {
                               <span>&bull;</span>
-                              <span class="text-[11px]">
-                                🔁 {{ tx.recurringFrequency | lowercase }}
+                              <span
+                                class="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-500/20"
+                                title="Posted automatically by a recurring rule"
+                              >
+                                <app-icon name="repeat" [size]="11" strokeWidth="2"></app-icon>
+                                <span>Recurring</span>
                               </span>
                             }
                           </div>
@@ -264,6 +297,7 @@ export class HomeFeedComponent implements OnInit {
   balance: MonthlyBalance = { income: 0, expense: 0, net: 0, savingsRate: 0 };
   periodLabel = 'September 2026';
   topBudgets: Budget[] = [];
+  announcements: DashboardAnnouncement[] = [];
   groupedTransactions: GroupedDayTransactions[] = [];
 
   isLoadingTxs = true;
@@ -291,12 +325,21 @@ export class HomeFeedComponent implements OnInit {
             savingsRate: Math.round(dashboard.summary.savingsGoalPct ?? 0)
           };
           this.periodLabel = dashboard.periodMonth || '2026-09';
+
+          // UC-12 B3. The dashboard filters these to the caller's audience and to their own window
+          // before the response is built, so there is nothing to re-filter here. A failed dashboard
+          // call leaves `dashboard` null and this list empty, which reads as "nothing to show" — the
+          // banner is one block of a screen that has already visibly failed to load its figures.
+          this.announcements = dashboard.announcements || [];
         } else {
           this.balance = this.txService.getMonthlyBalance('2026-09');
+          this.announcements = [];
         }
 
-        // 2. Budgets
-        this.topBudgets = (budgets || []).slice(0, 4);
+        // 2. Budgets. Ranked by the server's consumption status before the strip is capped — see
+        // `rankBudgetsBySeverity`. Taking the API's first four rows would show whichever categories
+        // sort first by name, which can hide a category that is over its limit.
+        this.topBudgets = rankBudgetsBySeverity(budgets || []).slice(0, 4);
 
         // 3. Transactions
         this.groupTransactionsByDay((transactions || []).slice(0, 15));

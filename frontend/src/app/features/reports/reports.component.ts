@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { forkJoin, of, catchError } from 'rxjs';
 import { TransactionService, MonthlyTrendItem, CategoryBreakdownItem } from '../../core/services/transaction.service';
-import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadcrumbs.component';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 
@@ -15,16 +14,10 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
     CommonModule,
     FormsModule,
     RouterModule,
-    BreadcrumbsComponent,
     IconComponent
   ],
   template: `
     <div class="space-y-6">
-      <!-- Breadcrumbs -->
-      <app-breadcrumbs
-        [items]="[{ label: 'Reports & Analytics' }]"
-      ></app-breadcrumbs>
-
       <!-- Page Header -->
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div>

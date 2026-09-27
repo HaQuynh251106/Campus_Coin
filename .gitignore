@@ -32,10 +32,15 @@ frontend/yarn-error.log*
 *.log
 pgdata/
 
-# Environment secrets — real credentials stay local, .env.example is committed
-.env
-.env.local
-.env.*.local
+# Environment secrets — real credentials stay local, .env.example is committed.
+# `.env*` covers .env, .env.local, .env.<profile>, and every backup spelling
+# (.env.local.bak, .env.bak, .env.old …) so a hand-made backup cannot leak.
+.env*
+!.env.example
+
+# Local AI-tooling artifacts (never part of the product)
+.claude/settings.local.json
+.playwright-mcp/
 
 # Docker local generated files
 docker-compose.override.yml

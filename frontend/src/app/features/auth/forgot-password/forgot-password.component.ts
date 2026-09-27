@@ -1,12 +1,18 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router, RouterModule, ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 
 type ResetStep = 'request' | 'sent' | 'reset-token';
+
+function passwordMatchValidator(control: AbstractControl): ValidationErrors | null {
+  const password = control.get('newPassword')?.value;
+  const confirm = control.get('confirmNewPassword')?.value;
+  return password && confirm && password !== confirm ? { passwordMismatch: true } : null;
+}
 
 @Component({
   selector: 'app-forgot-password',
@@ -41,6 +47,15 @@ type ResetStep = 'request' | 'sent' | 'reset-token';
               class="input-brutal"
             />
           </div>
+
+          <!-- The throttle response is the one failure this step can report; without it the
+               student saw the form reset to empty and no reason why. -->
+          @if (errorMessage) {
+            <div class="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 animate-fade-in">
+              <app-icon name="alert-triangle" size="14"></app-icon>
+              <span>{{ errorMessage }}</span>
+            </div>
+          }
 
           <button
             type="submit"
@@ -78,15 +93,16 @@ type ResetStep = 'request' | 'sent' | 'reset-token';
             <strong class="text-neutral-900 dark:text-white block mt-1 font-mono text-xs">{{ userEmail }}</strong>
           </p>
 
-          <!-- Mock Token Link Trigger for Demo / Judging -->
+          <!-- Opens the token form without a token, for review only. This is NOT a working reset:
+               the accounts have no reachable inbox, so nothing here stands in for the emailed link. -->
           <div class="p-3 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 rounded-lg mb-5 text-left">
-            <span class="text-xs text-neutral-500 block mb-1">Demo Quick Jump:</span>
+            <span class="text-xs text-neutral-500 block mb-1">View the token form (no token):</span>
             <button
               type="button"
               (click)="simulateEmailClick()"
-              class="w-full py-2 px-3 text-xs font-medium bg-amber-500 hover:bg-amber-600 text-neutral-950 rounded-md transition-colors cursor-pointer"
+              class="w-full py-2 px-3 text-xs font-medium bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-700 dark:hover:bg-neutral-600 text-neutral-800 dark:text-neutral-100 rounded-md transition-colors cursor-pointer"
             >
-              Simulate Clicking Email Link (?token=campus-demo-8842) ⚡
+              Open Reset Form (token required) →
             </button>
           </div>
 
@@ -106,7 +122,11 @@ type ResetStep = 'request' | 'sent' | 'reset-token';
             Create New Password
           </h2>
           <p class="text-xs font-mono text-emerald-600 dark:text-emerald-400 mt-1">
-            Token: {{ token }}
+            @if (token) {
+              Token: {{ token }}
+            } @else {
+              Awaiting the token from your email link.
+            }
           </p>
         </div>
 
@@ -121,10 +141,26 @@ type ResetStep = 'request' | 'sent' | 'reset-token';
               <span>{{ errorMessage }}</span>
             </div>
           }
+          <!-- The server owns the password rules. The trigger is dirty-or-touched, not touched
+               alone: the submit button stays disabled while the form is invalid, so a click can
+               never mark the field touched and the student would get a dead button and no reason.
+               Mirrors PasswordResetCompleteRequest. -->
+          @if ((resetForm.controls.newPassword.dirty || resetForm.controls.newPassword.touched)
+               && resetForm.controls.newPassword.invalid) {
+            <p class="text-xs text-rose-600 dark:text-rose-400 font-semibold mb-4">
+              Password must be 8-72 characters and include an upper-case letter, a lower-case letter and a digit.
+            </p>
+          }
+          @if ((resetForm.controls.confirmNewPassword.dirty || resetForm.controls.confirmNewPassword.touched)
+               && resetForm.hasError('passwordMismatch')) {
+            <p class="text-xs text-rose-600 dark:text-rose-400 font-semibold mb-4">
+              The two passwords do not match.
+            </p>
+          }
           <form [formGroup]="resetForm" (ngSubmit)="onResetSubmit()" class="space-y-4">
             <div>
               <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1">
-                New Password (min 6 chars)
+                New Password (8+ chars, upper, lower, digit)
               </label>
               <input
                 type="password"
@@ -171,6 +207,7 @@ export class ForgotPasswordComponent {
   private auth = inject(AuthService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
+  private cdr = inject(ChangeDetectorRef);
 
   step: ResetStep = 'request';
   userEmail = 'an.nguyen@student.campuscoin.edu';
@@ -183,10 +220,20 @@ export class ForgotPasswordComponent {
     email: ['an.nguyen@student.campuscoin.edu', [Validators.required, Validators.email]]
   });
 
+  // The rules mirror PasswordResetCompleteRequest, which reuses the registration policy: a
+  // password this form accepts must not be one the server refuses. Without the pattern checks the
+  // form reported "valid" and the refusal only came back from the API.
   resetForm = this.fb.group({
-    newPassword: ['', [Validators.required, Validators.minLength(8)]],
-    confirmNewPassword: ['', [Validators.required, Validators.minLength(8)]]
-  });
+    newPassword: ['', [
+      Validators.required,
+      Validators.minLength(8),
+      Validators.maxLength(72),
+      Validators.pattern(/.*[A-Z].*/),
+      Validators.pattern(/.*[a-z].*/),
+      Validators.pattern(/.*\d.*/)
+    ]],
+    confirmNewPassword: ['', [Validators.required, Validators.minLength(8), Validators.maxLength(72)]]
+  }, { validators: passwordMatchValidator });
 
   constructor() {
     this.route.queryParams.subscribe(params => {
@@ -197,10 +244,14 @@ export class ForgotPasswordComponent {
           next: () => {
             this.isLoading = false;
             this.step = 'reset-token';
+            this.cdr.markForCheck();
           },
           error: (err) => {
             this.isLoading = false;
             this.errorMessage = err.error?.message || 'Invalid or expired reset token';
+            // Zoneless: a token that fails verification kept the screen on "Reset Password" with
+            // no explanation, because this state write did not schedule a render.
+            this.cdr.markForCheck();
           }
         });
       }
@@ -216,17 +267,36 @@ export class ForgotPasswordComponent {
       next: () => {
         this.isLoading = false;
         this.step = 'sent';
+        // Zoneless: the POST succeeds but nothing re-renders without this, so the screen stayed on
+        // the email form and the reset could never be completed. The response is deliberately
+        // identical whether or not the address exists, so this branch always advances.
+        this.cdr.markForCheck();
       },
-      error: () => {
+      error: (err) => {
         this.isLoading = false;
-        this.step = 'sent';
+        // A 429 (TOO_MANY_ATTEMPTS, authentication.md §7.10) is not the anonymous success case:
+        // no mail is sent, and the guide says to show the message. Advancing to "check your inbox"
+        // there would send the student looking for a link that was never dispatched.
+        if (err?.status === 429) {
+          this.errorMessage = err.error?.message || 'Too many reset requests. Please wait a few minutes and try again.';
+        } else {
+          this.step = 'sent';
+        }
+        this.cdr.markForCheck();
       }
     });
   }
 
   simulateEmailClick(): void {
+    // Placeholder only. The demo accounts have no reachable inbox, so the link the real email
+    // would carry cannot be followed here; this opens the form for review. The token is left
+    // unset rather than filled with an invented value, so the server still decides — and its
+    // refusal now renders instead of leaving the screen looking hung.
+    this.token = '';
+    this.errorMessage = '';
+    this.isLoading = false;
     this.step = 'reset-token';
-    this.token = 'campus-demo-8842';
+    this.cdr.markForCheck();
   }
 
   private toast = inject(ToastService);

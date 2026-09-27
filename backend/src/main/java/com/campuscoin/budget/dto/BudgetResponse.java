@@ -35,13 +35,18 @@ import io.swagger.v3.oas.annotations.media.Schema;
         + "(UC-13).")
 public record BudgetResponse(
 
-        @Schema(description = "Identifier, as the database assigned it.", example = "3")
+        @Schema(description = "Identifier, as the database assigned it. The value in this example "
+                + "is an illustration of the type, not a row that exists: ids are assigned by the "
+                + "database, and a budget only exists once a student has created one. Take the id "
+                + "from a response rather than assuming a value.", example = "3")
         Long id,
 
-        @Schema(description = "The expense category this limit applies to.", example = "1")
+        @Schema(description = "The expense category this limit applies to. A budget can only name "
+                + "an EXPENSE category (BR-11), so an INCOME id is never valid here. `6` is `Food`, "
+                + "the first expense category `db/05_seed.sql` creates.", example = "6")
         Long categoryId,
 
-        @Schema(description = "Name of that category.", example = "Food & Drinks")
+        @Schema(description = "Name of that category.", example = "Food")
         String categoryName,
 
         @Schema(description = "Icon name of that category, for the client to resolve. Omitted when "
@@ -57,19 +62,20 @@ public record BudgetResponse(
         @Schema(description = "The month this limit covers, as `yyyy-MM`.", example = "2026-09")
         String periodMonth,
 
-        @Schema(description = "The limit for the month.", example = "300.00")
+        @Schema(description = "The limit for the month.", example = "30.00")
         BigDecimal limitAmount,
 
         @Schema(description = "How much has been spent in this category this month, counting only "
-                + "records that are not in the trash (BR-09).", example = "244.50")
+                + "records that are not in the trash (BR-09).", example = "24.00")
         BigDecimal spentAmount,
 
-        @Schema(description = "How much of the limit is left. Negative once the limit is passed.",
-                example = "55.50")
+        @Schema(description = "How much of the limit is left. Negative once the limit is passed. "
+                + "`limitAmount - spentAmount`, so the three figures in this example agree.",
+                example = "6.00")
         BigDecimal remainingAmount,
 
         @Schema(description = "Consumption as a percentage of the limit, to two decimal places. "
-                + "`0` for a month with no spending.", example = "81.50")
+                + "`0` for a month with no spending.", example = "80.00")
         BigDecimal consumedPct,
 
         @Schema(description = "Derived from `consumedPct` and the configured thresholds: "

@@ -35,7 +35,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(description = "A notification addressed to the signed-in student (UC-14).")
 public record NotificationResponse(
 
-        @Schema(description = "Identifier, as the database assigned it.", example = "17")
+        @Schema(description = "Identifier, as the database assigned it. The value in this example "
+                + "is an illustration of the type, not a row that exists: a notification is written "
+                + "by the procedure that owns it, never by a client, so take the id from a response.",
+                example = "17")
         Long id,
 
         @Schema(description = "What kind of message this is. Budget alerts are `BUDGET_NEAR` and "
@@ -43,11 +46,13 @@ public record NotificationResponse(
                 + "client can switch exhaustively.", example = "BUDGET_NEAR")
         NotificationType type,
 
-        @Schema(description = "Short headline.", example = "Approaching budget limit: Food & Drinks")
+        @Schema(description = "Short headline. The wording is built by the procedure that raises "
+                + "the alert (`sp_check_budget_alerts`), using the category's own name.",
+                example = "Approaching budget limit: Food")
         String title,
 
         @Schema(description = "The message itself. Omitted when the notification has no body.",
-                example = "You have used 81.5% of your Food & Drinks budget (244.50 of 300.00).",
+                example = "You have used 80.00% of your Food budget (24.00 of 30.00).",
                 nullable = true)
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String body,

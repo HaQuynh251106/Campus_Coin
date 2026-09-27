@@ -42,12 +42,16 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(description = "A saving tip, in the ranked order it should be displayed (UC-18).")
 public record TipResponse(
 
-        @Schema(description = "Identifier of the tip, used by the pin and dismiss actions.",
+        @Schema(description = "Identifier of the tip, used by the pin and dismiss actions. The value "
+                + "in this example is an illustration of the type: a tip id is assigned by the "
+                + "database when the generator writes the row, so take it from a response.",
                 example = "12")
         Long id,
 
         @Schema(description = "The category this tip is about. Omitted when the tip belongs to no "
-                + "category, such as the savings-goal tip.", example = "10", nullable = true)
+                + "category, such as the savings-goal tip. The pair in this example is a real one: "
+                + "`11` is `Entertainment`, which `db/05_seed.sql` creates, and it is the category "
+                + "the headline and body below describe.", example = "11", nullable = true)
         @JsonInclude(JsonInclude.Include.NON_NULL)
         Long categoryId,
 

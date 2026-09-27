@@ -22,15 +22,27 @@ export interface DashboardTip {
   title: string;
   body: string;
   potentialSaving: number;
-  state: 'NEW' | 'PINNED' | 'DISMISSED';
+  /**
+   * `NEW` and `PINNED` only — the dashboard view excludes dismissed tips entirely, so `DISMISSED`
+   * never arrives here. This is deliberately not the same union as `TipResponse.state` on the tips
+   * screen: widening it invites a `case 'DISMISSED'` branch that can never run.
+   */
+  state: 'NEW' | 'PINNED';
 }
 
 export interface DashboardAnnouncement {
   id: number;
   title: string;
   body: string;
-  severity: 'INFO' | 'WARNING' | 'CRITICAL' | 'SUCCESS';
+  /**
+   * The three members the backend enum publishes. `CRITICAL` is not one of them and never arrives;
+   * `AnnouncementSeverity` is `INFO | WARNING | SUCCESS` and `announcements.severity` is the matching
+   * three-value `ENUM` in the schema, so a fourth member here could only ever be a value this client
+   * invented.
+   */
+  severity: 'INFO' | 'WARNING' | 'SUCCESS';
   startsAt: string;
+  /** Absent for an open-ended announcement. Absence means "still running", not "expired". */
   endsAt?: string;
 }
 

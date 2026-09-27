@@ -314,6 +314,14 @@ The M1–M11 docs said "43 paths / 61 operations"; the new ground truth is **56 
 figure was corrected wherever it appeared, across `README.md`, `docs/api/*.md`, `docs/modules/`,
 `docs/testing/manual/` and `docs/SECURITY.md`.
 
+**The count moved again after this module was written**, and the movement is not module 12's. The
+conversational assistant (`GET` and `POST /api/v1/chat`) was requested by the project owner after
+module 12 and is documented as a post-module addition — it implements no numbered use case, and the
+use case specification's twenty-seven have no conversational assistant among them. The live figure is
+therefore **57 paths / 78 operations**, pinned by `OpenApiContractIT`'s `hasSize(57)`, and the
+references above now read 78. Rows 62–76 remain module 12's and remain under the module 12 lock;
+rows 77–78 are not.
+
 **Two documents were deliberately left carrying the old figure**, because they are records of a past
 point rather than living documents, and editing their numbers would falsify what they attest:
 

@@ -6,7 +6,6 @@ import { CategoryService } from '../../core/services/category.service';
 import { ToastService } from '../../core/services/toast.service';
 import { Budget } from '../../core/models/budget.model';
 import { Category } from '../../core/models/category.model';
-import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadcrumbs.component';
 import { CardComponent } from '../../shared/components/card/card.component';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { ProgressRingComponent } from '../../shared/components/progress-ring/progress-ring.component';
@@ -19,18 +18,12 @@ import { CategoryIconComponent } from '../../shared/components/category-icon/cat
   imports: [
     CommonModule,
     FormsModule,
-    BreadcrumbsComponent,
     ProgressRingComponent,
     IconComponent,
     CategoryIconComponent
   ],
   template: `
     <div class="space-y-6">
-      <!-- Breadcrumbs -->
-      <app-breadcrumbs
-        [items]="[{ label: 'Budgets & Goals' }]"
-      ></app-breadcrumbs>
-
       <!-- Header & Add Button -->
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div>

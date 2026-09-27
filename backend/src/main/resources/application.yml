@@ -142,7 +142,14 @@ campuscoin:
     # deployment configuration rather than an administrator-tunable setting.
     model: ${AI_MODEL:gemini-3.5-flash}
     # A sentence or two of prose, or a small typed object. The cap is a guard, not a target.
-    max-tokens: ${AI_MAX_TOKENS:1024}
+    #
+    # Keep this generous, and keep it equal to AiProperties.DEFAULT_MAX_TOKENS. Gemini 3.x charges
+    # thought tokens against this budget, and too small a cap truncates the reply mid-JSON
+    # (finishReason=MAX_TOKENS) - which the adapter cannot tell apart from a malformed answer, so it
+    # silently falls back to the rule-based text. Note that the value here is what actually applies:
+    # this placeholder resolves a number even when AI_MAX_TOKENS is unset, so the Java constant is
+    # only reached if this key is removed altogether.
+    max-tokens: ${AI_MAX_TOKENS:8192}
     # Left unset in a real deployment so the SDK's own endpoint applies. Overridable so a test
     # can point at a stub.
     base-url: ${AI_BASE_URL:}

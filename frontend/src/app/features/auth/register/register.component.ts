@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -66,31 +66,22 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
           }
         </div>
 
-        <!-- Academic Year & Major -->
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1">
-              Year
-            </label>
-            <select formControlName="academicYear" class="input-brutal">
-              <option value="Freshman (1st Year)">Freshman</option>
-              <option value="Sophomore (2nd Year)">Sophomore</option>
-              <option value="Junior (3rd Year)">Junior</option>
-              <option value="Senior (4th Year)">Senior</option>
-              <option value="Graduate / Master">Graduate</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1">
-              Major
-            </label>
-            <input
-              type="text"
-              formControlName="major"
-              placeholder="e.g. CS, Bio"
-              class="input-brutal"
-            />
-          </div>
+        <!--
+          Year of study. Signup itself accepts only name, email and password, so this is saved to
+          the profile straight after the account exists (PATCH /profile/me). Sending it as part of
+          the registration body would be silently dropped — there is no such field there.
+        -->
+        <div>
+          <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1">
+            Year
+          </label>
+          <select formControlName="academicYear" class="input-brutal">
+            <option value="Freshman (1st Year)">Freshman</option>
+            <option value="Sophomore (2nd Year)">Sophomore</option>
+            <option value="Junior (3rd Year)">Junior</option>
+            <option value="Senior (4th Year)">Senior</option>
+            <option value="Graduate / Master">Graduate</option>
+          </select>
         </div>
 
         <!-- Password -->
@@ -150,6 +141,7 @@ export class RegisterComponent {
   private fb = inject(FormBuilder);
   private auth = inject(AuthService);
   private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
 
   isLoading = false;
   errorMessage = '';
@@ -158,7 +150,6 @@ export class RegisterComponent {
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
     email: ['', [Validators.required, Validators.email]],
     academicYear: ['Freshman (1st Year)', [Validators.required]],
-    major: ['', [Validators.required]],
     password: ['', [Validators.required, Validators.minLength(8), Validators.maxLength(72)]],
     confirmPassword: ['', [Validators.required]]
   }, { validators: passwordMatchValidator });
@@ -168,6 +159,11 @@ export class RegisterComponent {
       this.registerForm.markAllAsTouched();
       return;
     }
+
+    // Same reasoning as the sign-in form: registering creates a different account, so a token the
+    // browser was still holding must not survive to be re-adopted on the next refresh.
+    localStorage.removeItem('campus_coin_token');
+    localStorage.removeItem('campus_coin_user');
 
     this.isLoading = true;
     this.errorMessage = '';
@@ -183,19 +179,34 @@ export class RegisterComponent {
         // Auto sign-in after successful registration
         this.auth.login(val.email!, val.password!).subscribe({
           next: () => {
-            this.isLoading = false;
-            this.router.navigate(['/app/home']);
+            // The year was chosen on this form but signup has no field for it, so it is written to
+            // the profile now that there is an account and a token to write it with. A failure here
+            // is not a failed signup — the student is signed in either way, and the year can be set
+            // on the profile screen.
+            this.auth.updateProfile({ academicYear: val.academicYear! }).subscribe({
+              next: () => this.finishSignup(),
+              error: () => this.finishSignup()
+            });
           },
           error: () => {
             this.isLoading = false;
             this.router.navigate(['/auth/login']);
+            this.cdr.markForCheck();
           }
         });
       },
       error: (err) => {
         this.isLoading = false;
         this.errorMessage = err.error?.message || err.message || 'Registration failed. Check requirements (password min 8 chars with uppercase, lowercase and digit).';
+        // Zoneless: without this the duplicate-email / weak-password response leaves the form
+        // showing nothing — no message and a submit button stuck disabled.
+        this.cdr.markForCheck();
       }
     });
+  }
+
+  private finishSignup(): void {
+    this.isLoading = false;
+    this.router.navigate(['/app/home']);
   }
 }

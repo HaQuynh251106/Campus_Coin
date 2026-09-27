@@ -44,10 +44,14 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(description = "A recorded income or expense (UC-07, UC-10).")
 public record TransactionResponse(
 
-        @Schema(description = "Identifier, as the database assigned it.", example = "31")
+        @Schema(description = "Identifier, as the database assigned it. The value in this example is "
+                + "an illustration of the type, not a row that exists in every database; take the id "
+                + "from a response rather than assuming a value.", example = "31")
         Long id,
 
-        @Schema(description = "The category this is filed under.", example = "1")
+        @Schema(description = "The category this is filed under. The pair in this example is a real "
+                + "one: `6` is `Food`, the first expense category `db/05_seed.sql` creates.",
+                example = "6")
         Long categoryId,
 
         @Schema(description = "Name of that category.", example = "Food")
@@ -59,7 +63,7 @@ public record TransactionResponse(
         String categoryIcon,
 
         @Schema(description = "Hex colour of that category. Omitted when the category has none.",
-                example = "#EF4444", nullable = true)
+                example = "#F97316", nullable = true)
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String categoryColor,
 

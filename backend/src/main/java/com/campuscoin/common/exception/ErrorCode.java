@@ -186,6 +186,28 @@ public enum ErrorCode {
     /** The requested resource does not exist. */
     NOT_FOUND(HttpStatus.NOT_FOUND),
 
+    /**
+     * The conversational assistant could not answer because no provider was available.
+     *
+     * <p><b>This is the one AI failure the application reports rather than absorbs, and the difference is
+     * what the feature is made of.</b> UC-08 and UC-17 return {@code Optional.empty()} when their provider
+     * is unavailable, because the application already has a deterministic answer for both - a keyword
+     * match, a rule-based summary - so an outage costs the student nothing they can notice. A conversation
+     * has no such answer. The reply <em>is</em> the feature, and text composed by the application would be
+     * shown in the assistant's voice while no assistant wrote it, which section 15 of the brief forbids.
+     *
+     * <p>So a rate limit, an exceeded quota, a timeout, an unreachable service, a switched-off feature and
+     * a blank or truncated reply all arrive here. It is a {@code 503} rather than a {@code 500} because
+     * the condition is expected, temporary and not the student's doing: the response's own message says to
+     * try again, and the retry is a reasonable thing for a client to offer. It is not a {@code 502},
+     * which would name the upstream relationship the client has no business knowing about.
+     *
+     * <p>The message carried with it is written for a student and names no provider, status code, model,
+     * endpoint or credential - the same discipline every other error in this enum follows, applied here to
+     * a case where the tempting thing to leak is which provider failed and why.
+     */
+    AI_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE),
+
     /** A database rule rejected the operation. The raw SQL message is never forwarded. */
     DATA_CONFLICT(HttpStatus.CONFLICT),
 

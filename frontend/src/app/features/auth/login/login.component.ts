@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -21,37 +21,6 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
         <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1">
           Sign in with your campus credentials to access your account.
         </p>
-      </div>
-
-      <!-- Quick Demo Fill Helpers for Evaluation -->
-      <div class="mb-5 p-3 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 rounded-lg space-y-2">
-        <div class="flex items-center justify-between text-xs">
-          <div>
-            <span class="font-medium text-neutral-900 dark:text-neutral-100">Student Account</span>
-            <span class="text-neutral-500 font-mono block text-[11px]">an.nguyen&#64;student.campuscoin.edu</span>
-          </div>
-          <button
-            type="button"
-            (click)="fillDemoStudent()"
-            class="text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 px-2 py-0.5 rounded transition-colors cursor-pointer"
-          >
-            Student Fill
-          </button>
-        </div>
-
-        <div class="border-t border-neutral-200/60 dark:border-neutral-700/60 pt-2 flex items-center justify-between text-xs">
-          <div>
-            <span class="font-medium text-neutral-900 dark:text-neutral-100">Admin Account</span>
-            <span class="text-neutral-500 font-mono block text-[11px]">admin&#64;campuscoin.edu</span>
-          </div>
-          <button
-            type="button"
-            (click)="fillDemoAdmin()"
-            class="text-xs font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-200/60 dark:bg-neutral-700/60 hover:bg-neutral-200 dark:hover:bg-neutral-700 px-2 py-0.5 rounded transition-colors cursor-pointer"
-          >
-            Admin Fill
-          </button>
-        </div>
       </div>
 
       @if (errorMessage) {
@@ -130,31 +99,25 @@ export class LoginComponent {
   private fb = inject(FormBuilder);
   private auth = inject(AuthService);
   private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
 
   isLoading = false;
   errorMessage = '';
 
   loginForm = this.fb.group({
-    email: ['an.nguyen@student.campuscoin.edu', [Validators.required, Validators.email]],
-    password: ['Student@123', [Validators.required, Validators.minLength(6)]]
+    email: ['', [Validators.required, Validators.email]],
+    password: ['', [Validators.required, Validators.minLength(6)]]
   });
-
-  fillDemoStudent(): void {
-    this.loginForm.patchValue({
-      email: 'an.nguyen@student.campuscoin.edu',
-      password: 'Student@123'
-    });
-  }
-
-  fillDemoAdmin(): void {
-    this.loginForm.patchValue({
-      email: 'admin@campuscoin.edu',
-      password: 'Admin@123'
-    });
-  }
 
   onSubmit(): void {
     if (this.loginForm.invalid) return;
+
+    // Signing in is a claim to be a particular account, so whatever the browser was still holding
+    // is dropped first. Without this, a failed attempt left the previous token on disk and a
+    // refresh brought the old student back — the app looks signed in as somebody the visitor did
+    // not just authenticate as.
+    localStorage.removeItem('campus_coin_token');
+    localStorage.removeItem('campus_coin_user');
 
     this.isLoading = true;
     this.errorMessage = '';
@@ -169,10 +132,17 @@ export class LoginComponent {
         } else {
           this.router.navigate(['/app/home']);
         }
+        this.cdr.markForCheck();
       },
       error: (err) => {
         this.isLoading = false;
         this.errorMessage = err.error?.message || err.message || 'Login failed. Please check credentials.';
+        // This app runs zoneless, so state written here is not reflected on its own. A successful
+        // sign-in navigates and the navigation re-renders the view; a failed one does not, which
+        // left isLoading stuck true: no error message and a submit button that stayed disabled
+        // until a manual refresh. This also covers the two-step admin re-login, whose interceptor
+        // retries an admin address against /admin/auth/login.
+        this.cdr.markForCheck();
       }
     });
   }

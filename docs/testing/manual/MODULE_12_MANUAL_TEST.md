@@ -746,8 +746,10 @@ if you want the full case — `GEMINI_API_KEY` set as well.
   A reset link cannot be reused — that is UAT-03.
 - Step 5: **the contract is byte-for-byte what it was before module 12.** The reset work added a third
   notifier implementation and configuration; it did not change the endpoints.
-- Step 6: **76 operations on 56 paths.** Every alias in the list is **absent**. Each absence is argued
-  in `docs/api/API_INVENTORY.md`'s module-12 section rather than merely missing.
+- Step 6: **78 operations on 57 paths.** Every alias in the list is **absent**. Each absence is argued
+  in `docs/api/API_INVENTORY.md`'s module-12 section rather than merely missing. *(The step read 76 on
+  56 when module 12 was written; the two extra are the post-module chat assistant, documented as
+  endpoints 77–78 and not part of this module.)*
 - Step 7: with the sink off and both variables set, the message **is actually delivered** and the link
   works. That is the whole of the delivery work — `SmtpPasswordResetNotifier` selected by configuration,
   no code change needed.

@@ -8,12 +8,34 @@ adding one requires a use case that asks for it. Several capabilities the databa
 session-listing endpoint and no `/users/*` alias, because UC-01, UC-02, UC-03 and UC-05 do not
 define those flows. "The column exists" is not a reason to build an API.
 
+**One entry below is not a use case, and it is marked as such.** Endpoints 77–78 are the
+conversational assistant. The use case and business-flow specification runs UC-01…UC-27 and its
+twenty-seventh is the display preferences on `/api/v1/profile/me`; there is no conversational
+assistant anywhere in it. The feature was requested directly by the project owner after module 12,
+so it is recorded here as a **post-module addition** with `—` in the UC column rather than being
+given an invented use-case number. A fabricated `UC-28` would read as an approved requirement that
+a reviewer could go and check against the specification, and there is nothing there to find.
+
 Base path: `/api/v1`. All endpoints consume and produce `application/json`.
 
-**76 operations on 56 paths**, numbered 1–76 across the twelve modules. The count is pinned by
-`OpenApiContractIT`, which reads the generated OpenAPI document and fails if it disagrees with this
-list — so a documented endpoint that does not exist, or an endpoint that is not documented here,
-breaks the build rather than the contract.
+**On example values.** The `example` a field declares is part of the *documentation* of the type,
+never a statement about rows that exist. Two consequences are worth stating once, here, rather than
+in every module's document:
+
+- **Swagger's "Example Value" is not database data.** It is read by the reader before anything is
+  queried, and it is the same string on an empty database as on a full one.
+- **An `id` in an example is not a contract.** Ids are assigned by the database. Where an example
+  names both an id and a name, the pair is deliberately one that `db/05_seed.sql` guarantees — `6` is
+  `Food`, `11` is `Entertainment` — so the two agree with each other on a freshly seeded database.
+  A client must still read ids from responses rather than hard-code any value, and no documented
+  runtime figure (a transaction count, a tip id, a budget id) is reproducible by design: those belong
+  to whatever account is asking.
+
+**78 operations on 57 paths**, numbered 1–78: 1–76 across the twelve modules, and 77–78 for the
+post-module conversational assistant. The count is pinned by `OpenApiContractIT`, which reads the
+generated OpenAPI document and fails if it disagrees with this list — so a documented endpoint that
+does not exist, or an endpoint that is not documented here, breaks the build rather than the
+contract.
 
 ## Module 1 — Authentication
 
@@ -746,6 +768,8 @@ their own packages.
 | 74 | GET | `/api/v1/forecast` | UC-25 | Bearer token, role `STUDENT` | `200` the projection | Forecast |
 | 75 | GET | `/api/v1/recent-activity` | UC-26 | Bearer token, role `STUDENT` | `200` the caller's activity | Recent activity |
 | 76 | POST | `/api/v1/recent-activity` | UC-26 | Bearer token, role `STUDENT` | `201` the recorded entry | Recent activity |
+| 77 | GET | `/api/v1/chat` | — | Bearer token, role `STUDENT` | `200` availability and the model | Chat assistant |
+| 78 | POST | `/api/v1/chat` | — | Bearer token, role `STUDENT` | `200` the reply, its model and the tools it read | Chat assistant |
 
 **Total: 15 endpoints.** No duplicates: no `/{id}` read on any of the four collections, no alias path,
 no `PUT` or `DELETE`, no multipart upload, and no second route for a UC that already has one. Each
@@ -756,11 +780,62 @@ that would otherwise be reasonable are absent. Nothing here is a route onto the 
 were approved earlier: the module adds tables and procedures only where the schema had already
 reserved them, and the six packages are new.
 
+## Post-module addition — Chat assistant
+
+Built after module 12, at the project owner's request, and **not part of any locked module** — which
+is why it lives under a prefix of its own rather than being folded into `/api/v1/ai/**`. It
+implements no numbered use case (see the note at the top of this file): the UC column reads `—`
+because the specification has no conversational assistant to point at.
+
+| # | Method | Endpoint | UC | Auth | Success | Module |
+|---|--------|----------|----|------|---------|--------|
+| 77 | GET | `/api/v1/chat` | — | Bearer token, role `STUDENT` | `200` availability and the model | Chat assistant |
+| 78 | POST | `/api/v1/chat` | — | Bearer token, role `STUDENT` | `200` the reply, its model and the tools it read | Chat assistant |
+
+The two share one path because they are one feature seen two ways, the arrangement `/profile/me` uses
+for its `GET` and `PATCH`. The `GET` asks the provider nothing: it reports whether a credential is
+installed and whether `ai.enabled` is on, because a probe that actually called the provider would
+spend the deployment's daily quota answering a question about the quota.
+
+### The tool boundary — how the assistant reads a figure
+
+This is the AI boundary above, extended to a conversation. The flow is the same shape and the
+invariant is stronger, not weaker:
+
+```
+Angular → Spring Boot → the model asks for a figure *by name*
+                      → ChatService runs that named read for the authenticated caller
+                      → the model writes a reply from the figures it was given
+       ← Spring Boot returns the reply, its model and the tools it read ←
+```
+
+- **The provider still never sees the database.** `ChatCompletionPort` has no repository, no
+  `EntityManager` and no user id, exactly as `AiSuggestionPort` does not. What it has is a
+  `ToolInvoker` callback that `ChatService` supplies. The provider names a tool; the service — which
+  holds the `AuthenticatedUser` — runs it. The model therefore cannot reach a row the service did not
+  choose to read for it.
+- **The model cannot name another student.** `ChatRequest` has no user-id field at all, and the tool
+  arguments cannot carry one: the principal is bound into the callback by the service, and no tool
+  takes an identifier. A body containing `{"userId": 9}` is inert — Jackson ignores an unknown
+  property, so the request is answered normally and the id is discarded. The id being *ignored* is
+  the observation, not the guarantee: what the route guarantees is that the read follows the bearer
+  token, which is what `ChatApiIT.aUserIdInTheBodyDoesNotRedirectTheRead` asserts by sending another
+  student's id and checking the caller is still read their own month.
+- **Every tool is a read.** The nine declared tools map one-to-one onto services the student's own
+  screens already call. No tool starts an anomaly scan, generates a tip, generates an insight or marks
+  a notification read, so the assistant cannot spend a provider call or write a row on the student's
+  behalf.
+- **A failed turn is reported, never disguised.** Where UC-08 and UC-17 return `Optional.empty()` and
+  let the application give its deterministic answer, this route answers `503`
+  (`AI_UNAVAILABLE`) — because a conversation has no deterministic answer, and text composed by the
+  application would be read as the assistant's while no assistant wrote it.
+
 ### The AI boundary — the rule every AI endpoint obeys
 
-Three of these surfaces involve a model: UC-08 (suggest a category), UC-17 (write the month's
-narrative). The SRS and the project's security rules fix the flow, and it is enforced by the shape of
-the code rather than by convention:
+Four surfaces involve a model: UC-08 (suggest a category), UC-17 (write the month's narrative), and
+endpoints 77–78 (the conversational assistant, which is the two halves of one feature). The SRS and
+the project's security rules fix the flow, and it is enforced by the shape of the code rather than by
+convention:
 
 ```
 Angular → Spring Boot → this backend reads and filters the student's own rows
@@ -865,7 +940,7 @@ no frontend depends on them.
   frontend developer: base URL and environments, authentication, the Angular interceptors to
   install, the common error contract, the data ownership rule, the full enum reference, the
   per-module endpoint reference, the integration flows and the master quick-reference table of all
-  76 operations.
+  78 operations.
 - [authentication.md](authentication.md) — request and response contract for endpoints 1–7,
   including Angular integration notes.
 - [profile.md](profile.md) — request and response contract for endpoints 8–10, including Angular
@@ -903,4 +978,8 @@ no frontend depends on them.
   turns on.
 - [advanced.md](advanced.md) — request and response contract for endpoints 72–76: anomaly flagging,
   the forecast, and recent activity.
+- [chat-assistant.md](chat-assistant.md) — request and response contract for endpoints 77–78, the
+  nine tools the assistant may read and what each returns, how multi-turn history is carried without
+  keeping a session, the read-only guarantee, and the refusal contract when the provider is
+  unavailable.
 - [../SECURITY.md](../SECURITY.md) — the security decisions behind these endpoints.

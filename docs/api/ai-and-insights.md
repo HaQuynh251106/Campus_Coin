@@ -186,7 +186,7 @@ POST /api/v1/ai/suggest-category
 {
   "transactionId": 31,
   "source": "RULE",
-  "categoryId": 4,
+  "categoryId": 6,
   "categoryName": "Food",
   "type": "EXPENSE",
   "confidence": "1.0000",

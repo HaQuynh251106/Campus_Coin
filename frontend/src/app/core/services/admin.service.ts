@@ -26,10 +26,29 @@ export interface TipTemplate {
   title: string;
   categoryTag: string;
   content: string;
-  audience?: string;
   isActive: boolean;
   lastUpdated?: string;
 }
+
+/**
+ * Every value `tip_templates.condition_type` accepts, in the order the database declares them.
+ *
+ * This is the field that decides *which rule* a template belongs to — the procedure
+ * `sp_generate_tips` evaluates the template's condition before it renders the advice — so a
+ * template created with the wrong condition never fires. The list is the backend enum
+ * `com.campuscoin.admin.entity.TipConditionType` verbatim.
+ */
+export const TIP_CONDITION_TYPES = [
+  'OVER_BUDGET',
+  'NEAR_BUDGET',
+  'CATEGORY_SPIKE',
+  'NO_BUDGET_SET',
+  'SAVINGS_GOAL_AT_RISK',
+  'LOW_SAVINGS_RATE',
+  'GENERIC'
+] as const;
+
+export type TipConditionType = (typeof TIP_CONDITION_TYPES)[number];
 
 @Injectable({
   providedIn: 'root'
@@ -102,18 +121,54 @@ export class AdminService {
     icon?: string;
     color?: string;
     description?: string;
-  }): Observable<any> {
-    return this.http.post(`${this.baseUrl}/categories`, payload);
+    sortOrder?: number;
+    isActive?: boolean;
+  }): Observable<Category> {
+    return this.http.post<any>(`${this.baseUrl}/categories`, payload).pipe(
+      map(c => this.toCategory(c))
+    );
   }
 
+  /**
+   * A default category's own fields, matching `UpdateDefaultCategoryRequest`
+   * (`docs/api/administration.md` §51). `icon`, `color` and `description` accept `''` to clear a
+   * nullable column; omitting a key leaves it unchanged.
+   *
+   * `id`, `isDefault` and `isActive` were removed from this signature: none of the three is a field
+   * of the request record, so sending them was a silent no-op rather than an edit. Retirement goes
+   * through `setDefaultCategoryStatus` below, which has a route of its own.
+   */
   updateDefaultCategory(id: number | string, updates: {
     name?: string;
+    type?: 'INCOME' | 'EXPENSE';
     icon?: string;
     color?: string;
     description?: string;
-    isActive?: boolean;
-  }): Observable<any> {
-    return this.http.patch(`${this.baseUrl}/categories/${id}`, updates);
+    sortOrder?: number;
+  }): Observable<Category> {
+    return this.http.patch<any>(`${this.baseUrl}/categories/${id}`, updates).pipe(
+      map(c => this.toCategory(c))
+    );
+  }
+
+  /** Retires or restores a default category (BR-07). `isActive` is the only writer here. */
+  setDefaultCategoryStatus(id: number | string, isActive: boolean): Observable<Category> {
+    return this.http.patch<any>(`${this.baseUrl}/categories/${id}`, { isActive }).pipe(
+      map(c => this.toCategory(c))
+    );
+  }
+
+  private toCategory(c: any): Category {
+    return {
+      id: c.id,
+      name: c.name,
+      type: c.type,
+      icon: c.icon || 'tag',
+      color: c.color || '#EAB308',
+      isDefault: c.isDefault !== false,
+      isActive: c.isActive !== false,
+      description: c.description
+    };
   }
 
   // --- Tip Templates (UC-21) ---
@@ -126,30 +181,37 @@ export class AdminService {
         title: t.titleTemplate,
         categoryTag: t.conditionType,
         content: t.bodyTemplate,
-        audience: 'ALL_STUDENTS',
         isActive: t.isActive,
         lastUpdated: t.updatedAt?.split('T')[0] ?? t.createdAt?.split('T')[0] ?? '—'
       })))
     );
   }
 
+  /**
+   * Creates a tip template (`docs/api/administration.md` §53).
+   *
+   * `code` is required by the contract, is immutable afterwards, and is stored upper case — so the
+   * caller supplies it rather than a timestamp being smuggled in, which is what this method used to
+   * do. `conditionType` is the field that decides which rule the template fires on; it used to be
+   * hard-coded to `GENERIC`, which made the form's other choices unable to affect behaviour.
+   */
   addTipTemplate(tip: {
+    code: string;
     title: string;
-    categoryTag?: string;
+    conditionType?: TipConditionType;
     content: string;
-    audience?: string;
+    defaultPriority?: number;
     isActive?: boolean;
-  }): Observable<any> {
-    const code = `TIP_${Date.now()}`;
+  }): Observable<AdminTipTemplate> {
     const payload = {
-      code,
+      code: tip.code.trim().toUpperCase(),
       titleTemplate: tip.title,
       bodyTemplate: tip.content,
-      conditionType: 'GENERIC',
-      defaultPriority: 100,
+      conditionType: tip.conditionType ?? 'GENERIC',
+      defaultPriority: tip.defaultPriority ?? 100,
       isActive: tip.isActive ?? true
     };
-    return this.http.post(`${this.baseUrl}/tip-templates`, payload);
+    return this.http.post<AdminTipTemplate>(`${this.baseUrl}/tip-templates`, payload);
   }
 
   updateTipTemplate(id: number | string, updates: {
@@ -175,7 +237,9 @@ export class AdminService {
     title: string;
     body: string;
     audience?: 'ALL' | 'STUDENTS' | 'ADMINS';
-    severity?: 'INFO' | 'WARNING' | 'CRITICAL' | 'SUCCESS';
+    // `announcements.severity` is a three-value ENUM. `CRITICAL` is not a member and was never
+    // accepted by the database, so it is not offered here.
+    severity?: 'INFO' | 'WARNING' | 'SUCCESS';
     startsAt?: string;
     endsAt?: string;
   }): Observable<AdminAnnouncement> {

@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminService } from '../../../core/services/admin.service';
 import { ToastService } from '../../../core/services/toast.service';
-import { User } from '../../../core/models/user.model';
+import { AdminUser } from '../../../core/models/admin.model';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 
 @Component({
@@ -61,9 +61,9 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
             <thead>
               <tr class="table-head-row bg-slate-50 dark:bg-neutral-800/80 border-b border-[var(--color-border)] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold text-[10px]">
                 <th class="p-3">Student Name & ID</th>
-                <th class="p-3">Department & Year</th>
-                <th class="p-3">Allowance</th>
-                <th class="p-3">Goal</th>
+                <th class="p-3">Role & Year</th>
+                <th class="p-3">Last Sign-in</th>
+                <th class="p-3">Joined</th>
                 <th class="p-3">Account Status</th>
                 <th class="p-3 text-right">Administrative Actions</th>
               </tr>
@@ -74,30 +74,32 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
                   <!-- Name & ID -->
                   <td class="p-3">
                     <div class="flex items-center gap-2.5">
-                      <div class="w-8 h-8 rounded-full overflow-hidden bg-slate-200 shrink-0 border border-slate-300">
-                        <img [src]="user.avatar" [alt]="user.name" class="w-full h-full object-cover" />
+                      <div class="w-8 h-8 rounded-full bg-slate-200 dark:bg-neutral-700 shrink-0 border border-slate-300 dark:border-neutral-600 flex items-center justify-center text-[11px] font-bold text-slate-600 dark:text-neutral-200">
+                        {{ initials(user.fullName) }}
                       </div>
                       <div>
-                        <div class="font-bold text-slate-900 dark:text-white">{{ user.name }}</div>
-                        <div class="text-[11px] text-[var(--color-text-muted)] font-mono">{{ user.studentId }} &bull; {{ user.email }}</div>
+                        <div class="font-bold text-slate-900 dark:text-white">{{ user.fullName }}</div>
+                        <div class="text-[11px] text-[var(--color-text-muted)] font-mono">#{{ user.id }} &bull; {{ user.email }}</div>
                       </div>
                     </div>
                   </td>
 
-                  <!-- Major & Year -->
+                  <!-- Role & Year -->
                   <td class="p-3 text-slate-600 dark:text-neutral-300">
-                    <div>{{ user.major }}</div>
-                    <div class="text-[11px] text-[var(--color-text-muted)]">{{ user.academicYear }}</div>
+                    <div>{{ user.role === 'ADMIN' ? 'Administrator' : 'Student' }}</div>
+                    <div class="text-[11px] text-[var(--color-text-muted)]">
+                      {{ user.academicYear || 'Year not set' }}
+                    </div>
                   </td>
 
-                  <!-- Allowance -->
-                  <td class="p-3 font-semibold text-slate-700 dark:text-neutral-200">
-                    \${{ user.monthlyAllowance }}/mo
+                  <!-- Last Sign-in -->
+                  <td class="p-3 text-slate-600 dark:text-neutral-300">
+                    {{ formatTimestamp(user.lastLoginAt) }}
                   </td>
 
-                  <!-- Savings Goal -->
-                  <td class="p-3 font-semibold text-slate-700 dark:text-neutral-200">
-                    \${{ user.savingsGoal }}
+                  <!-- Joined -->
+                  <td class="p-3 text-slate-600 dark:text-neutral-300">
+                    {{ formatTimestamp(user.createdAt) }}
                   </td>
 
                   <!-- Status (Restrained text label with status dot) -->
@@ -218,29 +220,33 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
             </div>
 
             <div class="flex items-center gap-3">
-              <img [src]="selectedUser.avatar" class="w-12 h-12 rounded-full border border-slate-300" />
+              <div class="w-12 h-12 rounded-full border border-slate-300 dark:border-neutral-700 bg-slate-100 dark:bg-neutral-800 flex items-center justify-center font-bold text-slate-600 dark:text-neutral-300">
+                {{ initials(selectedUser.fullName) }}
+              </div>
               <div>
-                <h4 class="font-bold text-slate-900 dark:text-white">{{ selectedUser.name }}</h4>
-                <p class="text-xs text-slate-500">{{ selectedUser.university }}</p>
+                <h4 class="font-bold text-slate-900 dark:text-white">{{ selectedUser.fullName }}</h4>
+                <p class="text-xs text-slate-500">
+                  {{ selectedUser.role === 'ADMIN' ? 'Administrator account' : 'Student account' }}
+                </p>
               </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3 text-xs">
               <div class="p-2.5 bg-slate-50 dark:bg-neutral-800 rounded">
-                <span class="text-slate-400 block text-[10px] uppercase font-bold">Student ID</span>
-                <span class="font-mono font-bold">{{ selectedUser.studentId }}</span>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold">Account ID</span>
+                <span class="font-mono font-bold">{{ selectedUser.id }}</span>
               </div>
               <div class="p-2.5 bg-slate-50 dark:bg-neutral-800 rounded">
                 <span class="text-slate-400 block text-[10px] uppercase font-bold">Email</span>
                 <span class="font-mono">{{ selectedUser.email }}</span>
               </div>
               <div class="p-2.5 bg-slate-50 dark:bg-neutral-800 rounded">
-                <span class="text-slate-400 block text-[10px] uppercase font-bold">Allowance Baseline</span>
-                <span class="font-bold">\${{ selectedUser.monthlyAllowance }}</span>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold">Academic Year</span>
+                <span class="font-bold">{{ selectedUser.academicYear || 'Not set' }}</span>
               </div>
               <div class="p-2.5 bg-slate-50 dark:bg-neutral-800 rounded">
-                <span class="text-slate-400 block text-[10px] uppercase font-bold">Savings Goal</span>
-                <span class="font-bold">\${{ selectedUser.savingsGoal }}</span>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold">Last Sign-in</span>
+                <span class="font-bold">{{ formatTimestamp(selectedUser.lastLoginAt) }}</span>
               </div>
             </div>
 
@@ -265,22 +271,23 @@ export class AdminUsersComponent implements OnInit {
   private toast = inject(ToastService);
   private cdr = inject(ChangeDetectorRef);
 
-  users: User[] = [];
+  users: AdminUser[] = [];
   searchQuery = '';
   statusFilter: 'ALL' | 'ACTIVE' | 'DISABLED' = 'ALL';
-  selectedUser: User | null = null;
+  selectedUser: AdminUser | null = null;
   isLoading = false;
 
   currentPage = 1;
   pageSize = 10;
   readonly pageSizeOptions = [10, 25, 50];
 
-  get filteredUsers(): User[] {
+  get filteredUsers(): AdminUser[] {
     return this.users.filter(u => {
+      const q = this.searchQuery.toLowerCase();
       const matchSearch =
-        u.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-        (u.studentId || '').toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-        u.email.toLowerCase().includes(this.searchQuery.toLowerCase());
+        u.fullName.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        String(u.id) === q.replace(/^#/, '');
 
       const matchStatus =
         this.statusFilter === 'ALL' || u.status === this.statusFilter;
@@ -293,7 +300,7 @@ export class AdminUsersComponent implements OnInit {
     return Math.ceil(this.filteredUsers.length / this.pageSize) || 1;
   }
 
-  get paginatedUsers(): User[] {
+  get paginatedUsers(): AdminUser[] {
     const startIndex = (this.currentPage - 1) * this.pageSize;
     return this.filteredUsers.slice(startIndex, startIndex + this.pageSize);
   }
@@ -334,27 +341,32 @@ export class AdminUsersComponent implements OnInit {
     this.loadUsers();
   }
 
+  /**
+   * The list is rendered exactly as `AdminUserResponse` publishes it — id, name, address, role,
+   * status, year, last sign-in, created. Nothing is embellished onto it.
+   *
+   * Two columns used to sit here showing a monthly allowance and a savings goal. There is no such
+   * field in the response and no administrative action that needs one: the DTO omits a student's
+   * financial position deliberately (VĐ-04), so those columns rendered a hardcoded `$0` for every
+   * account. A figure nobody supplied is worse than no column.
+   *
+   * Sorted newest-first for display only. The endpoint's own contract is "ordered by created time"
+   * — a bare `ORDER BY id ASC` — and it is the client that pages the result, ten rows at a time.
+   * Rendered in the service's order, a newly registered account lands on the *last* page rather than
+   * the first: with eleven accounts, the one just created is row 11 and the administrator opening
+   * "User Directory" sees ten rows that do not include it, which reads as "the new account is
+   * missing" when it is present and merely beyond the fold. Newest-first is what makes a freshly
+   * created account visible on the page that is shown by default, which is the whole reason an
+   * administrator opens this screen after a signup. Reversing here rather than in the query keeps
+   * the documented ordering of the API intact — the response itself is unchanged, so nothing that
+   * depends on it (the API tests assert ascending ids) is affected.
+   */
   loadUsers(): void {
     this.isLoading = true;
     this.adminService.getUsers().subscribe({
       next: (list) => {
         this.isLoading = false;
-        this.users = list.map(u => ({
-          id: u.id,
-          studentId: `STU-${u.id}`,
-          name: u.fullName,
-          email: u.email,
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
-          role: u.role,
-          university: 'Campus University',
-          major: 'General Studies',
-          academicYear: u.academicYear || 'Undergraduate',
-          monthlyAllowance: 0,
-          savingsGoal: 0,
-          settings: { darkMode: false, fontSize: 'medium', currency: '$' },
-          status: u.status,
-          joinedDate: u.createdAt ? u.createdAt.split('T')[0] : '2026-09-01'
-        }));
+        this.users = [...list].sort((a, b) => b.id - a.id);
         this.cdr.markForCheck();
       },
       error: (err) => {
@@ -365,17 +377,38 @@ export class AdminUsersComponent implements OnInit {
     });
   }
 
-  viewUserModal(user: User): void {
+  /** First letters of the two name parts, for the avatar placeholder. */
+  initials(fullName: string): string {
+    const parts = (fullName || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '?';
+    const first = parts[0][0];
+    const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+    return (first + last).toUpperCase();
+  }
+
+  /**
+   * Renders one of the response's timestamps. `lastLoginAt` is absent when the account has never
+   * signed in — the contract distinguishes that from a null date, so "Never" is shown rather than a
+   * substitute date.
+   */
+  formatTimestamp(value: string | null | undefined): string {
+    if (!value) return 'Never';
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  viewUserModal(user: AdminUser): void {
     this.selectedUser = user;
   }
 
-  async toggleStatus(user: User): Promise<void> {
+  async toggleStatus(user: AdminUser): Promise<void> {
     const nextStatus = user.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
     const actionLabel = nextStatus === 'DISABLED' ? 'disable' : 'activate';
 
     const confirmed = await this.toast.confirm(
       `${nextStatus === 'DISABLED' ? 'Disable' : 'Activate'} User Account`,
-      `Are you sure you want to ${actionLabel} the account for ${user.name} (${user.email})?`,
+      `Are you sure you want to ${actionLabel} the account for ${user.fullName} (${user.email})?`,
       `${nextStatus === 'DISABLED' ? 'Disable Account' : 'Activate Account'}`,
       'Cancel',
       nextStatus === 'DISABLED'
@@ -385,7 +418,7 @@ export class AdminUsersComponent implements OnInit {
       this.adminService.setUserStatus(user.id, nextStatus).subscribe({
         next: (updated) => {
           user.status = updated.status;
-          this.toast.success(`Account for ${user.name} has been ${actionLabel}d.`);
+          this.toast.success(`Account for ${user.fullName} has been ${actionLabel}d.`);
         },
         error: (err) => {
           this.toast.error(err.error?.message || 'Failed to update user status');
@@ -394,7 +427,7 @@ export class AdminUsersComponent implements OnInit {
     }
   }
 
-  async triggerPasswordReset(user: User): Promise<void> {
+  async triggerPasswordReset(user: AdminUser): Promise<void> {
     const confirmed = await this.toast.confirm(
       'Reset Password',
       `Send password reset security link for ${user.email}?`,

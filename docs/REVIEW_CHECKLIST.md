@@ -120,6 +120,13 @@ so the database name given on the `mysql` command line has no effect on the merg
 
 - `campuscoin` now holds the **new schema**: 23 tables · 14 views · 24 procedures · 1 function · 14 triggers · **38** FKs · 15 UNIQUE · 14 CHECK; `import_rows` does **not** have a `user_id` column; **0** occurrences of `cc_is_admin` in any procedure/trigger. This is no longer the "old SQL build" this document once described.
 - The sample data matches the seed set exactly: 3 users · 12 default categories · 31 transactions · 5 budgets · **1** alert (UAT-07) · 9 tips · 3 insights.
+
+  > **Updated.** `db/06_demo.sql` now seeds a second student (Bella Tran) alongside Alex, so a freshly
+  > initialised volume holds 3 users · 12 default categories **+ 1 personal** · **69** transactions ·
+  > **10** budgets · **3** alerts (Alex: one NEAR; Bella: one NEAR and one EXCEEDED) · **13** tips ·
+  > **8** insights. The counts above are the ones this checklist was verified against and are left as
+  > written. Both accounts, and why the second is deliberately not a copy of the first, are described
+  > in `CREDENTIALS.md` and `DATA_CLEANUP_REPORT.md`.
 - The privileges of the application account `campuscoin_user` are still intact (`GRANT ALL PRIVILEGES ON campuscoin.*`) because MySQL grants privileges by database **name**, not by content; this was confirmed by successfully reading with that account.
 - Every temporary database has been deleted; only `campuscoin` remains.
 

@@ -1,20 +1,13 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadcrumbs.component';
-import { IconComponent } from '../../shared/components/icon/icon.component';
 
 @Component({
   selector: 'app-sitemap',
   standalone: true,
-  imports: [CommonModule, RouterModule, BreadcrumbsComponent],
+  imports: [CommonModule, RouterModule],
   template: `
     <div class="space-y-6 max-w-4xl mx-auto">
-      <!-- Breadcrumbs -->
-      <app-breadcrumbs
-        [items]="[{ label: 'System Sitemap' }]"
-      ></app-breadcrumbs>
-
       <!-- Page Header -->
       <div class="card-brutal p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xs">
         <div class="flex items-center gap-3">

@@ -3850,12 +3850,17 @@ UNION ALL SELECT 'notifications',         COUNT(*) FROM notifications
 UNION ALL SELECT 'generated tips',        COUNT(*) FROM user_tips
 UNION ALL SELECT 'insights',              COUNT(*) FROM insights;
 
-SELECT '2. Budget alerts - UAT-07 expects exactly ONE NEAR row for Food' AS `check`;
-SELECT c.name AS `category`, a.threshold_type AS `threshold`,
+--  UAT-07's "exactly one" is a statement about ONE student's data, so the account is
+--  named in the row. Alex has to produce exactly one NEAR row for Food; Bella has her
+--  own, deliberately different, pair. Three rows in total is the expected result.
+SELECT '2. Budget alerts - Alex: ONE NEAR for Food (UAT-07). Bella: ONE NEAR + ONE EXCEEDED'
+       AS `check`;
+SELECT u.email AS `student`, c.name AS `category`, a.threshold_type AS `threshold`,
        a.consumed_pct AS `used (%)`, a.spent_amount AS `spent`,
        a.limit_amount AS `limit`, a.triggered_at AS `triggered at`
   FROM budget_alert_log a
   JOIN categories c ON c.id = a.category_id
+  JOIN users u ON u.id = a.user_id
  ORDER BY a.id;
 
 SELECT '3. Current-month saving tips - ranked by potential saving (BR-14)' AS `check`;

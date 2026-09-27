@@ -29,12 +29,21 @@ import com.campuscoin.category.entity.CategoryType;
  *       would make the schema comment untrue rather than make the data safe.</li>
  * </ul>
  *
- * <p><b>The consequence is real and is not hidden:</b> {@code sp_apply_csv_batch} inserts this value
- * straight into {@code transactions.description}, which <em>is</em> an encrypted column, without
- * encrypting it - a procedure cannot, because that would need the key inside MySQL. So a transaction
- * created by an import carries a plaintext description. It reads back correctly, because every read
- * path uses {@code EncryptionService#decryptStored}, which returns a non-envelope value unchanged; the
- * exposure is at rest, and it is recorded in OB-012.
+ * <p><b>The consequence, and how far it now reaches (OB-018).</b> {@code sp_apply_csv_batch} inserts
+ * this value straight into {@code transactions.description}, which <em>is</em> an encrypted column,
+ * without encrypting it - a procedure cannot, because that would need the key inside MySQL. Until
+ * OB-018 was resolved that was the end of the story and the transaction carried a plaintext
+ * description for good. It is no longer: {@code ImportService#commit} re-encodes every description
+ * the procedure just inserted, in the same transaction, before the response is built, so a committed
+ * import leaves {@code transactions.description} in the one storage form the column is documented to
+ * have. The value is written as plaintext by the procedure and does not stay that way.
+ *
+ * <p>{@code parsedDescription} itself is still plaintext, and that part is unchanged and not hidden:
+ * the column is marked {@code KNOWN PLAINTEXT - RESIDUAL EXPOSURE, DELIBERATE} in
+ * {@code db/01_schema.sql} and named in OB-012, because encrypting it would need the column widened
+ * past {@code VARCHAR(255)} - the Base64 envelope of even a 160-character note is longer than that.
+ * So the exposure this record describes is now confined to the staging table the preview reads, which
+ * is a batch's own upload, rather than extending to the student's permanent record.
  *
  * <p>{@code rawData} is carried for the preview, so a client can show the student the line as it
  * arrived rather than a re-formatted version of it. It holds the same values as the {@code parsed_*}

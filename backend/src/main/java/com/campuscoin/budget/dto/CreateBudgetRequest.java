@@ -37,7 +37,9 @@ import jakarta.validation.constraints.Pattern;
 public record CreateBudgetRequest(
 
         @Schema(description = "The expense category to limit. Must be one of your own categories or "
-                + "a shared default one that is still in use.", example = "1")
+                + "a shared default one that is still in use, and must be an EXPENSE category - an "
+                + "INCOME id is refused. `6` is `Food`, the first expense category "
+                + "`db/05_seed.sql` creates.", example = "6")
         @NotNull(message = "Category is required.")
         Long categoryId,
 

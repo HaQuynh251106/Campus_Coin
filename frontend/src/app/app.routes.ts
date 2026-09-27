@@ -99,10 +99,64 @@ export const routes: Routes = [
           import('./features/categories/categories.component').then(m => m.CategoriesComponent)
       },
       {
+        path: 'recurring',
+        title: 'Recurring Rules — Campus Coin',
+        loadComponent: () =>
+          import('./features/recurring/recurring.component').then(m => m.RecurringComponent)
+      },
+      {
+        path: 'tips',
+        title: 'Saving Tips — Campus Coin',
+        loadComponent: () =>
+          import('./features/tips/tips.component').then(m => m.TipsComponent)
+      },
+      {
+        path: 'bookmarks',
+        title: 'Saved Tips — Campus Coin',
+        loadComponent: () =>
+          import('./features/bookmarks/bookmarks.component').then(m => m.BookmarksComponent)
+      },
+      {
         path: 'profile',
         title: 'Profile, Dark Mode & Preferences — Campus Coin',
         loadComponent: () =>
           import('./features/profile/profile.component').then(m => m.ProfileComponent)
+      },
+
+      // Module 12 (UC-08, UC-11, UC-17, UC-24, UC-25, UC-26). Each is its own lazy feature, so none
+      // of it is downloaded until the student opens it. They sit under `app`, so `authGuard` and the
+      // student layout apply exactly as they do to the existing screens.
+      {
+        path: 'imports',
+        title: 'Import CSV — Campus Coin',
+        loadComponent: () =>
+          import('./features/imports/csv-import.component').then(m => m.CsvImportComponent)
+      },
+      {
+        path: 'insights',
+        title: 'Monthly Insights — Campus Coin',
+        loadComponent: () =>
+          import('./features/insights/insights.component').then(m => m.InsightsComponent)
+      },
+      {
+        path: 'anomalies',
+        title: 'Anomaly Check — Campus Coin',
+        loadComponent: () =>
+          import('./features/anomalies/anomalies.component').then(m => m.AnomaliesComponent)
+      },
+      {
+        path: 'forecast',
+        title: 'Next Month Forecast — Campus Coin',
+        loadComponent: () =>
+          import('./features/forecast/forecast.component').then(m => m.ForecastComponent)
+      },
+      {
+        path: 'recent-activity',
+        title: 'Recent Activity — Campus Coin',
+        loadComponent: () =>
+          import('./features/recent-activity/recent-activity.component').then(
+            m => m.RecentActivityComponent
+          )
       }
     ]
   },

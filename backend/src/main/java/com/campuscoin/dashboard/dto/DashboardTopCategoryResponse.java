@@ -27,7 +27,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
         + "student has recorded no spending this month.")
 public record DashboardTopCategoryResponse(
 
-        @Schema(description = "The category's identifier.", example = "1")
+        @Schema(description = "The category's identifier. Only an EXPENSE category can appear here, "
+                + "so `6` (`Food`, a shared default `db/05_seed.sql` creates) is the id that goes "
+                + "with the name below.", example = "6")
         Long categoryId,
 
         @Schema(description = "The category's name.", example = "Food")

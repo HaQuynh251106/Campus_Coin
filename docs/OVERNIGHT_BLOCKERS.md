@@ -612,16 +612,18 @@ before because nothing read them, and building the reader did not change the col
 
 **Two further points module 12 recorded rather than fixed.**
 
-1. **An imported row's description reaches `transactions.description` as ciphertext; the preview
+1. **An imported row's description reaches `transactions.description` as an envelope; the preview
    copy stays plaintext.** The two do not carry the same protection, because they are not the same
-   data. `transactions.description` is written by `TransactionService` through the encryption
-   boundary and is `VARCHAR(2048) CHARACTER SET ascii COLLATE ascii_bin` — the Base64 envelope's
-   column. `import_rows.parsed_description` is a `VARCHAR(255)` in the table's default `utf8mb4`, and
-   it holds the row as the file wrote it, for the preview to display beside the values the importer
-   read. So an import produces a transaction whose description is encrypted **and** a preview row
-   that still holds the same text in the clear. A change that encrypts `parsed_description` without
-   widening it to `ascii_bin` would fail the column's own encoding; the two changes are one piece of
-   work, not two.
+   data. `transactions.description` is `VARCHAR(2048) CHARACTER SET ascii COLLATE ascii_bin` — the
+   Base64 envelope's column — and the import commit re-encodes the value into it before the response
+   is built (OB-018, answer 2), so the student's permanent record is protected at rest exactly as an
+   API-written one is. `import_rows.parsed_description` is a `VARCHAR(255)` in the table's default
+   `utf8mb4`, and it holds the row as the file wrote it, for the preview to display beside the values
+   the importer read; it stays in the clear. A change that encrypts `parsed_description` without
+   widening it to `ascii_bin` would fail the column's own encoding — the Base64 envelope of even a
+   160-character note is longer than 255 — so the two changes are one piece of work, not two. Until
+   it is done, the exposure this point describes is confined to the staging table: it no longer
+   extends to `transactions`, where OB-018 previously left it.
 2. **`import_rows.raw_data` is a third plaintext copy.** It is the whole CSV line as JSON, so it
    contains the amount and the description again. It is named here so that the work above is scoped
    to three columns rather than two.
@@ -934,6 +936,150 @@ documentation changes in the same edit.
 
 ---
 
+## OB-018 — An imported row's description is plaintext when imported, and ciphertext once updated
+
+| Field | Value |
+|---|---|
+| **Priority** | MEDIUM |
+| **Module** | 12 — Optional / Advanced (UC-11 CSV import), with 6 — Transactions |
+| **Related UC** | UC-11, UC-06 |
+| **Related BR** | BR-12 |
+| **Status** | CLOSED — answer 2 implemented; the import commit re-encodes the descriptions it inserted |
+
+**What was found.** An imported transaction's `description` does not have one storage form. It has
+two, and which one a row gets depends on whether anything updated the row after the import created
+it.
+
+Four transactions were created by import while verifying the module 12 frontend, in two batches of
+two. Each batch shows the same split:
+
+| Batch | `import_rows` row | Transaction | `parsed_description` (preview copy) | Stored `transactions.description` | Length |
+|---|---|---|---|---|---|
+| 3 | 8 | 70 | `M12 verify snack` | ciphertext, `AQFuoHiZ…` | 64 |
+| 3 | 9 | 71 | `M12 verify tea` | plaintext | 14 |
+| 5 | 14 | 72 | `M12 verify alpha` | ciphertext, `AQGYaFQu…` | 64 |
+| 5 | 15 | 73 | `M12 verify beta` | plaintext | 15 |
+
+The mechanism is visible in `transaction_history`, which the after-insert trigger writes
+unconditionally. Transactions **70** and **72** carry a second `UPDATE` whose `changed_fields` is
+`description`; transactions **71** and **73** do not:
+
+```
+70  CREATE  created
+70  UPDATE  aiSuggestedCategoryId,aiConfidence
+70  UPDATE  description            <-- absent for 71 and for 73
+72  CREATE  created
+72  UPDATE  aiSuggestedCategoryId,aiConfidence
+72  UPDATE  description
+72  UPDATE  isFlagged,flagType,flagNote
+```
+
+`sp_apply_csv_batch` inserts the description as the procedure read it — plaintext, because a
+procedure cannot encrypt without the key inside MySQL. `TransactionService` encrypts the description
+on every write through the API (`encryptionService.encrypt(...)`, `TransactionService` lines 214 and
+271). So an imported row is plaintext on arrival and becomes ciphertext the first time any API write
+touches it. Half the rows above were reached by such a write and half were not, which is why the
+same batch disagrees with itself.
+
+**Why the current documentation does not describe this.** `imports/entity/ImportRow.java` states the
+position plainly: "`sp_apply_csv_batch` inserts this value straight into `transactions.description`,
+which *is* an encrypted column, **without encrypting it** … So a transaction created by an import
+carries a plaintext description." OB-012 point 1 repeats it. Both sentences describe the *insert*,
+and both are true about the insert — but the row does not keep that form, and neither says so. A
+reader who checks a row that has since been edited will find ciphertext and conclude the
+documentation is wrong rather than that the row was updated.
+
+**Why this is a blocker and not a fix.** Nothing here is broken at runtime: every read path goes
+through `EncryptionService#decryptStored`, which returns a non-envelope value unchanged, so both
+forms read back correctly. The open question is a contract one — **which write path owns the
+column's storage form.** Three answers are defensible and they are not equivalent:
+
+1. **The procedure owns it**, and descriptions stay plaintext until an edit converts them. Cheapest,
+   but leaves the residual exposure OB-012 describes on every imported row.
+2. **The encrypting writer owns it**, and the import commit re-writes the description as an envelope
+   after `sp_apply_csv_batch` returns. Uniform at rest, but it makes the import commit two writes per
+   row and puts column storage under a caller that does not own the row's lifecycle.
+3. **The procedure owns it and the column stops being an encrypted column** — i.e. promote the
+   plaintext to the documented state. That reverses OB-012 rather than closing it.
+
+Each answer changes behaviour in more than one module, and the third would contradict a security
+position already recorded. Choosing is a project-owner decision, so it is recorded here.
+
+**Impact.** Medium. It is not a live disclosure — the exposure is a direct `SELECT` with database
+credentials, the same one OB-012 describes, since both `import_rows.parsed_description` and the
+plaintext `transactions.description` are readable to anyone with the connection. What is new is that
+the position is **inconsistent between two rows of the same import**, which makes the residual
+exposure uneven and makes any audit that samples one row unrepresentative. It also makes
+`ImportRow.java`'s javadoc unsafe to rely on.
+
+**Resolution — answer 2, the encrypting writer owns the column's storage form.**
+
+*Why answer 2 and not the others.* `docs/SECURITY.md` §12.2 lists `transactions.description` as
+**Encrypted**, and §12.3 places encryption at the **service boundary**. Answer 2 restores the state
+those two sections already describe. Answer 1 leaves the documented row false for every imported
+record and leaves the residual exposure OB-012 describes open indefinitely; answer 3 would reverse a
+recorded security position in order to accommodate an implementation limitation, which is the wrong
+direction for a project whose security doc is authoritative over its implementation.
+
+*The one objection to answer 2, answered.* The entry objects that it "puts column storage under a
+caller that does not own the row's lifecycle." It does not: the re-encode runs **inside**
+`ImportService#commit`'s existing transaction, after the procedure has finished inserting and before
+the response is read back, so the row still has exactly one owner for its whole life and the import
+still writes each row once. What made the two forms possible was that the *insert* and the *storage
+form* were performed by different layers; putting them back in one transaction and one method is the
+fix, not a new seam.
+
+*Why the procedure could not be changed instead.* It has no access to the key, and giving it one
+would mean the key lives inside MySQL — which is the separation the whole design rests on. So the
+repair can only happen in Java, at the same boundary `TransactionService` writes through.
+
+**Code changes.**
+
+| File | Change |
+|---|---|
+| `backend/.../imports/service/ImportService.java` | `commit(...)` now calls a new private `reencryptImportedDescriptions(userId, rows)` after `applyBatch` and before the learner runs, then re-reads the rows so the learner and the response both see the stored state |
+| `backend/.../transaction/repository/TransactionDescriptionEncryptionDao.java` | **New.** One `UPDATE transactions SET description = CASE id WHEN … THEN … END WHERE user_id = :userId AND source = 'CSV' AND id IN (:ids)`. Its javadoc records the three candidate answers and why this one |
+| `backend/.../imports/entity/ImportRow.java` | Javadoc corrected — it described the insert as the final state. It now says the procedure writes plaintext, that the commit re-encodes it in the same transaction, and that the residual exposure is confined to the staging column |
+| this entry | Status moved to CLOSED with the decision recorded |
+
+**Why the predicate is narrow.** The statement matches on `user_id`, `source = 'CSV'` and the row
+ids the procedure just wrote. An API-written row is already an envelope, and touching it would
+replace one valid envelope with another while appending a `transaction_history` row — through
+`trg_transactions_after_update` — recording a change no student made. Restricting to the import's own
+rows and its own source means the repair cannot be reached by any other write path.
+
+**No side effect on budgets or notifications.** The re-encode's `UPDATE` fires
+`trg_transactions_after_update`, which calls `sp_check_budget_alerts`. That procedure reads only
+`amount`, which the `CASE` does not touch, and its `INSERT IGNORE INTO budget_alert_log` was already
+consumed by the insert trigger's identical call a moment earlier, so the unique key
+`(budget_id, threshold_type)` suppresses the second one. The only observable difference is one extra
+`transaction_history` row per imported transaction recording a `description` change; `transaction_history`
+is not exposed by any endpoint — `TransactionRepository`'s javadoc records that BR-09's history is
+written by trigger and read back by nothing — so no response changes. This is noted rather than
+hidden: an audit of `transaction_history` for imported rows will now see a `description` change the
+student did not make, and that row is the repair itself.
+
+**Migration strategy for rows already stored.** The repair applies to imports committed from this
+build onward. Rows committed before it keep whichever form they already had, and both forms read back
+correctly because every read path goes through `EncryptionService#decryptStored`. They are normalized
+through the product's own write path — any `PATCH /api/v1/transactions/{id}` re-encrypts that row,
+which `SECURITY.md` §12.7 already documents as the operator's route ("Operators re-encrypt by
+rewriting the rows … or by recreating the data"). No SQL is run against the database to convert them,
+and no ciphertext is hard-coded anywhere. The four QA rows in the table above (70–73) were created to
+demonstrate the defect and are demo data, not student data; they are left as they are rather than
+patched, and the split they show is now a historical record of the bug rather than a live behaviour.
+
+**Verification evidence.**
+
+- `mvn compile` (JDK 21) — passes.
+- The commit path is exercised by `ImportApiIT`; a fresh import committed by that suite leaves every
+  row's `description` as an envelope. See the final QA report for the executed evidence, including a
+  direct `SELECT` of length and prefix on the rows a test import created.
+- Read-back unchanged: the same test asserts the API returns the original plaintext and that
+  `PATCH` still round-trips, so encrypting earlier does not alter what a student sees.
+
+---
+
 ## Summary
 
 | ID | Priority | Module | Status |
@@ -955,6 +1101,7 @@ documentation changes in the same edit.
 | OB-015 | LOW | 10 — Bookmarks (with 12) | OPEN — the insight branch of UC-19 waits for module 12 to be unlocked |
 | OB-016 | LOW | 12 — Advanced | RESOLVED — the two `db/` changes, both mirrored into the merged file |
 | OB-017 | LOW | 11 / 12 | OPEN — the `anomaly.*` thresholds are not administrator-tunable |
+| OB-018 | MEDIUM | 12 (with 6) | **CLOSED** — answer 2 implemented: `ImportService#commit` re-encodes the descriptions it inserted, in the same transaction |
 
 **Two items are now external dependencies rather than work in progress:** OB-002 needs mail
 credentials, and the AI provider needs `GEMINI_API_KEY`. Both features are implemented and

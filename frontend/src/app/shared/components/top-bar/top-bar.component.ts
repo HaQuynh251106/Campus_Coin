@@ -1,9 +1,9 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { ThemeService } from '../../../core/services/theme.service';
-import { TransactionService } from '../../../core/services/transaction.service';
+import { DashboardService } from '../../../core/services/dashboard.service';
 import { IconComponent } from '../icon/icon.component';
 import { NotificationBellComponent } from '../notification-bell/notification-bell.component';
 
@@ -31,15 +31,20 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
               Welcome back, {{ user()?.name?.split(' ')?.[0] || 'Alex' }}
             </h1>
             <p class="text-[11px] text-[var(--color-text-muted)] font-normal">
-              {{ user()?.major }} &bull; {{ user()?.academicYear }}
+              {{ user()?.academicYear }}
             </p>
           </div>
         </div>
 
-        <!-- Center: Current Month Balance Badge -->
+        <!--
+          Center: current month balance badge.
+          The figures come from GET /dashboard, which the header fetches once itself if no other
+          screen has already done so. Reading them from the transaction list instead made the badge
+          show $0.00 on every route except the Feed, because only the Feed loaded that list.
+        -->
         <div class="hidden sm:flex items-center gap-2.5 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-1.5 shadow-xs">
           <div class="text-left pr-2.5 border-r border-neutral-200 dark:border-neutral-700">
-            <span class="block text-[10px] uppercase font-medium tracking-wider text-neutral-500 dark:text-neutral-400">Sep Net</span>
+            <span class="block text-[10px] uppercase font-medium tracking-wider text-neutral-500 dark:text-neutral-400">{{ periodLabel() }} Net</span>
             <span class="font-semibold text-sm" [class.text-emerald-600]="balance().net >= 0" [class.text-red-500]="balance().net < 0">
               {{ balance().net >= 0 ? '+' : '' }}\${{ balance().net.toFixed(2) }}
             </span>
@@ -98,14 +103,40 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
     </header>
   `
 })
-export class TopBarComponent {
+export class TopBarComponent implements OnInit {
   private auth = inject(AuthService);
+  private dashboardService = inject(DashboardService);
   theme = inject(ThemeService);
-  private txService = inject(TransactionService);
 
   user = this.auth.currentUser;
 
-  get balance() {
-    return () => this.txService.getMonthlyBalance('2026-09');
+  /**
+   * The badge is a read of the dashboard, which is the one endpoint that publishes a month's
+   * income, expense and net together. It is fetched here rather than pushed in from a page so the
+   * figure is correct on every route, not only the Feed.
+   */
+  private readonly summary = computed(() => this.dashboardService.dashboard()?.summary ?? null);
+
+  balance = computed(() => {
+    const s = this.summary();
+    return {
+      income: Number(s?.totalIncome ?? 0),
+      expense: Number(s?.totalExpense ?? 0),
+      net: Number(s?.netAmount ?? 0)
+    };
+  });
+
+  /** The month the dashboard reported, so the label cannot disagree with the figures. */
+  periodLabel = computed(() => {
+    const month = this.dashboardService.dashboard()?.periodMonth;
+    if (!month) return 'This month';
+    const [y, m] = month.split('-');
+    const names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return names[parseInt(m, 10)] || month;
+  });
+
+  ngOnInit(): void {
+    if (this.dashboardService.dashboard()) return;
+    this.dashboardService.getDashboard().subscribe({ error: () => {} });
   }
 }

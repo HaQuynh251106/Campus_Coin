@@ -24,8 +24,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * @param apiKey  the provider credential, from {@code GEMINI_API_KEY}. Blank means no provider.
  * @param model   the model identifier to call. Defaults to {@code gemini-3.5-flash}.
- * @param maxTokens the response cap for one call. Small on purpose: both calls return a sentence or
- *                two or a short JSON object, and a large cap would only buy a long timeout.
+ * @param maxTokens the response cap for one call. Generous on purpose - see
+ *                {@link #DEFAULT_MAX_TOKENS}. The calls stop at {@code STOP} once they are done, so
+ *                a cap they never reach costs nothing.
  * @param baseUrl the API endpoint. Overridable so a test can point at a stub server; production
  *                leaves it unset and the SDK's own default applies.
  * @param timeoutSeconds how long to wait for one call before giving up. The caller treats a timeout
@@ -46,8 +47,22 @@ public record AiProperties(String apiKey,
      */
     public static final String DEFAULT_MODEL = "gemini-3.5-flash";
 
-    /** One sentence of reasoning or a small JSON object. Well under this; the cap is a guard. */
-    public static final int DEFAULT_MAX_TOKENS = 1024;
+    /**
+     * The response cap for one call.
+     *
+     * <p>This is a cap, not a target: both calls return a sentence or two or a small JSON object, so
+     * only a fraction of it is ever used, and {@code finishReason=STOP} is the normal outcome.
+     *
+     * <p>It is deliberately not small. Gemini 3.x bills <b>thought tokens</b> against this same
+     * budget ({@code usageMetadata.thoughtsTokenCount} plus {@code candidatesTokenCount} <= the cap),
+     * and a reasoning model spends them before it writes anything - a one-word reply measured 84
+     * thought tokens. At the previous value of 1024 the budget was occasionally consumed by thinking
+     * alone, which truncated the reply mid-JSON ({@code finishReason=MAX_TOKENS}), made
+     * {@link #parse} return null, and silently downgraded the answer to the rule-based text. That
+     * failure is intermittent, so it reads as "the AI sometimes works" rather than as a defect; the
+     * headroom here is what makes it deterministic.
+     */
+    public static final int DEFAULT_MAX_TOKENS = 8192;
 
     public static final int DEFAULT_TIMEOUT_SECONDS = 20;
 

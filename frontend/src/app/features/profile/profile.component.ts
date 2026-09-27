@@ -3,8 +3,8 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
 import { ThemeService } from '../../core/services/theme.service';
-import { User, FontSizePreference } from '../../core/models/user.model';
-import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadcrumbs.component';
+import { ToastService } from '../../core/services/toast.service';
+import { User, FontSizePreference, ServerFontScale } from '../../core/models/user.model';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 
 @Component({
@@ -13,16 +13,10 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    BreadcrumbsComponent,
     IconComponent
   ],
   template: `
     <div class="space-y-6">
-      <!-- Breadcrumbs -->
-      <app-breadcrumbs
-        [items]="[{ label: 'Profile & Settings' }]"
-      ></app-breadcrumbs>
-
       <!-- Page Header -->
       <div class="flex items-center justify-between">
         <div>
@@ -83,30 +77,18 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
                 />
               </div>
 
-              <!-- Academic Year & Major -->
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1">
-                    Academic Year
-                  </label>
-                  <select formControlName="academicYear" class="input-brutal">
-                    <option value="Freshman (1st Year)">Freshman (1st Year)</option>
-                    <option value="Sophomore (2nd Year)">Sophomore (2nd Year)</option>
-                    <option value="Junior (3rd Year)">Junior (3rd Year)</option>
-                    <option value="Senior (4th Year)">Senior (4th Year)</option>
-                    <option value="Graduate / Master">Graduate / Master</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1">
-                    Major / Department
-                  </label>
-                  <input
-                    type="text"
-                    formControlName="major"
-                    class="input-brutal"
-                  />
-                </div>
+              <!-- Academic Year -->
+              <div>
+                <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1">
+                  Academic Year
+                </label>
+                <select formControlName="academicYear" class="input-brutal">
+                  <option value="Freshman (1st Year)">Freshman (1st Year)</option>
+                  <option value="Sophomore (2nd Year)">Sophomore (2nd Year)</option>
+                  <option value="Junior (3rd Year)">Junior (3rd Year)</option>
+                  <option value="Senior (4th Year)">Senior (4th Year)</option>
+                  <option value="Graduate / Master">Graduate / Master</option>
+                </select>
               </div>
 
               <!-- Monthly Allowance Baseline & Savings Goal -->
@@ -172,8 +154,9 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
 
               <button
                 type="button"
-                (click)="theme.toggleDarkMode()"
-                class="px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs font-medium cursor-pointer transition-colors"
+                (click)="setTheme(!theme.isDarkMode())"
+                [disabled]="isSavingPreference"
+                class="px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs font-medium cursor-pointer transition-colors disabled:opacity-50"
                 [class.bg-amber-500]="!theme.isDarkMode()"
                 [class.text-neutral-950]="!theme.isDarkMode()"
                 [class.border-amber-500]="!theme.isDarkMode()"
@@ -260,17 +243,18 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
 export class ProfileComponent implements OnInit {
   private fb = inject(FormBuilder);
   private auth = inject(AuthService);
+  private toast = inject(ToastService);
   private cdr = inject(ChangeDetectorRef);
   theme = inject(ThemeService);
 
   user = this.auth.currentUser;
   profileSuccess = false;
   isSaving = false;
+  isSavingPreference = false;
 
   profileForm = this.fb.group({
     name: ['', [Validators.required]],
     academicYear: ['Junior (3rd Year)', [Validators.required]],
-    major: ['Computer Science', [Validators.required]],
     monthlyAllowance: [500, [Validators.required, Validators.min(0)]],
     savingsGoal: [1000, [Validators.required, Validators.min(0)]]
   });
@@ -281,7 +265,6 @@ export class ProfileComponent implements OnInit {
       this.profileForm.patchValue({
         name: u.name,
         academicYear: u.academicYear,
-        major: u.major,
         monthlyAllowance: u.monthlyAllowance,
         savingsGoal: u.savingsGoal
       });
@@ -314,7 +297,6 @@ export class ProfileComponent implements OnInit {
     this.auth.updateProfile({
       name: updates.name || undefined,
       academicYear: updates.academicYear || undefined,
-      major: updates.major || undefined,
       monthlyAllowance: Number(updates.monthlyAllowance) || undefined,
       savingsGoal: Number(updates.savingsGoal) || undefined
     }).subscribe({
@@ -334,7 +316,40 @@ export class ProfileComponent implements OnInit {
     });
   }
 
+  /**
+   * Appearance and text size are account settings (UC-27), not browser settings, so each change is
+   * written through `PATCH /profile/me/preferences` rather than only to `localStorage`.
+   *
+   * The local value is applied first so the change is visible immediately, then saved. If the save
+   * fails the local value is left as the student set it and the error is reported — silently
+   * reverting a control the student just used would be worse than telling them it did not stick.
+   */
+  setTheme(dark: boolean): void {
+    this.theme.setDarkMode(dark);
+    this.savePreference({ themePreference: dark ? 'DARK' : 'LIGHT' });
+  }
+
   setFontSize(size: FontSizePreference): void {
     this.theme.setFontSize(size);
+    this.savePreference({ fontScale: size.toUpperCase() as ServerFontScale });
+  }
+
+  private savePreference(preference: { themePreference?: 'LIGHT' | 'DARK'; fontScale?: ServerFontScale }): void {
+    if (!this.auth.isStudent()) return;
+
+    this.isSavingPreference = true;
+    this.auth.updatePreferences(preference).subscribe({
+      next: () => {
+        this.isSavingPreference = false;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.isSavingPreference = false;
+        this.toast.error(
+          err.error?.message || 'Saved on this device, but could not save to your account.'
+        );
+        this.cdr.markForCheck();
+      }
+    });
   }
 }

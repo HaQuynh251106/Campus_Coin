@@ -250,6 +250,12 @@ the order to display in.
 ]
 ```
 
+The `id`, `amount` and `txnDate` in both blocks are illustrations, and so are the descriptions — a
+freshly seeded database has no `Campus Dining Hall` record. The `categoryId`/`categoryName` pairs are
+not: `6` is `Food` and `1` is `Allowance`, both created by `db/05_seed.sql`, so those two fields agree
+with each other whatever the database holds. Read real ids from this response; see the note on
+example values in `API_INVENTORY.md`.
+
 An account with no records gets `[]`, not `null` and not `404`.
 
 `includeDeleted=true` adds the records in the trash, each carrying `"isDeleted": true` and a
@@ -851,7 +857,7 @@ leave it unverified.
 
 - [FRONTEND_API_GUIDE.md](FRONTEND_API_GUIDE.md) — **start here.** The single entry point for the
   frontend: base URL, interceptors, the shared error contract, the enum reference and the master
-  table of all 76 operations
+  table of all 78 operations
 - [API_INVENTORY.md](API_INVENTORY.md) — the authoritative endpoint list
 - [authentication.md](authentication.md) — how to obtain the token these endpoints need
 - [categories.md](categories.md) — module 3, whose `PATCH` semantics and `categoryId` rule this module follows

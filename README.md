@@ -19,6 +19,15 @@ view visual reports, and receive saving tips derived from their own spending hab
 > tests passing**. The Angular frontend must **not** be wired to any of them until the project owner
 > unlocks the module; see [`docs/modules/MODULE_12_ADVANCED.md`](docs/modules/MODULE_12_ADVANCED.md).
 >
+> **A second addition followed module 12 and is not part of it.** The conversational chat assistant
+> (`GET` and `POST /api/v1/chat`) was requested by the project owner after module 12 — a student asks
+> questions about their own records and a model answers from figures the backend reads for them. It
+> implements **no numbered use case**: the specification runs UC-01…UC-27 and has no conversational
+> assistant in it, so the endpoint inventory records it as a post-module addition rather than
+> inventing a `UC-28` for it. The live figure is therefore **78 operations on 57 paths**, and the two
+> chat rows are **not** under the module 12 lock. See
+> [`docs/api/chat-assistant.md`](docs/api/chat-assistant.md).
+>
 > Free-text fields are protected by **Application-Level Field Encryption using AES-256-GCM**: a
 > transaction or recurring-rule description is written to MySQL as ciphertext, so a direct `SELECT`
 > does not reveal what the student typed. Amounts are deliberately **not** encrypted — MySQL cannot

@@ -4,7 +4,7 @@ import { RouterModule } from '@angular/router';
 import { forkJoin, of, catchError } from 'rxjs';
 import { AdminService, AdminKpis } from '../../../core/services/admin.service';
 import { ToastService } from '../../../core/services/toast.service';
-import { AdminTopCategory } from '../../../core/models/admin.model';
+import { AdminTopCategory, AdminUsageStats } from '../../../core/models/admin.model';
 
 @Component({
   selector: 'app-admin-dashboard',
@@ -57,7 +57,7 @@ import { AdminTopCategory } from '../../../core/models/admin.model';
         <div class="bg-white dark:bg-neutral-900 p-5 rounded-xl border border-slate-200 dark:border-neutral-800 shadow-xs">
           <span class="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider block">Total Volume Logged</span>
           <div class="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
-            \${{ kpis ? kpis.totalVolumeTracked.toLocaleString() : (isLoading ? '...' : '0.00') }}
+            {{ kpis ? money(kpis.totalVolumeTracked) : (isLoading ? '...' : '$0.00') }}
           </div>
           <div class="text-xs text-[var(--color-text-muted)] font-medium mt-1">
             Total expenses recorded
@@ -67,7 +67,7 @@ import { AdminTopCategory } from '../../../core/models/admin.model';
         <div class="bg-white dark:bg-neutral-900 p-5 rounded-xl border border-slate-200 dark:border-neutral-800 shadow-xs">
           <span class="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider block">Avg. Monthly Student Outflow</span>
           <div class="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-            \${{ kpis ? kpis.avgStudentMonthlySpend.toLocaleString() : (isLoading ? '...' : '0.00') }}
+            {{ kpis ? money(kpis.avgStudentMonthlySpend) : (isLoading ? '...' : '$0.00') }}
           </div>
           <div class="text-xs text-[var(--color-text-muted)] font-medium mt-1">
             Average per active student
@@ -78,23 +78,25 @@ import { AdminTopCategory } from '../../../core/models/admin.model';
       <!-- Charts & Campus Volume Breakdown -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        <!-- Left: Usage Activity Chart (8 cols) -->
+        <!-- Left: System-Wide Volume Breakdown (8 cols) -->
         <div class="lg:col-span-8 bg-white dark:bg-neutral-900 p-5 rounded-xl border border-slate-200 dark:border-neutral-800 shadow-xs">
           <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-neutral-800">
             <div>
               <h3 class="font-bold text-base text-slate-900 dark:text-white">
-                Daily Campus Activity & Volume (Past 14 Days)
+                System-Wide Volume Breakdown
               </h3>
-              <p class="text-xs text-[var(--color-text-muted)]">Daily transaction volume across student cohorts</p>
+              <p class="text-xs text-[var(--color-text-muted)]">
+                Aggregates published by GET /admin/stats (UC-23). Each bar is one figure as it stands today.
+              </p>
             </div>
           </div>
 
           <div class="h-56 flex items-end justify-between gap-2 pt-6 px-2 border-b border-slate-200 dark:border-neutral-700">
-            @for (bar of activityBars; track bar.day) {
+            @for (bar of volumeBars; track bar.label) {
               <div class="flex-1 flex flex-col items-center justify-end h-full group relative">
                 <!-- Tooltip -->
                 <div class="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 bg-slate-900 text-white text-[10px] py-1 px-1.5 rounded whitespace-nowrap z-20">
-                  {{ bar.day }}: {{ bar.count }} txs
+                  {{ bar.hint }}
                 </div>
 
                 <div
@@ -104,6 +106,27 @@ import { AdminTopCategory } from '../../../core/models/admin.model';
                 <span class="text-[10px] text-slate-400 mt-2 font-mono">{{ bar.label }}</span>
               </div>
             }
+          </div>
+
+          <!-- Money figures are sums over the whole student base, so they sit beside the counts
+               rather than on the same axis. -->
+          <div class="grid grid-cols-3 gap-3 mt-4 text-xs">
+            <div class="p-2.5 bg-slate-50 dark:bg-neutral-800 rounded">
+              <span class="text-slate-400 block text-[10px] uppercase font-bold">Income Logged</span>
+              <span class="font-bold text-emerald-600 dark:text-emerald-400">
+                {{ money(totalIncomeLogged) }}
+              </span>
+            </div>
+            <div class="p-2.5 bg-slate-50 dark:bg-neutral-800 rounded">
+              <span class="text-slate-400 block text-[10px] uppercase font-bold">Expense Logged</span>
+              <span class="font-bold text-rose-600 dark:text-rose-400">
+                {{ money(totalExpenseLogged) }}
+              </span>
+            </div>
+            <div class="p-2.5 bg-slate-50 dark:bg-neutral-800 rounded">
+              <span class="text-slate-400 block text-[10px] uppercase font-bold">Disabled Accounts</span>
+              <span class="font-bold text-slate-700 dark:text-neutral-200">{{ disabledStudents }}</span>
+            </div>
           </div>
         </div>
 
@@ -123,7 +146,7 @@ import { AdminTopCategory } from '../../../core/models/admin.model';
                   <div class="flex justify-between text-xs font-medium mb-1 text-slate-700 dark:text-slate-300">
                     <span class="truncate max-w-[180px]">{{ cat.name }}</span>
                     <span class="font-bold font-mono">
-                      \${{ cat.totalAmount.toLocaleString() }} <span class="text-slate-400 font-normal">({{ cat.percentage }}%)</span>
+                      {{ money(cat.totalAmount) }} <span class="text-slate-400 font-normal">({{ cat.percentage }}%)</span>
                     </span>
                   </div>
                   <div class="w-full h-2 bg-slate-100 dark:bg-neutral-800 rounded-full overflow-hidden">
@@ -154,36 +177,71 @@ export class AdminDashboardComponent implements OnInit {
   private cdr = inject(ChangeDetectorRef);
 
   kpis: AdminKpis | null = null;
+  stats: AdminUsageStats | null = null;
   topCategories: Array<{ id: number; name: string; percentage: number; color: string; totalAmount: number }> = [];
 
-  activityBars = [
-    { day: 'Sep 11', label: '11', count: 180, heightPercent: 45 },
-    { day: 'Sep 12', label: '12', count: 210, heightPercent: 52 },
-    { day: 'Sep 13', label: '13', count: 160, heightPercent: 40 },
-    { day: 'Sep 14', label: '14', count: 240, heightPercent: 60 },
-    { day: 'Sep 15', label: '15', count: 320, heightPercent: 80 },
-    { day: 'Sep 16', label: '16', count: 290, heightPercent: 72 },
-    { day: 'Sep 17', label: '17', count: 270, heightPercent: 68 },
-    { day: 'Sep 18', label: '18', count: 350, heightPercent: 88 },
-    { day: 'Sep 19', label: '19', count: 310, heightPercent: 78 },
-    { day: 'Sep 20', label: '20', count: 220, heightPercent: 55 },
-    { day: 'Sep 21', label: '21', count: 280, heightPercent: 70 },
-    { day: 'Sep 22', label: '22', count: 340, heightPercent: 85 },
-    { day: 'Sep 23', label: '23', count: 390, heightPercent: 95 },
-    { day: 'Sep 24', label: '24', count: 400, heightPercent: 100 }
-  ];
+  /**
+   * Count-based figures only. Every bar here is a number of records, so the bars share one unit and
+   * one scale honestly.
+   *
+   * This panel used to be a "Daily Campus Activity (Past 14 Days)" bar chart with fourteen invented
+   * day/count pairs. No route publishes per-day activity — `GET /admin/stats` returns ten scalar
+   * aggregates and nothing with a date on it — so those bars were fabricated. Money is deliberately
+   * not mixed in here either: a dollar sum and a row count cannot share an axis.
+   */
+  get volumeBars(): Array<{ label: string; value: number; hint: string; heightPercent: number }> {
+    const s = this.stats;
+    const items = [
+      { label: 'TXN', value: Number(s?.totalTransactions ?? 0), hint: 'Transactions logged' },
+      { label: 'BGT', value: Number(s?.totalBudgets ?? 0), hint: 'Budgets set' },
+      { label: 'TIP', value: Number(s?.totalTipsGenerated ?? 0), hint: 'Saving tips generated' },
+      { label: 'INS', value: Number(s?.totalInsightsGenerated ?? 0), hint: 'Monthly insights generated' }
+    ];
+    const max = Math.max(1, ...items.map(i => i.value));
+    return items.map(i => ({ ...i, heightPercent: Math.round((i.value / max) * 100) }));
+  }
+
+  get totalIncomeLogged(): number {
+    return Number(this.stats?.totalIncomeLogged ?? 0);
+  }
+
+  get totalExpenseLogged(): number {
+    return Number(this.stats?.totalExpenseLogged ?? 0);
+  }
+
+  get disabledStudents(): number {
+    return Number(this.stats?.disabledStudents ?? 0);
+  }
+
+  /**
+   * Formats a money figure with US grouping, so 1187.00 reads as `$1,187.00`.
+   *
+   * `toLocaleString()` with no argument follows the *browser's* locale, which on this machine
+   * resolves to `vi_CN` — a locale whose grouping separator is a full stop. `$1.187` was therefore
+   * rendered for one thousand one hundred and eighty-seven dollars, which is the amount
+   * one-thousandth of that to anyone reading it in an en-US context. Every other money value in the
+   * app is a fixed two-decimal USD string, so the locale is pinned here rather than left to the
+   * reader's machine.
+   */
+  money(value: number): string {
+    return `$${Number(value || 0).toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
+  }
 
   isLoading = false;
 
   ngOnInit(): void {
     this.isLoading = true;
     forkJoin({
-      kpis: this.adminService.getKpiMetrics().pipe(catchError(() => of(null))),
+      stats: this.adminService.getStats().pipe(catchError(() => of(null))),
       topCategories: this.adminService.getTopCategories().pipe(catchError(() => of([])))
     }).subscribe({
-      next: ({ kpis, topCategories }) => {
+      next: ({ stats, topCategories }) => {
         this.isLoading = false;
-        this.kpis = kpis;
+        this.stats = stats;
+        this.kpis = stats ? this.toKpis(stats) : null;
         this.processTopCategories(topCategories || []);
         this.cdr.markForCheck();
       },
@@ -193,6 +251,24 @@ export class AdminDashboardComponent implements OnInit {
         this.cdr.markForCheck();
       }
     });
+  }
+
+  /**
+   * The four KPI cards read from the same `GET /admin/stats` response the breakdown panel uses, so
+   * one request fills the screen. The shape is derived here rather than through
+   * `AdminService.getKpiMetrics()` to avoid a second round trip for figures already in hand.
+   */
+  private toKpis(stats: AdminUsageStats): AdminKpis {
+    const avg = stats.activeStudents > 0
+      ? Math.round(stats.totalExpenseLogged / stats.activeStudents)
+      : 0;
+    return {
+      totalUsers: stats.totalStudents,
+      activeUsers: stats.activeUsers30d,
+      totalTransactionsLogged: stats.totalTransactions,
+      totalVolumeTracked: stats.totalExpenseLogged,
+      avgStudentMonthlySpend: avg
+    };
   }
 
   private processTopCategories(raw: AdminTopCategory[]): void {

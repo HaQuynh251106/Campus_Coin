@@ -35,16 +35,19 @@ export class TransactionService {
     this.transactions().filter(t => !t.isDeleted)
   );
 
+  /**
+   * Maps the response onto the model. `source` is the only provenance the API publishes — there is
+   * no `recurringFrequency` to read, because a transaction carries no frequency at all.
+   */
   private mapBackendTx(raw: any): Transaction {
-    const txnDate = raw.txnDate || raw.date || new Date().toISOString().split('T')[0];
+    const txnDate = raw.txnDate || raw.date || new Date().toLocaleDateString('sv-SE');
     const type: TransactionType = raw.categoryType || raw.type || 'EXPENSE';
     return {
-      id: raw.id,
-      userId: raw.userId,
+      id: String(raw.id),
       type,
       categoryType: type,
       amount: Number(raw.amount),
-      categoryId: raw.categoryId,
+      categoryId: String(raw.categoryId),
       categoryName: raw.categoryName || 'General',
       categoryIcon: raw.categoryIcon || 'tag',
       categoryColor: raw.categoryColor || '#EAB308',
@@ -52,11 +55,8 @@ export class TransactionService {
       txnDate: txnDate,
       description: raw.description || '',
       source: raw.source || 'MANUAL',
-      recurringRuleId: raw.recurringRuleId,
       isDeleted: raw.isDeleted || false,
-      deletedAt: raw.deletedAt,
-      createdAt: raw.createdAt,
-      recurringFrequency: raw.recurringFrequency || 'NONE'
+      deletedAt: raw.deletedAt
     };
   }
 

@@ -3,6 +3,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, tap, catchError, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { ThemeService } from './theme.service';
 import { AuthResponse, User, UserSummary, ProfileResponse } from '../models/user.model';
 
 @Injectable({
@@ -10,6 +11,7 @@ import { AuthResponse, User, UserSummary, ProfileResponse } from '../models/user
 })
 export class AuthService {
   private http = inject(HttpClient);
+  private theme = inject(ThemeService);
   private platformId = inject(PLATFORM_ID);
   private isBrowser = isPlatformBrowser(this.platformId);
   private baseUrl = `${environment.apiUrl}/v1`;
@@ -156,6 +158,14 @@ export class AuthService {
     });
   }
 
+  /**
+   * Reads the profile and adopts the account's own display preferences.
+   *
+   * Applying them here rather than only on the settings screen is what makes the preference belong
+   * to the account: any screen that reads the profile restores the student's theme and text size,
+   * and the local copy in `localStorage` — which is per-browser, not per-account — is overwritten
+   * with the server's values instead of being allowed to disagree with them.
+   */
   getProfile(): Observable<ProfileResponse> {
     return this.http.get<ProfileResponse>(`${this.baseUrl}/profile/me`).pipe(
       tap(p => {
@@ -173,15 +183,19 @@ export class AuthService {
             localStorage.setItem('campus_coin_user', JSON.stringify(updated));
           }
         }
+        this.theme.applyServerPreferences(p.themePreference, p.fontScale);
       })
     );
   }
 
+  /**
+   * `PATCH /profile/me`. The body is the profile contract's four writable fields and nothing else —
+   * there is no `major` to send, because the contract has no such field.
+   */
   updateProfile(updates: {
     fullName?: string;
     name?: string;
     academicYear?: string;
-    major?: string;
     monthlyAllowanceBaseline?: number;
     monthlyAllowance?: number;
     monthlySavingsGoal?: number;

@@ -450,6 +450,17 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
         }
     }
 
+    /**
+     * The stored {@code transactions.description} of a record this suite created, read directly.
+     *
+     * <p>Read through the {@code transactions} table rather than through an endpoint, because the
+     * question is what is <em>at rest</em> - a read that went through the API would decrypt the value
+     * and could not answer it (OB-018).
+     */
+    protected String storedDescriptionOf(Long transactionId) throws Exception {
+        return columnInDatabase(transactionId, "transactions", "description");
+    }
+
     /** The source the rule learner recorded, which is {@code IMPORT} for a mapping a commit taught. */
     protected String storedRuleSourceOf(Long userId, String keyword) throws Exception {
         try (Connection connection = openDatabaseConnection();

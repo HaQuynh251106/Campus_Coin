@@ -138,12 +138,28 @@ never given database access.
 
 ## Demo accounts with preloaded data
 
-The student **Alex Nguyen** (`an.nguyen@student.campuscoin.edu`) is preloaded with data in `db/06_demo.sql` for an immediate demonstration:
+Both student accounts are preloaded by `db/06_demo.sql` with **different** data, so the demo can be
+exercised immediately and ownership isolation (BR-02) can be tested without creating anything first.
 
-- 31 transactions spread over the last 3 months
+**Alex Nguyen** (`an.nguyen@student.campuscoin.edu`) — the primary demo account. A Year 3 student on a
+200.00 monthly allowance with a 100.00 savings goal:
+
+- 31 transactions over the last 4 months (three full months plus the current one)
 - 5 budget limits for the current month
 - An **"Approaching budget limit: Food"** alert already in place (spending 24/30 = 80%) to demonstrate UAT-07 directly
 - The **Entertainment** category already flagged for an unusual 127% increase (BR-15)
-- Saving tips and monthly insights already generated for all 3 months
+- 9 saving tips and 3 monthly insights already generated
+- 2 recurring rules: a monthly allowance and a music subscription
 
-The student **Bella Tran** (`binh.tran@student.campuscoin.edu`) is an empty account, used to compare against the "new student with no data" state (UC-18 A1) and to verify that the 6-month report returns all zeros (BR-17).
+**Bella Tran** (`binh.tran@student.campuscoin.edu`) — the second account, for ownership isolation. A
+Year 1 student on a 150.00 allowance with a 50.00 savings goal, deliberately not a copy of Alex:
+
+- 38 transactions over 6 months, with one near-empty month so the six-month chart shows a real trough
+- 5 budget limits, **different categories and amounts** from Alex's
+- Her own personal category, **Gym & Sports**, which Alex does not have and cannot see
+- A **"Budget exceeded: Food"** alert (30.00 spent of a 25.00 limit) — the state Alex's data never reaches, so both alert states are visible
+- Her own tips and insights, generated from her own data
+
+Verify the two are isolated by signing in as each and comparing: `GET /transactions` returns 31 rows
+for Alex and 38 for Bella, and each `GET /transactions/{id}` for a record belonging to the other
+answers **404**, not 403.
