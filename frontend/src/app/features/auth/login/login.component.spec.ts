@@ -50,14 +50,20 @@ describe('LoginComponent (Unified Login)', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should fill demo student credentials', () => {
-    component.fillDemoStudent();
+  it('should accept student credentials in form', () => {
+    component.loginForm.setValue({
+      email: 'an.nguyen@student.campuscoin.edu',
+      password: 'Student@123'
+    });
     expect(component.loginForm.value.email).toBe('an.nguyen@student.campuscoin.edu');
     expect(component.loginForm.value.password).toBe('Student@123');
   });
 
-  it('should fill demo admin credentials', () => {
-    component.fillDemoAdmin();
+  it('should accept admin credentials in form', () => {
+    component.loginForm.setValue({
+      email: 'admin@campuscoin.edu',
+      password: 'Admin@123'
+    });
     expect(component.loginForm.value.email).toBe('admin@campuscoin.edu');
     expect(component.loginForm.value.password).toBe('Admin@123');
   });

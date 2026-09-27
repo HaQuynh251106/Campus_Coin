@@ -84,7 +84,7 @@ class ImportDuplicateDetectorTest {
 
         assertThat(findings).singleElement()
                 .extracting(Finding::lineNumber).isEqualTo(3);
-        assertThat(findings.getFirst().note()).contains(BASE_DATE.toString());
+        assertThat(findings.get(0).note()).contains(BASE_DATE.toString());
     }
 
     @Test
@@ -111,8 +111,8 @@ class ImportDuplicateDetectorTest {
                 List.of(existing(1, FOOD, "30.00", 0), existing(2, FOOD, "30.00", 1)),
                 List.of(fileRow(2, FOOD, "30.00", 2)));
 
-        assertThat(findings.getFirst().earlierDate()).isEqualTo(BASE_DATE.plusDays(1));
-        assertThat(findings.getFirst().note())
+        assertThat(findings.get(0).earlierDate()).isEqualTo(BASE_DATE.plusDays(1));
+        assertThat(findings.get(0).note())
                 .contains(BASE_DATE.plusDays(1).toString())
                 .doesNotContain(BASE_DATE.plusDays(2).toString());
     }

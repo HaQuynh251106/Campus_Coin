@@ -51,7 +51,7 @@ class CsvParserTest {
         assertThat(document.headers())
                 .containsExactly("date", "amount", "type", "description", "category");
         assertThat(document.records()).hasSize(2);
-        assertThat(document.records().getFirst().values())
+        assertThat(document.records().get(0).values())
                 .containsEntry("date", "2026-09-01")
                 .containsEntry("amount", "12.50")
                 .containsEntry("description", "Campus cafe");
@@ -78,7 +78,7 @@ class CsvParserTest {
 
         assertThat(document.headers()).containsExactly("date", "amount", "type");
         assertThat(document.hasColumn("date")).isTrue();
-        assertThat(document.records().getFirst().value("amount")).isEqualTo("1.00");
+        assertThat(document.records().get(0).value("amount")).isEqualTo("1.00");
     }
 
     @Test
@@ -104,7 +104,7 @@ class CsvParserTest {
                 "date,amount,type,notes\n2026-09-01,1.00,EXPENSE,whatever\n");
 
         assertThat(document.headers()).containsExactly("date", "amount", "type", "notes");
-        assertThat(document.records().getFirst().value("notes")).isEqualTo("whatever");
+        assertThat(document.records().get(0).value("notes")).isEqualTo("whatever");
     }
 
     // ------------------------------------------------------------------
@@ -119,7 +119,7 @@ class CsvParserTest {
         CsvParser.CsvDocument document = parser.parse(
                 "date,amount,type,description\n2026-09-01,12.50,EXPENSE,\"Campus cafe, level 2\"\n");
 
-        assertThat(document.records().getFirst().value("description"))
+        assertThat(document.records().get(0).value("description"))
                 .isEqualTo("Campus cafe, level 2");
     }
 
@@ -131,7 +131,7 @@ class CsvParserTest {
         CsvParser.CsvDocument document = parser.parse(
                 "date,amount,type,description\n2026-09-01,12.50,EXPENSE,\"said \"\"hello\"\" to me\"\n");
 
-        assertThat(document.records().getFirst().value("description"))
+        assertThat(document.records().get(0).value("description"))
                 .isEqualTo("said \"hello\" to me");
     }
 
@@ -144,7 +144,7 @@ class CsvParserTest {
                 "date,amount,type,description\n2026-09-01,12.50,EXPENSE,\"first\nsecond\"\n");
 
         assertThat(document.records()).hasSize(1);
-        assertThat(document.records().getFirst().value("description"))
+        assertThat(document.records().get(0).value("description"))
                 .isEqualTo("first\nsecond");
     }
 
@@ -155,7 +155,7 @@ class CsvParserTest {
         CsvParser.CsvDocument document = parser.parse(
                 "date,amount,type,description\n2026-09-01,12.50,EXPENSE,6\" ruler\n");
 
-        assertThat(document.records().getFirst().value("description")).isEqualTo("6\" ruler");
+        assertThat(document.records().get(0).value("description")).isEqualTo("6\" ruler");
     }
 
     @Test
@@ -193,7 +193,7 @@ class CsvParserTest {
         CsvParser.CsvDocument document = parser.parse("date,amount,type\n2026-09-01,1.00,EXPENSE");
 
         assertThat(document.records()).hasSize(1);
-        assertThat(document.records().getFirst().value("type")).isEqualTo("EXPENSE");
+        assertThat(document.records().get(0).value("type")).isEqualTo("EXPENSE");
     }
 
     @Test
@@ -205,7 +205,7 @@ class CsvParserTest {
         CsvParser.CsvDocument document = parser.parse(
                 "date,amount,type,description\n2026-09-01,1.00,EXPENSE\n");
 
-        CsvParser.CsvRecord row = document.records().getFirst();
+        CsvParser.CsvRecord row = document.records().get(0);
         assertThat(row.value("date")).isEqualTo("2026-09-01");
         assertThat(row.value("description")).isNull();
         assertThat(row.values()).doesNotContainKey("description");
@@ -229,7 +229,7 @@ class CsvParserTest {
         // the result depend on the order the map happened to be filled.
         CsvParser.CsvDocument document = parser.parse("date,amount,type,amount\n2026-09-01,1.00,EXPENSE,9.99\n");
 
-        assertThat(document.records().getFirst().value("amount")).isEqualTo("1.00");
+        assertThat(document.records().get(0).value("amount")).isEqualTo("1.00");
     }
 
     // ------------------------------------------------------------------
@@ -301,7 +301,7 @@ class CsvParserTest {
         CsvParser.CsvDocument document = parser.parse(
                 "date,amount,type,description\n2026-09-01,1.00,EXPENSE,=SUM(A1:A2)\n");
 
-        Map<String, String> values = document.records().getFirst().values();
+        Map<String, String> values = document.records().get(0).values();
         assertThat(values).containsEntry("description", "=SUM(A1:A2)");
         assertThat(List.copyOf(values.keySet()))
                 .containsExactly("date", "amount", "type", "description");

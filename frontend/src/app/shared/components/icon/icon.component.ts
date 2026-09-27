@@ -391,6 +391,29 @@ import { CommonModule } from '@angular/common';
         <path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z" />
       }
 
+      <!-- Lock / Key / Globe / Arrow Left -->
+      @if (name === 'lock') {
+        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      }
+
+      @if (name === 'globe') {
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+        <path d="M2 12h20" />
+      }
+
+      @if (name === 'key') {
+        <circle cx="7.5" cy="15.5" r="5.5" />
+        <path d="m21 2-9.6 9.6" />
+        <path d="m15.5 7.5 3 3L22 7l-3-3" />
+      }
+
+      @if (name === 'arrow-left') {
+        <path d="m12 19-7-7 7-7" />
+        <path d="M19 12H5" />
+      }
+
       <!-- Fallback Default Icon when name is unknown -->
       @if (isFallback) {
         <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" />
@@ -415,7 +438,8 @@ export class IconComponent {
     'arrow-right', 'arrow-up', 'check-circle', 'shield-check', 'zap', 'trending-up', 'bell', 'message-square',
     'squirrel-logo', 'squirrel-coin', 'graduation-cap', 'education', 'scholarship', 'repeat',
     'subscriptions', 'film', 'entertainment', 'more-horizontal', 'more', 'miscellaneous',
-    'shopping-bag', 'shopping', 'music', 'dumbbell', 'fitness', 'shirt', 'lightbulb', 'tips'
+    'shopping-bag', 'shopping', 'music', 'dumbbell', 'fitness', 'shirt', 'lightbulb', 'tips',
+    'lock', 'globe', 'key', 'arrow-left'
   ]);
 
   get isFallback(): boolean {

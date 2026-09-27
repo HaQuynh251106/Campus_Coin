@@ -222,8 +222,8 @@ class ImportPreviewerTest {
                 2026-09-01,oops,EXPENSE,Campus cafe,Food
                 """);
 
-        assertThat(preview.drafts().getFirst().rowStatus()).isEqualTo(ImportRowStatus.ERROR);
-        assertThat(preview.drafts().getFirst().errorMessage())
+        assertThat(preview.drafts().get(0).rowStatus()).isEqualTo(ImportRowStatus.ERROR);
+        assertThat(preview.drafts().get(0).errorMessage())
                 .isEqualTo("Amount must be a positive number, with at most 2 decimal places.");
         assertThat(preview.errorRows()).isEqualTo(1);
         assertThat(preview.duplicateRows()).isZero();
@@ -259,7 +259,7 @@ class ImportPreviewerTest {
                 2026-09-01,18.00,EXPENSE,Campus cafe latte,Transport
                 """);
 
-        ImportRowDraft draft = preview.drafts().getFirst();
+        ImportRowDraft draft = preview.drafts().get(0);
         assertThat(draft.aiSuggestedCategoryId()).isEqualTo(FOOD);
         assertThat(draft.parsedCategoryName()).isEqualTo("Transport");
         assertThat(draft.rowStatus()).isEqualTo(ImportRowStatus.VALID);
@@ -276,8 +276,8 @@ class ImportPreviewerTest {
                 2026-09-01,18.00,EXPENSE,,
                 """);
 
-        assertThat(preview.drafts().getFirst().rowStatus()).isEqualTo(ImportRowStatus.VALID);
-        assertThat(preview.drafts().getFirst().aiSuggestedCategoryId()).isNull();
+        assertThat(preview.drafts().get(0).rowStatus()).isEqualTo(ImportRowStatus.VALID);
+        assertThat(preview.drafts().get(0).aiSuggestedCategoryId()).isNull();
         verify(resolver).suggestedCategoryId(anyList(), anyList(), isNull());
     }
 
@@ -358,7 +358,7 @@ class ImportPreviewerTest {
                 List.of(),
                 List.of(existing(FOOD, "75.00", BASE_DATE)));
 
-        assertThat(verdicts.getFirst().rowStatus()).isEqualTo(ImportRowStatus.DUPLICATE);
+        assertThat(verdicts.get(0).rowStatus()).isEqualTo(ImportRowStatus.DUPLICATE);
         verify(resolver, never()).resolveByName(anyList(), any(), any());
     }
 
@@ -377,7 +377,7 @@ class ImportPreviewerTest {
                 List.of(),
                 List.of(existing(FOOD, "75.00", BASE_DATE)));
 
-        assertThat(verdicts.getFirst().rowStatus()).isEqualTo(ImportRowStatus.DUPLICATE);
+        assertThat(verdicts.get(0).rowStatus()).isEqualTo(ImportRowStatus.DUPLICATE);
     }
 
     // ------------------------------------------------------------------

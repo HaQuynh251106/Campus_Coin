@@ -127,7 +127,7 @@ public class CsvParser {
             throw refusal("content", "The file has no rows.");
         }
 
-        List<String> headers = allRecords.getFirst().stream()
+        List<String> headers = allRecords.get(0).stream()
                 .map(CsvParser::normaliseHeader)
                 .toList();
 
@@ -215,7 +215,7 @@ public class CsvParser {
                     fields.add(field.toString());
                     field.setLength(0);
                     fieldWasQuoted = false;
-                    if (anyContentOnRecord || fields.size() > 1 || !fields.getFirst().isBlank()) {
+                    if (anyContentOnRecord || fields.size() > 1 || !fields.get(0).isBlank()) {
                         records.add(List.copyOf(fields));
                     }
                     fields.clear();
@@ -238,7 +238,7 @@ public class CsvParser {
         // A last line with no trailing newline is still a record.
         if (!field.isEmpty() || !fields.isEmpty()) {
             fields.add(field.toString());
-            if (fields.size() > 1 || !fields.getFirst().isBlank()) {
+            if (fields.size() > 1 || !fields.get(0).isBlank()) {
                 records.add(List.copyOf(fields));
             }
         }
