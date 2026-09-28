@@ -5,11 +5,12 @@ import { NavItem, STUDENT_NAV_ITEMS, STUDENT_SIDEBAR_EXTRA_ITEMS } from '../../n
 import { AuthService } from '../../../core/services/auth.service';
 import { ThemeService } from '../../../core/services/theme.service';
 import { IconComponent } from '../icon/icon.component';
+import { AvatarComponent } from '../avatar/avatar.component';
 
 @Component({
   selector: 'app-nav-sidebar',
   standalone: true,
-  imports: [CommonModule, RouterModule, IconComponent],
+  imports: [CommonModule, RouterModule, IconComponent, AvatarComponent],
   template: `
     <aside
       class="w-64 shrink-0 bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 h-screen sticky top-0 flex flex-col justify-between p-4 z-20 overflow-y-auto"
@@ -70,6 +71,10 @@ import { IconComponent } from '../icon/icon.component';
                 <a
                   [routerLink]="item.route"
                   routerLinkActive="bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium"
+                  [class.bg-amber-500\/10]="isRouteActive(item.route)"
+                  [class.text-amber-700]="isRouteActive(item.route)"
+                  [class.dark:text-amber-400]="isRouteActive(item.route)"
+                  [class.font-medium]="isRouteActive(item.route)"
                   class="flex items-center justify-between px-3 py-2 rounded-lg transition-all text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 mb-0.5"
                 >
                   <div class="flex items-center gap-2.5">
@@ -92,13 +97,11 @@ import { IconComponent } from '../icon/icon.component';
       <div class="pt-4 border-t border-neutral-200 dark:border-neutral-800 space-y-3">
         <!-- Logged in user info -->
         <div class="flex items-center gap-3 px-2">
-          <div class="w-9 h-9 rounded-full border border-neutral-200 dark:border-neutral-700 overflow-hidden bg-neutral-100 dark:bg-neutral-800 shrink-0">
-            <img
-              [src]="user()?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80'"
-              [alt]="user()?.name || 'User Avatar'"
-              class="w-full h-full object-cover"
-            />
-          </div>
+          <app-avatar
+            [avatarUrl]="user()?.avatar"
+            [name]="user()?.name"
+            size="md"
+          ></app-avatar>
           <div class="overflow-hidden">
             <div class="font-medium text-sm text-neutral-900 dark:text-neutral-100 truncate">
               {{ user()?.name || 'Current User' }}
@@ -131,6 +134,13 @@ export class NavSidebarComponent {
   @Input() extraItems: NavItem[] = STUDENT_SIDEBAR_EXTRA_ITEMS;
 
   user = this.auth.currentUser;
+
+  isRouteActive(route: string): boolean {
+    if (route === '/app/tips') {
+      return this.router.url.startsWith('/app/bookmarks');
+    }
+    return false;
+  }
 
   onLogout(): void {
     // AuthService.logout() returns a COLD observable - the request is only sent once

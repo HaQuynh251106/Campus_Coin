@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { TipService } from '../../core/services/tip.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -23,7 +24,7 @@ import { SavingTip } from '../../core/models/tip.model';
 @Component({
   selector: 'app-tips',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent],
+  imports: [CommonModule, FormsModule, RouterModule, IconComponent],
   template: `
     <div class="max-w-5xl mx-auto px-4 md:px-8 py-6 space-y-6">
       <div class="flex flex-wrap items-start justify-between gap-4">

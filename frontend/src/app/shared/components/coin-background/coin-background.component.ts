@@ -10,7 +10,6 @@ import {
   ChangeDetectionStrategy
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { SavingsJarService } from '../../../core/services/savings-jar.service';
 import type * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import type { RoomEnvironment as RoomEnvType } from 'three/examples/jsm/environments/RoomEnvironment.js';
@@ -60,7 +59,6 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
   private ngZone = inject(NgZone);
   private platformId = inject(PLATFORM_ID);
   private isBrowser = isPlatformBrowser(this.platformId);
-  private savingsJarService = inject(SavingsJarService);
 
   // Configuration
   private readonly PIXELS_PER_UNIT = 35; // 1 physics unit = 35 screen pixels
@@ -501,14 +499,6 @@ export class CoinBackgroundComponent implements AfterViewInit, OnDestroy {
           if (isResting) {
             coin.state = 'resting';
             coin.landedTime = now;
-
-            // Scoring Trigger: Widen catch zone to catch roughly 60-70% of all falling coins
-            const jarCatchRadius = this.worldWidth * 0.29;
-            if (Math.abs(pos.x) <= jarCatchRadius) {
-              this.ngZone.run(() => {
-                this.savingsJarService.recordCoinCaught(pos.x, this.PIXELS_PER_UNIT);
-              });
-            }
           }
         } else if (coin.state === 'resting') {
           if (coin.landedTime && now - coin.landedTime > this.REST_DURATION) {

@@ -6,6 +6,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { ToastService } from '../../core/services/toast.service';
 import { User, FontSizePreference, ServerFontScale } from '../../core/models/user.model';
 import { IconComponent } from '../../shared/components/icon/icon.component';
+import { AvatarComponent } from '../../shared/components/avatar/avatar.component';
 
 @Component({
   selector: 'app-profile',
@@ -13,7 +14,8 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    IconComponent
+    IconComponent,
+    AvatarComponent
   ],
   template: `
     <div class="space-y-6">
@@ -37,13 +39,12 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
 
             <!-- User Avatar & Badge -->
             <div class="flex items-center gap-4 mb-6 pb-4 border-b border-neutral-200 dark:border-neutral-800">
-              <div class="w-14 h-14 rounded-full border border-neutral-200 dark:border-neutral-700 overflow-hidden bg-neutral-100 dark:bg-neutral-800 shrink-0">
-                <img
-                  [src]="user()?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80'"
-                  [alt]="user()?.name"
-                  class="w-full h-full object-cover"
-                />
-              </div>
+              <app-avatar
+                [avatarUrl]="user()?.avatar"
+                [name]="user()?.name"
+                size="lg"
+                className="shadow-xs"
+              ></app-avatar>
               <div>
                 <h3 class="font-semibold text-lg text-neutral-900 dark:text-neutral-50">
                   {{ user()?.name }}

@@ -6,11 +6,12 @@ import { ThemeService } from '../../../core/services/theme.service';
 import { DashboardService } from '../../../core/services/dashboard.service';
 import { IconComponent } from '../icon/icon.component';
 import { NotificationBellComponent } from '../notification-bell/notification-bell.component';
+import { AvatarComponent } from '../avatar/avatar.component';
 
 @Component({
   selector: 'app-top-bar',
   standalone: true,
-  imports: [CommonModule, RouterModule, IconComponent, NotificationBellComponent],
+  imports: [CommonModule, RouterModule, IconComponent, NotificationBellComponent, AvatarComponent],
   template: `
     <header class="sticky top-0 z-30 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 px-4 md:px-8 py-2.5 transition-colors">
       <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
@@ -89,13 +90,12 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
             class="flex items-center pl-1 group"
             title="View Profile & Settings"
           >
-            <div class="w-8 h-8 rounded-full border border-neutral-200 dark:border-neutral-700 overflow-hidden bg-neutral-100 dark:bg-neutral-800 group-hover:ring-2 group-hover:ring-amber-500/30 transition-all">
-              <img
-                [src]="user()?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80'"
-                [alt]="user()?.name || 'Student Avatar'"
-                class="w-full h-full object-cover"
-              />
-            </div>
+            <app-avatar
+              [avatarUrl]="user()?.avatar"
+              [name]="user()?.name"
+              size="sm"
+              className="group-hover:ring-2 group-hover:ring-amber-500/40 transition-all shadow-xs"
+            ></app-avatar>
           </a>
         </div>
 

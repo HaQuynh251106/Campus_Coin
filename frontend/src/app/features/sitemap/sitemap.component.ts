@@ -245,7 +245,7 @@ Student Portal (requires student login)
 ├── /app/categories — Manage categories
 ├── /app/recurring — Recurring rules (subscriptions & bills)
 ├── /app/tips — Personalized saving tips
-├── /app/bookmarks — Bookmarked tips & notes
+├── /app/bookmarks — Bookmarked tips & notes (accessed via Saving Tips)
 ├── /app/profile — Profile & preferences
 ├── /app/imports — CSV import with smart auto-categorization
 ├── /app/insights — Monthly automated spending insights
@@ -388,7 +388,7 @@ export class SitemapComponent {
         {
           path: '/app/bookmarks',
           name: 'Saved Tips & Notes',
-          description: 'Repository for bookmarked financial tips and custom personal spending notes.',
+          description: 'Repository for bookmarked financial tips and custom personal spending notes, accessed via the Saving Tips page.',
           isPublic: false,
           requiresRole: 'student'
         },

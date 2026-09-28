@@ -1,18 +1,17 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IconComponent } from '../../../shared/components/icon/icon.component';
+import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 
 interface StudentQuote {
   quote: string;
   name: string;
   major: string;
-  avatar: string;
 }
 
 @Component({
   selector: 'app-landing-social-proof',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, AvatarComponent],
   template: `
     <section id="stories" class="py-16 sm:py-24 border-t border-neutral-200/80 dark:border-neutral-800/80 bg-neutral-50/50 dark:bg-neutral-900/30">
       <div class="max-w-6xl mx-auto px-4 sm:px-6">
@@ -41,16 +40,7 @@ interface StudentQuote {
 
               <!-- Persona Footer -->
               <div class="flex items-center gap-3 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-                <div class="w-10 h-10 rounded-full overflow-hidden bg-neutral-100 dark:bg-neutral-800 shrink-0 border border-neutral-200 dark:border-neutral-700">
-                  <img
-                    [src]="item.avatar"
-                    [alt]="item.name"
-                    width="40"
-                    height="40"
-                    loading="lazy"
-                    class="w-full h-full object-cover"
-                  />
-                </div>
+                <app-avatar [name]="item.name" size="md"></app-avatar>
                 <div>
                   <h4 class="font-semibold text-sm text-neutral-900 dark:text-neutral-100">
                     {{ item.name }}
@@ -82,20 +72,17 @@ export class LandingSocialProofComponent {
     {
       quote: "Splitting dorm Wi-Fi, lab equipment, and food cart meals used to drain my account before midterms. Campus Coin's AI categories showed me exactly where to cut back.",
       name: "Minh T.",
-      major: "Junior, Computer Science",
-      avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=128&q=80"
+      major: "Junior, Computer Science"
     },
     {
       quote: "The fact that I don't have to connect my actual bank account was huge for me. I just type my coffee and textbook expenses and the budget alerts keep me honest.",
       name: "Elena R.",
-      major: "Sophomore, Biology",
-      avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=128&q=80"
+      major: "Sophomore, Biology"
     },
     {
       quote: "The monthly insight summaries read like advice from an older sibling. It helped me save $400 over the summer for my thesis materials and lab supplies.",
       name: "Marcus K.",
-      major: "Senior, Economics",
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=128&q=80"
+      major: "Senior, Economics"
     }
   ];
 }

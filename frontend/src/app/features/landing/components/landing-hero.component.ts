@@ -4,11 +4,12 @@ import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { CategoryIconComponent } from '../../../shared/components/category-icon/category-icon.component';
+import { AvatarComponent } from '../../../shared/components/avatar/avatar.component';
 
 @Component({
   selector: 'app-landing-hero',
   standalone: true,
-  imports: [CommonModule, RouterModule, IconComponent, CategoryIconComponent],
+  imports: [CommonModule, RouterModule, IconComponent, CategoryIconComponent, AvatarComponent],
   template: `
     <section class="relative pt-12 pb-16 sm:pt-20 sm:pb-24 overflow-hidden">
       <!-- Ambient Background Glow (Subtle Brand Gold) -->
@@ -110,17 +111,9 @@ import { CategoryIconComponent } from '../../../shared/components/category-icon/
                 </div>
               </div>
 
-              <!-- AI Advisor Snippet (Real free-licensed student avatar) -->
+              <!-- AI Advisor Snippet (Campus mascot avatar) -->
               <div class="p-3 bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3">
-                <div class="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-amber-500/30">
-                  <img
-                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=128&q=80"
-                    alt="Campus AI Advisor"
-                    width="32"
-                    height="32"
-                    class="w-full h-full object-cover"
-                  />
-                </div>
+                <app-avatar size="sm" alt="Campus AI Coach"></app-avatar>
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center justify-between text-[11px] mb-0.5">
                     <span class="font-semibold text-neutral-900 dark:text-neutral-100">Campus AI Coach</span>

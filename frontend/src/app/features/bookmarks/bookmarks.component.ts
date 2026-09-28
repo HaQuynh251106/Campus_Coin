@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { IconComponent } from '../../shared/components/icon/icon.component';
+import { BreadcrumbsComponent } from '../../shared/components/breadcrumbs/breadcrumbs.component';
 import { TipService } from '../../core/services/tip.service';
 import { ToastService } from '../../core/services/toast.service';
 import { Bookmark } from '../../core/models/tip.model';
@@ -22,9 +23,11 @@ import { Bookmark } from '../../core/models/tip.model';
 @Component({
   selector: 'app-bookmarks',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, IconComponent],
+  imports: [CommonModule, FormsModule, RouterModule, IconComponent, BreadcrumbsComponent],
   template: `
     <div class="max-w-4xl mx-auto px-4 md:px-8 py-6 space-y-6">
+      <app-breadcrumbs [items]="[{ label: 'Saving Tips', url: '/app/tips' }, { label: 'Saved Tips' }]"></app-breadcrumbs>
+
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 class="text-2xl sm:text-3xl font-semibold text-neutral-900 dark:text-neutral-50 tracking-tight">
