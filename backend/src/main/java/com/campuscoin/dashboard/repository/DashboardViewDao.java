@@ -119,6 +119,58 @@ public class DashboardViewDao {
             """;
 
     /**
+     * UC-12 B3, BR-14: the same tips as {@link #SELECT_TIPS}, cut off at the configured maximum.
+     *
+     * <p><b>Why the dashboard needs its own bounded query rather than reusing the list one.</b>
+     * BR-14 is a rule about how many tips a dashboard <em>shows</em>, and the stored rows do not carry
+     * that bound. {@code sp_generate_tips} applies {@code tips.max_dashboard} to one generation run,
+     * but the rows accumulate for a month: the dedupe key is per rule and per category, so a later run
+     * on a month shifts within the same top-N and stores rows the earlier runs did not, each one
+     * surviving because it is not a duplicate of an existing row. What the student reads is what the
+     * dashboard selects, so the bound has to be applied where the reading happens. Bounding the
+     * generator alone would let a student see five tips under a configured three.
+     *
+     * <p><b>History is untouched.</b> This narrows a read; it deletes nothing. A tip cut off here still
+     * exists, is still the student's, is still reachable at {@code GET /api/v1/tips} (which answers
+     * "what advice does this month hold", not "what fits on the dashboard"), and comes back if the
+     * administrator raises the limit. Removing rows to make the count match would destroy exactly the
+     * history the setting exists to summarise.
+     *
+     * <p><b>Why the cut is applied after the ordering, not before.</b> The subquery orders by the same
+     * keys the view ranks by and then takes the first {@code :maxTips}; cutting before ordering would
+     * keep an arbitrary N rather than the top N, and pinned tips - which the order puts first - could
+     * be dropped in favour of lower-scored ones. A pinned tip is a choice the student made, so the
+     * bound must not be what discards it.
+     *
+     * <p>The limit is a bound parameter rather than a literal: the value is the administrator's
+     * {@code tips.max_dashboard}, read from {@code system_settings} at request time, which is what
+     * makes changing the setting change this screen without a redeploy (VĐ-05).
+     */
+    private static final String SELECT_TIPS_LIMITED = """
+            SELECT t.tipId           AS tipId,
+                   t.categoryId      AS categoryId,
+                   t.title           AS title,
+                   t.body            AS body,
+                   t.potentialSaving AS potentialSaving,
+                   t.state           AS state
+              FROM (
+                    SELECT v.tip_id           AS tipId,
+                           v.category_id      AS categoryId,
+                           v.title            AS title,
+                           v.body             AS body,
+                           v.potential_saving AS potentialSaving,
+                           v.state            AS state,
+                           v.display_order    AS displayOrder
+                      FROM v_dashboard_tips v
+                     WHERE v.user_id = :userId
+                       AND v.period_month = :periodMonth
+                     ORDER BY (v.state = 'PINNED') DESC, v.display_order ASC, v.tip_id ASC
+                     LIMIT :maxTips
+                   ) t
+             ORDER BY (t.state = 'PINNED') DESC, t.displayOrder ASC, t.tipId ASC
+            """;
+
+    /**
      * UC-12 B3: the announcements currently live and meant for a student.
      *
      * <p><b>The audience filter is applied here because the view does not apply it.</b>
@@ -196,6 +248,31 @@ public class DashboardViewDao {
         List<Tuple> rows = entityManager.createNativeQuery(SELECT_TIPS, Tuple.class)
                 .setParameter("userId", userId)
                 .setParameter("periodMonth", periodMonth)
+                .getResultList();
+
+        return rows.stream().map(DashboardViewDao::toTip).toList();
+    }
+
+    /**
+     * UC-12 B3, BR-14: the caller's tips for one month, at most {@code maxTips} of them.
+     *
+     * <p>The dashboard's read. {@code maxTips} is the effective {@code tips.max_dashboard}, resolved
+     * by the caller so this class holds no opinion about where a threshold comes from - the same split
+     * {@code BudgetConsumptionDao} keeps, where the view decides the status and the caller only reads
+     * it. The bound is applied by the database rather than by discarding rows after they arrive, so
+     * the query returns what the screen shows and no more.
+     *
+     * @param maxTips the most tips to return; the caller passes a positive value, because
+     *                {@code SettingReader.getInt} already substitutes the documented default for an
+     *                absent or unusable setting
+     */
+    @Transactional(readOnly = true)
+    public List<DashboardTip> findTipsLimited(Long userId, LocalDate periodMonth, int maxTips) {
+        @SuppressWarnings("unchecked")
+        List<Tuple> rows = entityManager.createNativeQuery(SELECT_TIPS_LIMITED, Tuple.class)
+                .setParameter("userId", userId)
+                .setParameter("periodMonth", periodMonth)
+                .setParameter("maxTips", maxTips)
                 .getResultList();
 
         return rows.stream().map(DashboardViewDao::toTip).toList();

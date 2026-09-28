@@ -60,6 +60,9 @@ abstract class AbstractDashboardApiIT extends AbstractMySqlIntegrationTest {
     protected static final String TRANSPORT = "Transport";
     protected static final String SUBSCRIPTIONS = "Subscriptions";
     protected static final String INCOME_CATEGORY = "Allowance";
+    protected static final String ACADEMICS = "Academics";
+    protected static final String ENTERTAINMENT = "Entertainment";
+    protected static final String MISCELLANEOUS = "Miscellaneous";
 
     /** The zone the application and the database session both run in (VĐ-10). */
     protected static final ZoneId APPLICATION_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
@@ -249,6 +252,19 @@ abstract class AbstractDashboardApiIT extends AbstractMySqlIntegrationTest {
     protected List<Long> tipIdsFor(Long userId, LocalDate periodMonth) throws Exception {
         return longValuesFrom("SELECT id FROM user_tips WHERE user_id = ? AND period_month = ? "
                 + "ORDER BY id", userId, periodMonth);
+    }
+
+    /**
+     * The same month's visible tips in the order the schema ranks them, read from the view itself.
+     *
+     * <p>Distinct from {@link #tipIdsFor}, which is a set: that one answers "which rows exist" in
+     * primary-key order, and this one answers "which rows come first" by the view's own
+     * {@code display_order}. A test that asserted the dashboard's output against primary-key order
+     * would be asserting an ordering no part of the product promises.
+     */
+    protected List<Long> rankedTipIdsFor(Long userId, LocalDate periodMonth) throws Exception {
+        return longValuesFrom("SELECT tip_id FROM v_dashboard_tips WHERE user_id = ? "
+                + "AND period_month = ? ORDER BY display_order", userId, periodMonth);
     }
 
     /**

@@ -14,6 +14,25 @@
 
 ---
 
+> ## ⚠ SUPERSEDED — read this before relying on any status below
+>
+> **Added 2026-09-27 by the final QA / test-data / pre-deployment pass. The findings below are kept
+> unaltered as a dated record of what this independent run observed; several of its status statements
+> are no longer true of the current build.**
+>
+> | Claim in this report | Current status |
+> |---|---|
+> | **M12 LOCKED / NOT IMPLEMENTED** — UAT-05 (AI category suggestion, UC-08) and UAT-15 (CSV import, UC-11) recorded as `404` / BLOCKED | **Out of date.** Module 12 was subsequently implemented and is no longer locked. UC-08 and UC-11 are implemented; the routes this run probed (`GET /api/v1/ai/chat`, `GET /api/v1/export`) are still correctly absent, because UC-16's export is **client-side by design** (`window.print()`) and the chat surface is `POST /api/v1/chat`, not the path probed here. The required status wording is therefore **no longer** the M12-locked line above — see `docs/FINAL_QA_TEST_DATA_DEPLOYMENT_REPORT.md` |
+> | UAT-05 AI category suggestion BLOCKED | **Superseded.** The AI provider is configured and its wiring is verified; the AI/chatbot items were additionally confirmed by **human browser verification** on 2026-09-27 |
+> | UAT-15 CSV import BLOCKED | **Superseded.** UC-11 preview → commit → real transactions is implemented and covered by the causal QA report (REL-30/31) |
+> | The environmental caveat below ("started from a jar that has since been deleted") | **No longer applies** — the current build was rebuilt and re-verified in this pass |
+>
+> **Do not quote a PASS or a FAIL from this document as the current status of the feature.**
+> `docs/testing/qa/CAUSAL_RELATIONSHIP_QA_REPORT.md` is the current causal matrix and
+> `docs/FINAL_QA_TEST_DATA_DEPLOYMENT_REPORT.md` is the current consolidated handoff.
+
+---
+
 ## 1. Test environment
 
 | Item | Observed value |

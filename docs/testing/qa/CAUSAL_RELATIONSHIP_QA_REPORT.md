@@ -16,6 +16,22 @@ disagreed with what the system does, the system is what is recorded here.
 figure. It is retained unchanged so this report can be read side by side with the earlier one. Where a
 relationship proved mis-specified, the correction is recorded in **Section G** rather than absorbed.
 
+> **Addendum — 2026-09-27, by the final QA / test-data / pre-deployment pass.**
+>
+> This report's matrix is kept unaltered as the record of that pass. Two things below have moved since,
+> and neither contradicts the findings here — both were *absences* this matrix did not cover:
+>
+> | Item | Then | Now |
+> |---|---|---|
+> | **Admin budget thresholds → student `consumptionStatus`** | **Not covered.** The matrix has no relationship for the two configurable budget thresholds reaching the student's status, so its "0 FAIL" never exercised them | **Covered and PASS, after a fix.** `v_budget_consumption` read only `budget.near_threshold_pct` and used it for **both** thresholds, so `budget.exceeded_threshold_pct` had no effect on a student's status. Fixed in `db/02_views.sql` and the merged script; re-verified bidirectionally through `PATCH /api/v1/admin/settings/{key}` under a decoy customer. See `docs/FINAL_QA_TEST_DATA_DEPLOYMENT_REPORT.md` §4 (R2) |
+> | **`tips.max_dashboard` → displayed tip count** | **Not covered as a relationship.** The matrix asserts the *generation* bound only | **Covered and PASS, after a fix.** The bound is now enforced at the dashboard read path, so `displayed_tips_count <= max_dashboard` holds however many rows a month has accumulated. Verified live at 1/2/5/3 |
+> | Backend suite size | **1091 tests** | **1135 tests, 0 failures, 0 errors, 0 skipped.** The +44 = this pass's causal tests (2 budget-threshold, 1 dashboard tip bound) plus the chat work counted elsewhere |
+>
+> Also since this report: the AI provider's **own output** was human-verified against a quota-backed
+> real call, and the password-reset email flow was human-verified against real SMTP. Section I's
+> "REMAINING MANUAL REVIEW — blocked by provider quota" entry is therefore **closed**; the provisioned
+> quota limit remains a demo-day consideration, not an open verification item.
+
 ---
 
 ## A. Executive Summary
@@ -357,6 +373,16 @@ and no requirement was silently downgraded.
 | Announcements 31–36 (REL-35 probes) | Withdrawn through `PATCH /admin/announcements/{id} {"isActive":false}` → 200 |
 
 ### Residual artifacts (no delete route exists, or the row is evidence)
+
+> **Addendum — 2026-09-27.** This table is the footprint *at the end of that pass*. The final QA /
+> test-data / pre-deployment pass subsequently removed most of it and verified the rest: the withdrawn
+> announcement rows, the import batches, the `category_rules` learning rows and the earlier probe
+> transactions are gone, and the database now holds only the demo dataset plus the two deliberate
+> exceptions below. Current state, with every count queried, is in
+> `docs/FINAL_QA_TEST_DATA_DEPLOYMENT_REPORT.md` §8 and §12. Two entries there remain by decision:
+> the retired default category **id 15**, which **BR-09 makes undelible** while a soft-deleted
+> transaction still references it, and the project owner's own account, which was left untouched
+> because its ownership is not ours to assume.
 
 | Artifact | Detail | Why it remains |
 |---|---|---|

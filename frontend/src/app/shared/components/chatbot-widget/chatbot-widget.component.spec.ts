@@ -95,7 +95,7 @@ describe('ChatbotWidgetComponent', () => {
     expect(input).toBeTruthy();
     expect(input.placeholder).toBe('Ask about budgets, meals, allowance…');
 
-    const sendBtn = fixture.nativeElement.querySelector('button[title="Send message"]') as HTMLButtonElement;
+    const sendBtn = fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
     expect(sendBtn).toBeTruthy();
     expect(sendBtn.disabled).toBe(true);
 
@@ -103,6 +103,56 @@ describe('ChatbotWidgetComponent', () => {
     fixture.detectChanges();
 
     expect(sendBtn.disabled).toBe(false);
+  });
+
+  it('should immediately clear typed text in textarea and reset userInput on send', () => {
+    component.toggleOpen();
+    fixture.detectChanges();
+
+    const input = fixture.nativeElement.querySelector('textarea[name="chatInput"]') as HTMLTextAreaElement;
+    input.value = 'How much did I spend on groceries?';
+    component.userInput.set('How much did I spend on groceries?');
+    fixture.detectChanges();
+
+    component.onSend();
+    fixture.detectChanges();
+
+    expect(component.userInput()).toBe('');
+    expect(input.value).toBe('');
+  });
+
+  it('should keep textarea enabled while assistant is replying so user can compose next message in advance', () => {
+    component.toggleOpen();
+    chatbotService.isTyping.set(true);
+    fixture.detectChanges();
+
+    const input = fixture.nativeElement.querySelector('textarea[name="chatInput"]') as HTMLTextAreaElement;
+    expect(input).toBeTruthy();
+    expect(input.disabled).toBe(false);
+
+    // User can type into the textarea while assistant responds
+    input.value = 'Can I spend money on coffee today?';
+    component.userInput.set('Can I spend money on coffee today?');
+    fixture.detectChanges();
+
+    // Send button remains disabled while assistant is typing to prevent concurrent requests
+    const sendBtn = fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(sendBtn.disabled).toBe(true);
+    expect(sendBtn.getAttribute('title')).toBe('Assistant is responding…');
+
+    // Once assistant finishes, the send button enables and text is preserved ready to send
+    chatbotService.isTyping.set(false);
+    fixture.detectChanges();
+
+    expect(sendBtn.disabled).toBe(false);
+    expect(input.value).toBe('Can I spend money on coffee today?');
+
+    // Sending now sends the pre-composed message and clears the input
+    component.onSend();
+    fixture.detectChanges();
+
+    expect(component.userInput()).toBe('');
+    expect(input.value).toBe('');
   });
 
   it('asks the backend about availability once when a student view is mounted', () => {

@@ -13,6 +13,24 @@
 > that were observed at runtime while verifying the cleaned data, including one **HIGH**-severity
 > session defect. Section F is the section to read before accepting anything else here.
 
+> **Addendum — 2026-09-27, by the final QA / test-data / pre-deployment pass.**
+>
+> **This report is a dated record of the cleanup run it describes, and its "no QA residue remains"
+> statement is true of that run — but it is no longer the current state.** Substantial QA residue
+> accumulated again *after* 2026-09-26, during the corrective-implementation and chatbot work, and was
+> removed by the pass referenced below.
+>
+> | Then (this report, 2026-09-26) | Now |
+> |---|---|
+> | "no QA residue remains" | **Superseded.** Post-seed QA transactions, a QA budget, QA-generated tips, withdrawn probe announcements, import batches and a QA-named default category all existed at the start of the final pass. All were removed or retired, and the database counts were verified back to baseline |
+> | This report's `users` / `transactions` figures | **Superseded.** The current figures, each queried rather than recalled: **4 users, 131 transactions, 15 categories, 10 budgets, 14 tip rows, 9 insights, 3 notifications, 7 tip templates, 16 settings, 0 import batches** |
+> | Defects listed in §F | **Partly fixed since.** In particular the two behavioural defects found in the final pass — `v_budget_consumption` reading only the near threshold, and `tips.max_dashboard` not bounding the dashboard read — are fixed, with causal tests. §F is kept as the dated record |
+>
+> **Do not quote a count or a status from the body of this report as the current state.** The current
+> consolidated handoff is `docs/FINAL_QA_TEST_DATA_DEPLOYMENT_REPORT.md`; its §8 and §12 carry the
+> cleanup inventory and the two deliberate exceptions (the BR-09-undelible retired category id 15, and
+> the project owner's own account).
+
 ---
 
 ## 0. How to read this report

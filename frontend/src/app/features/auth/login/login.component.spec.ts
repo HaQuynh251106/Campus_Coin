@@ -50,6 +50,10 @@ describe('LoginComponent (Unified Login)', () => {
     expect(component).toBeTruthy();
   });
 
+  it('should initialize with empty credentials without auto-filling', () => {
+    expect(component.loginForm.value.email).toBe('');
+    expect(component.loginForm.value.password).toBe('');
+  });
   it('should accept student credentials in form', () => {
     component.loginForm.setValue({
       email: 'an.nguyen@student.campuscoin.edu',

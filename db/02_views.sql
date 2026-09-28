@@ -50,8 +50,10 @@ GROUP BY t.user_id, t.category_id, c.name, c.type,
 
 -- ---------------------------------------------------------------------------
 -- UC-13 B5, BR-11, BR-12: live budget consumption progress bars.
--- The "near limit" threshold is read from system_settings, never hard-coded
--- (VĐ-05).
+-- BOTH thresholds are read from system_settings, never hard-coded (VĐ-05):
+-- near = 80 and exceeded = 100 by default, the same keys and the same defaults
+-- that sp_check_budget_alerts and sp_generate_tips read, so all three agree on
+-- where NEAR ends and EXCEEDED begins.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW v_budget_consumption AS
 SELECT
@@ -65,14 +67,27 @@ SELECT
   ROUND(IFNULL(s.spent_amount, 0) / b.limit_amount * 100, 2) AS consumed_pct,
   ROUND(b.limit_amount - IFNULL(s.spent_amount, 0), 2) AS remaining_amount,
   CASE
-    WHEN IFNULL(s.spent_amount, 0) >= b.limit_amount THEN 'EXCEEDED'
+    -- BR-12: exceeded is measured against the configured SHARE of the limit,
+    -- not against the limit itself, so raising the setting past 100 keeps a
+    -- budget over its limit but under the bar out of EXCEEDED.
+    --
+    -- GREATEST(..., 0) then NULLIF(..., 0) before the join's IFNULL is the same
+    -- guard the procedures apply: a value that is present but unusable (a
+    -- non-numeric cast yields 0, a negative stays negative) falls back to the
+    -- default too. Without it a stored 0 or -5 would make every budget
+    -- EXCEEDED, because every spent amount is >= a non-positive bar.
     WHEN IFNULL(s.spent_amount, 0) >= b.limit_amount
-         * IFNULL(CAST(near_s.setting_value AS DECIMAL(6,2)), 80) / 100 THEN 'NEAR'
+         * IFNULL(NULLIF(GREATEST(CAST(exceed_s.setting_value AS DECIMAL(6,2)), 0), 0), 100) / 100
+      THEN 'EXCEEDED'
+    WHEN IFNULL(s.spent_amount, 0) >= b.limit_amount
+         * IFNULL(NULLIF(GREATEST(CAST(near_s.setting_value AS DECIMAL(6,2)), 0), 0), 80) / 100
+      THEN 'NEAR'
     ELSE 'ON_TRACK'
   END AS consumption_status
 FROM budgets b
 JOIN categories c ON c.id = b.category_id
 LEFT JOIN system_settings near_s ON near_s.setting_key = 'budget.near_threshold_pct'
+LEFT JOIN system_settings exceed_s ON exceed_s.setting_key = 'budget.exceeded_threshold_pct'
 LEFT JOIN (
   -- No filter on type is needed here: trg_budgets_before_insert only allows a
   -- budget on an expense category (BR-11), so every row that joins below is

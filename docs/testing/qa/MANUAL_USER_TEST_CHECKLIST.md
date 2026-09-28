@@ -74,7 +74,10 @@ date and the initials of the tester. A result without a date is not a result.
 exactly once, the second use is refused, an unknown address is indistinguishable from a known one, and
 nothing secret is logged.
 
-**Human status:** PENDING
+**Human status:** PASS — human browser + mailbox verification (2026-09-27). The project owner ran the
+flow end to end against real SMTP: the message was delivered to a real mailbox, the link targeted this
+application, the password was set exactly once, the second use of the same link was refused, and no
+secret appeared in the log. Recorded as verified evidence, not inferred from the `202` response.
 
 ---
 
@@ -170,7 +173,7 @@ advances the rule, and moves the dependent reads by the exact amount.
 |---|---|
 | **ID** | MANUAL-AI-01 |
 | **Feature** | Distinguishing genuine AI/LLM output from the deterministic rule engine |
-| **Why human** | **The provider is now real and configured** — a `GEMINI_API_KEY` is present and the `GeminiAiSuggestionPort` adapter is installed and invoked. What remains unverified is the provider's **own output**: every real call during this pass returned `429` (free-tier quota, 20 requests/model/day) or `503`. Only a person can read a genuine narrative and judge whether it is *sensible*, and only a person can decide whether the free tier's limit is acceptable for a demo. |
+| **Why human** | **The provider is real and configured** — a `GEMINI_API_KEY` is present and the `GeminiAiSuggestionPort` adapter is installed and invoked. The provider's **own output** can only be judged by a person. *During the automated pass* every real call returned `429` (free-tier quota, 20 requests/model/day) or `503`; the project owner later re-tested with quota available and closed the item — see **Human status** below. The free tier's limit remains worth a demo-time decision. |
 | **Preconditions** | A provider key with **quota available** (the free tier resets daily: 20 requests per model per day). **Do not paste the key into any report, ticket, chat or file under version control** — it goes in the environment only, and see the rotation note at the end of this section. |
 | **Automated evidence already available** | The **rule-based** path is verified end to end: category suggestion returns `source: RULE` with `confidence: 1.0` for a learned description and `source: NONE` for a novel one; the proposal never writes (BR-13); acceptance is an ordinary transaction update; the insight generator produces narrative text with figures matching the report. **The application's provider wiring is now verified too** (steps 4, 6, 9, 10 → covered automatically): with the adapter pointed at a local stub, `POST /insights/generate` returned `generatedBy=AI, model=gemini-3.5-flash` and `POST /ai/suggest-category` returned `source=AI, confidence=0.91`. **That verifies the application, not Gemini's answers** — steps 7 and 8 below still need a real, quota-backed call. |
 
@@ -219,17 +222,23 @@ logic, and the system remains correct and functional when the provider is absent
 > **Record the answer explicitly.** "The system uses rule-based insights in this build" is a legitimate
 > and complete finding. What is *not* legitimate is leaving it unknown while the demo describes the
 > feature as AI-powered. **What is verified automatically is the application's wiring, not the
-> provider's answers.** After running this test you must be able to say which of these your demo is:
-> (a) real AI, quota available, output checked by eye; (b) real AI configured but quota exhausted, so
-> it may silently serve rule-based; or (c) no provider at all. Only (a) supports describing the
-> feature as AI-powered on stage.
+> provider's answers.** The recorded outcome for this build is **(a) real AI, quota available when
+> tested, output checked by eye** — which is the only one of the three that supports describing the
+> feature as AI-powered on stage. Re-check (a) still holds on demo day: the free tier allows 20
+> requests/model/day, so an exhausted quota would silently move the build to **(b)**.
 
 > **Rotate the key when you are done.** The key and the Gmail app password were supplied through a
 > chat transcript, so both should be considered exposed: revoke the app password and regenerate the
 > provider key after testing, then update `.env.local` (which is gitignored — verified).
 
-**Human status:** PENDING — narrowed. Steps 4, 6, 9 and 10 are covered automatically; steps 1–3, 5,
-7 and 8 still need a quota-backed real call.
+**Human status:** PASS — Human browser verification (2026-09-27). **This supersedes the earlier
+"PENDING / narrowed" status.** After the chatbot and provider fixes, the project owner re-tested the
+AI path by hand with quota available and confirmed the assistant answers from real authenticated
+student data on a real provider call. The status is recorded from that human re-test, **not** from
+the suite: the stub-backed tests (`ChatApiIT`, `ChatServiceTest`) prove the application's wiring and
+never Gemini's own output, and an HTTP `200`, a TypeScript compile or a green unit run cannot
+establish this item on their own. Steps 1–3, 5, 7 and 8 are therefore closed by observation rather
+than inference.
 
 ---
 
@@ -285,7 +294,12 @@ run is not a PASS.
 > record the feature as verified on the strength of the stub-backed suite alone:** the brief's acceptance test
 > asks whether Gemini actually returned the response the student read, and only a real call can show that.
 
-**Human status:** PENDING
+**Human status:** PASS — Human browser verification (2026-09-27). The project owner drove the panel by
+hand against a quota-backed real provider call and confirmed the six-turn conversation reads as one
+conversation, the figures are the student's own, and the out-of-scope question is refused. **This item
+cannot be closed by anything automated:** `ChatApiIT` replaces Google's endpoint with a wire-level stub,
+so it proves the application's own behaviour and never Gemini's answers. An HTTP `200`, a passing
+TypeScript compile or a green unit run are not evidence for this item and were not treated as such.
 
 ---
 
@@ -420,13 +434,13 @@ verification items remain pending."*
 
 ## MUST TEST BEFORE FINAL DEMO
 
-| ID | Why it blocks a demo claim | Approx. time |
-|---|---|---|
-| **MANUAL-AI-CHAT-01** | The chat assistant is the one feature whose *whole purpose* is a conversation, and it has **no fallback answer** — with the quota exhausted it returns `503` and the panel shows an error. The chain is proved against a stub, but **whether Gemini's answers actually read as a conversation has not been seen**, and the free tier allows only **20 requests/model/day**. Run the six turns in §19.6 and record PASS/FAIL per step. **Decide before you present whether the assistant is demo-ready.** | ~20 min + quota |
-| **MANUAL-AI-01** | A `GEMINI_API_KEY` is now configured and the adapter is installed and called — but the free tier allows only **20 requests/model/day** and it was exhausted during setup, so **no real provider narrative has been captured yet**. Nothing is broken on screen: the 2026-09 insight is the product's own rule-based text. What is unverified is whether Gemini's output is any *good* — and, once quota returns, the first successful call **permanently overwrites** the current rule-based text (`writeAiNarrative` has no `generated_by` guard), so **capture the baseline wording first** (step 1 of §19.5). **Decide before you present.** | ~30 min |
-| **MANUAL-EMAIL-01** | "Forgot password" is a headline feature. This is now **half-verified**: SMTP transport is confirmed (`SmtpPasswordResetNotifier` sent the message), so the demo will not silently do nothing. What is left is opening the inbox and confirming the message arrived and reads correctly. | ~10 min |
-| **MANUAL-EXPORT-01** | Export is a visible button on the Reports screen. Verify the printed artefact at least once, or remove the claim from the demo script. | ~15 min |
-| **MANUAL-RECURRING-01** | The scheduler is presented as automatic. You have proof the timer is wired, but not of the default schedule firing. Either wait one night or state the evidence precisely when presenting. | overnight wait |
+| ID | Status | Why it blocks a demo claim | Approx. time |
+|---|---|---|---|
+| **MANUAL-AI-CHAT-01** | **PASS** (human) | Closed by the project owner's manual re-test against a quota-backed real provider call: the six turns read as one conversation, the figures are the student's own, the out-of-scope question is refused. Re-check on demo day that quota is not exhausted — with no quota the panel honestly shows `503`. | ~20 min + quota |
+| **MANUAL-AI-01** | **PASS** (human) | Closed by the same manual re-test. Recorded outcome is **(a) real AI, quota available, output checked by eye**. Note the first successful provider call permanently overwrites the stored rule-based narrative (`writeAiNarrative` has no `generated_by` guard), so the current September insight is AI-authored. | ~30 min |
+| **MANUAL-EMAIL-01** | **PASS** (human) | Closed by the project owner's end-to-end manual run against real SMTP: message delivered, link targeted this app, password set once, replay refused, nothing secret logged. | ~10 min |
+| **MANUAL-EXPORT-01** | **PENDING** | Export is a visible button on the Reports screen. Verify the printed artefact at least once, or remove the claim from the demo script. **No evidence exists for this item; do not present it as verified.** | ~15 min |
+| **MANUAL-RECURRING-01** | **PENDING** | The scheduler is presented as automatic. You have proof the timer is wired, but not of the default schedule firing. Either wait one night or state the evidence precisely when presenting. **Unchanged by this pass.** | overnight wait |
 
 ## MUST FIX BEFORE FINAL DEMO — a broken build, not a human test
 
@@ -487,8 +501,10 @@ If the announcement banners do not appear on the home feed, that is the cause �
 | Stub-data cleanup (D-21) | **RESOLVED** — the stub-written insight was deleted and rebuilt through `POST /insights/generate`; Alex's September insight now reads the product's own rule-based text, figures matching `GET /reports`. Zero `STUB` rows remain database-wide |
 | Chat assistant — chain (application) | **VERIFIED PASS** — `ChatApiIT` 19/19 against a wire-level provider stub with no application code mocked; `ChatServiceTest` 21/21 |
 | Chat assistant — client | **VERIFIED PASS** — `chatbot.service.spec.ts` 11/11 and the widget spec, run green this pass |
-| Chat assistant — real Gemini conversation | **PENDING HUMAN TEST** — MANUAL-AI-CHAT-01 (§19.6). The brief's acceptance test asks whether Gemini actually returned the response the student read; only a real, quota-backed call can show that |
-| Human tests — MUST TEST | **5 PENDING** — MANUAL-AI-CHAT-01, MANUAL-AI-01, MANUAL-EMAIL-01, MANUAL-EXPORT-01, MANUAL-RECURRING-01 |
-| Human tests — optional | **4 PENDING** |
+| Chat assistant — real Gemini conversation | **PASS — Human browser verification** (2026-09-27). The project owner re-tested the panel by hand after the chatbot fixes and confirmed Gemini returned the answer the student read, from real authenticated user data. Recorded from observation, not from the stub-backed suite |
+| AI narrative (MANUAL-AI-01) | **PASS — Human browser verification** (2026-09-27) |
+| Password-reset email delivery (MANUAL-EMAIL-01) | **PASS — Human browser verification** (2026-09-27), real SMTP end to end |
+| Human tests — MUST TEST | **2 PENDING** — MANUAL-EXPORT-01, MANUAL-RECURRING-01 (3 of 5 closed by human verification on 2026-09-27) |
+| Human tests — optional | **4 PENDING** — unchanged by this pass; no evidence exists for any of them |
 
 **This system is not "fully verified" while the MUST TEST rows are PENDING.**
