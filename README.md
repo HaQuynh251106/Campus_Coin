@@ -12,12 +12,14 @@ view visual reports, and receive saving tips derived from their own spending hab
 > Tips (UC-18), Bookmarks / Notes (UC-19) and Administration (UC-20 – UC-23): those eleven modules
 > are 61 endpoints and 736 tests passing against a real MySQL 8 (the totals in `docs/HANDOFF_M1_M11.md`).
 >
-> **Module 12 (Optional / Advanced) is implemented and tested but remains locked pending the
-> project owner's approval.** It adds fifteen operations — CSV import (UC-11), AI categorisation
-> (UC-08), monthly insights (UC-17), anomaly flagging (UC-24), forecast (UC-25) and recent activity
-> (UC-26) — taking the backend to **76 endpoints on 56 paths**, with the whole suite at **1090
-> tests passing**. The Angular frontend must **not** be wired to any of them until the project owner
-> unlocks the module; see [`docs/modules/MODULE_12_ADVANCED.md`](docs/modules/MODULE_12_ADVANCED.md).
+> **Module 12 (Optional / Advanced) is implemented, tested, and wired into the frontend.** It adds
+> fifteen operations — CSV import (UC-11), AI categorisation (UC-08), monthly insights (UC-17),
+> anomaly flagging (UC-24), forecast (UC-25) and recent activity (UC-26) — each with an Angular
+> service under `frontend/src/app/core/services/`; see
+> [`docs/modules/MODULE_12_ADVANCED.md`](docs/modules/MODULE_12_ADVANCED.md). *(The module was
+> strictly locked in the early build; the project owner subsequently authorised it, and the lock no
+> longer applies. The per-module deliverables already documented for it remain the record of the
+> module.)*
 >
 > **A second addition followed module 12 and is not part of it.** The conversational chat assistant
 > (`GET` and `POST /api/v1/chat`) was requested by the project owner after module 12 — a student asks
@@ -35,7 +37,9 @@ view visual reports, and receive saving tips derived from their own spending hab
 > [`docs/SECURITY.md`](docs/SECURITY.md) §12 and blockers OB-012/OB-013. The key comes from
 > `CAMPUSCOIN_ENCRYPTION_KEY` and the application refuses to start without it.
 >
-> **The Angular frontend is still mock-only and has not yet been wired to the API.**
+> **The Angular frontend is wired to the API.** Every backend module has a corresponding service
+> under `frontend/src/app/core/services/`, including all of module 12, and no mock data layer
+> remains in `frontend/src/app`.
 
 ---
 

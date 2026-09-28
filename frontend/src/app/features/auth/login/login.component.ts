@@ -1,4 +1,4 @@
-import { Component, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, ChangeDetectorRef, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -30,7 +30,11 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
         </div>
       }
 
-      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="space-y-4">
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="space-y-4" autocomplete="off">
+        <!-- Hidden dummy inputs to capture aggressive browser autofill -->
+        <input type="text" style="display:none" aria-hidden="true" tabindex="-1" autocomplete="false" />
+        <input type="password" style="display:none" aria-hidden="true" tabindex="-1" autocomplete="false" />
+
         <!-- University Email -->
         <div>
           <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1.5">
@@ -40,6 +44,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
             type="email"
             formControlName="email"
             placeholder="username@campuscoin.edu"
+            autocomplete="off"
             class="input-brutal"
             [class.border-rose-500]="loginForm.get('email')?.invalid && loginForm.get('email')?.touched"
           />
@@ -62,6 +67,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
             type="password"
             formControlName="password"
             placeholder="••••••••"
+            autocomplete="new-password"
             class="input-brutal"
             [class.border-rose-500]="loginForm.get('password')?.invalid && loginForm.get('password')?.touched"
           />
@@ -95,7 +101,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
     </div>
   `
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private fb = inject(FormBuilder);
   private auth = inject(AuthService);
   private router = inject(Router);
@@ -108,6 +114,14 @@ export class LoginComponent {
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(6)]]
   });
+
+  ngOnInit(): void {
+    // Explicitly guarantee form inputs are completely blank on initialization
+    this.loginForm.reset({
+      email: '',
+      password: ''
+    });
+  }
 
   onSubmit(): void {
     if (this.loginForm.invalid) return;

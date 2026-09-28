@@ -55,6 +55,46 @@ public class SettingReader {
      */
     public static final String ANOMALY_UNUSUAL_MULTIPLIER = "anomaly.unusual_multiplier";
 
+    /**
+     * BR-14: the most tips a student's dashboard may show at once.
+     *
+     * <p>Seeded at {@code 3}. Read in two places, and both are necessary: {@code sp_generate_tips}
+     * reads it to bound one generation run, and the dashboard read path reads it to bound what is
+     * displayed. Bounding only the generator is not enough - it caps a single run, while the stored
+     * rows accumulate across runs for the same month (each run may store up to N tips the previous
+     * runs did not, because the dedupe key is per rule and per category rather than per month). The
+     * read-time bound is what makes the displayed count honour the setting the administrator set.
+     */
+    public static final String TIPS_MAX_DASHBOARD = "tips.max_dashboard";
+
+    /** BR-14's documented fallback when {@code tips.max_dashboard} is absent or unusable. */
+    public static final int DEFAULT_TIPS_MAX_DASHBOARD = 3;
+
+    /**
+     * BR-12/VĐ-05: the share of a limit at which a category is approaching it.
+     *
+     * <p>Seeded at {@code 80}. Named here even though no Java reads the value, because the tests that
+     * prove the student-visible status moves with the setting have to name the key, and a key written
+     * as a string literal in a test is a second copy of the contract that can drift from this one.
+     * The value itself is read by SQL - {@code v_budget_consumption}, {@code sp_check_budget_alerts}
+     * and {@code sp_generate_tips} all read this row - so there is nothing for Java to look up.
+     */
+    public static final String BUDGET_NEAR_THRESHOLD_PCT = "budget.near_threshold_pct";
+
+    /**
+     * BR-12/VĐ-05: the share of a limit at which a category counts as over budget.
+     *
+     * <p>Seeded at {@code 100}. Read by the same three SQL sites as {@link #BUDGET_NEAR_THRESHOLD_PCT};
+     * see that constant for why it is named in Java at all.
+     */
+    public static final String BUDGET_EXCEEDED_THRESHOLD_PCT = "budget.exceeded_threshold_pct";
+
+    /** BR-12's documented fallback for {@link #BUDGET_NEAR_THRESHOLD_PCT}: {@code 80} percent. */
+    public static final int DEFAULT_BUDGET_NEAR_THRESHOLD_PCT = 80;
+
+    /** BR-12's documented fallback for {@link #BUDGET_EXCEEDED_THRESHOLD_PCT}: {@code 100} percent. */
+    public static final int DEFAULT_BUDGET_EXCEEDED_THRESHOLD_PCT = 100;
+
     private final SystemSettingRepository repository;
 
     public SettingReader(SystemSettingRepository repository) {

@@ -16,6 +16,14 @@ export const routes: Routes = [
       import('./features/landing/landing.component').then(m => m.LandingComponent)
   },
 
+  // Dedicated Public Sitemap Route (SRS Deliverable - Accessible to all)
+  {
+    path: 'sitemap',
+    title: 'Sitemap — Campus Coin',
+    loadComponent: () =>
+      import('./features/sitemap/sitemap.component').then(m => m.SitemapComponent)
+  },
+
   // 1. Authentication Module
   {
     path: 'auth',

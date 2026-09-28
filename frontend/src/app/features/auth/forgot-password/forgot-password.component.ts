@@ -1,4 +1,4 @@
-import { Component, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, ChangeDetectorRef, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router, RouterModule, ActivatedRoute } from '@angular/router';
@@ -31,7 +31,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
             Reset Password
           </h2>
           <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-            Enter your student campus email to receive a password reset token.
+            Enter your student campus email to receive a password reset link.
           </p>
         </div>
 
@@ -89,25 +89,15 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
             Check Your Campus Inbox
           </h2>
           <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mb-5 leading-relaxed">
-            We sent a secure recovery link with reset token to:
+            We sent a secure recovery link to:
             <strong class="text-neutral-900 dark:text-white block mt-1 font-mono text-xs">{{ userEmail }}</strong>
           </p>
+          <p class="text-xs text-neutral-400 dark:text-neutral-500 mb-6">
+            Click the link in the email to set a new password. If you don't see it, check your spam folder.
+          </p>
 
-          <!-- Opens the token form without a token, for review only. This is NOT a working reset:
-               the accounts have no reachable inbox, so nothing here stands in for the emailed link. -->
-          <div class="p-3 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 rounded-lg mb-5 text-left">
-            <span class="text-xs text-neutral-500 block mb-1">View the token form (no token):</span>
-            <button
-              type="button"
-              (click)="simulateEmailClick()"
-              class="w-full py-2 px-3 text-xs font-medium bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-700 dark:hover:bg-neutral-600 text-neutral-800 dark:text-neutral-100 rounded-md transition-colors cursor-pointer"
-            >
-              Open Reset Form (token required) →
-            </button>
-          </div>
-
-          <a routerLink="/auth/login" class="text-xs text-neutral-500 hover:underline">
-            Back to Sign In
+          <a routerLink="/auth/login" class="inline-flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium hover:underline">
+            ← Return to Sign In
           </a>
         </div>
       }
@@ -115,24 +105,21 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
       <!-- Step 3: Reset With Token Form -->
       @if (step === 'reset-token') {
         <div class="mb-5">
-          <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 tracking-wider uppercase block mb-1">
-            Token Verified
+          <span class="text-xs font-semibold text-amber-600 dark:text-amber-400 tracking-wider uppercase block mb-1">
+            Account Recovery
           </span>
-          <h2 class="text-2xl font-semibold text-neutral-900 dark:text-neutral-50 tracking-tight">
+          <h2 class="text-2xl sm:text-3xl font-semibold text-neutral-900 dark:text-neutral-50 tracking-tight">
             Create New Password
           </h2>
-          <p class="text-xs font-mono text-emerald-600 dark:text-emerald-400 mt-1">
-            @if (token) {
-              Token: {{ token }}
-            } @else {
-              Awaiting the token from your email link.
-            }
+          <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1">
+            Enter and confirm your new password to secure your account.
           </p>
         </div>
 
         @if (resetSuccess) {
-          <div class="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-lg text-xs font-medium mb-4">
-            ✓ Password reset successfully! Redirecting you to sign in...
+          <div class="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-lg text-xs font-medium mb-4 flex items-center gap-1.5 animate-fade-in">
+            <app-icon name="check-circle" size="16"></app-icon>
+            <span>Password reset successfully! Redirecting you to sign in...</span>
           </div>
         } @else {
           @if (errorMessage) {
@@ -159,25 +146,30 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
           }
           <form [formGroup]="resetForm" (ngSubmit)="onResetSubmit()" class="space-y-4">
             <div>
-              <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1">
-                New Password (8+ chars, upper, lower, digit)
+              <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1.5">
+                New Password
               </label>
               <input
                 type="password"
                 formControlName="newPassword"
                 placeholder="••••••••"
+                autocomplete="new-password"
                 class="input-brutal"
               />
+              <p class="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
+                Must be at least 8 characters with uppercase, lowercase, and a number.
+              </p>
             </div>
 
             <div>
-              <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1">
+              <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1.5">
                 Confirm New Password
               </label>
               <input
                 type="password"
                 formControlName="confirmNewPassword"
                 placeholder="••••••••"
+                autocomplete="new-password"
                 class="input-brutal"
               />
             </div>
@@ -202,22 +194,23 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
     </div>
   `
 })
-export class ForgotPasswordComponent {
+export class ForgotPasswordComponent implements OnDestroy {
   private fb = inject(FormBuilder);
   private auth = inject(AuthService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private cdr = inject(ChangeDetectorRef);
+  private toast = inject(ToastService);
 
   step: ResetStep = 'request';
-  userEmail = 'an.nguyen@student.campuscoin.edu';
-  token = '';
+  userEmail = '';
+  private resetToken = '';
   isLoading = false;
   resetSuccess = false;
   errorMessage = '';
 
   requestForm = this.fb.group({
-    email: ['an.nguyen@student.campuscoin.edu', [Validators.required, Validators.email]]
+    email: ['', [Validators.required, Validators.email]]
   });
 
   // The rules mirror PasswordResetCompleteRequest, which reuses the registration policy: a
@@ -237,10 +230,19 @@ export class ForgotPasswordComponent {
 
   constructor() {
     this.route.queryParams.subscribe(params => {
-      if (params['token']) {
-        this.token = params['token'];
+      const incomingToken = params['token'];
+      if (incomingToken) {
+        this.resetToken = incomingToken;
+
+        // Security Hardening: Immediately strip the sensitive token parameter from the browser
+        // address bar and history to prevent token leakage via history inspection, shoulder surfing,
+        // or HTTP Referer headers.
+        if (typeof window !== 'undefined' && window.history) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
         this.isLoading = true;
-        this.auth.verifyResetToken(this.token).subscribe({
+        this.auth.verifyResetToken(this.resetToken).subscribe({
           next: () => {
             this.isLoading = false;
             this.step = 'reset-token';
@@ -248,7 +250,8 @@ export class ForgotPasswordComponent {
           },
           error: (err) => {
             this.isLoading = false;
-            this.errorMessage = err.error?.message || 'Invalid or expired reset token';
+            this.resetToken = '';
+            this.errorMessage = err.error?.message || 'Invalid or expired reset link. Please request a new one.';
             // Zoneless: a token that fails verification kept the screen on "Reset Password" with
             // no explanation, because this state write did not schedule a render.
             this.cdr.markForCheck();
@@ -258,10 +261,16 @@ export class ForgotPasswordComponent {
     });
   }
 
+  ngOnDestroy(): void {
+    // Zero-out the sensitive token from memory upon component destruction
+    this.resetToken = '';
+  }
+
   onRequestSubmit(): void {
     if (this.requestForm.invalid) return;
     this.isLoading = true;
-    this.userEmail = this.requestForm.value.email!;
+    this.errorMessage = '';
+    this.userEmail = this.requestForm.value.email!.trim().toLowerCase();
 
     this.auth.requestPasswordReset(this.userEmail).subscribe({
       next: () => {
@@ -287,39 +296,28 @@ export class ForgotPasswordComponent {
     });
   }
 
-  simulateEmailClick(): void {
-    // Placeholder only. The demo accounts have no reachable inbox, so the link the real email
-    // would carry cannot be followed here; this opens the form for review. The token is left
-    // unset rather than filled with an invented value, so the server still decides — and its
-    // refusal now renders instead of leaving the screen looking hung.
-    this.token = '';
-    this.errorMessage = '';
-    this.isLoading = false;
-    this.step = 'reset-token';
-    this.cdr.markForCheck();
-  }
-
-  private toast = inject(ToastService);
-
   onResetSubmit(): void {
-    if (this.resetForm.invalid) return;
+    if (this.resetForm.invalid || !this.resetToken) return;
     this.isLoading = true;
     this.errorMessage = '';
     const { newPassword, confirmNewPassword } = this.resetForm.value;
 
-    this.auth.completePasswordReset(this.token, newPassword!, confirmNewPassword!).subscribe({
+    this.auth.completePasswordReset(this.resetToken, newPassword!, confirmNewPassword!).subscribe({
       next: () => {
         this.isLoading = false;
         this.resetSuccess = true;
+        this.resetToken = ''; // Instantly wipe token in memory once consumed
         this.toast.success('Password reset successfully! Redirecting...');
+        this.cdr.markForCheck();
         setTimeout(() => {
           this.router.navigate(['/auth/login']);
         }, 1500);
       },
       error: (err) => {
         this.isLoading = false;
-        this.errorMessage = err.error?.message || 'Password reset failed';
+        this.errorMessage = err.error?.message || 'Password reset failed. The link may have expired.';
         this.toast.error(this.errorMessage);
+        this.cdr.markForCheck();
       }
     });
   }

@@ -1,4 +1,4 @@
-import { Component, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, ChangeDetectorRef, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -36,7 +36,11 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
         </div>
       }
 
-      <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="space-y-3.5">
+      <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="space-y-3.5" autocomplete="off">
+        <!-- Hidden dummy inputs to capture aggressive browser autofill -->
+        <input type="text" style="display:none" aria-hidden="true" tabindex="-1" autocomplete="false" />
+        <input type="password" style="display:none" aria-hidden="true" tabindex="-1" autocomplete="false" />
+
         <!-- Full Name -->
         <div>
           <label class="block text-xs font-medium uppercase tracking-wider text-neutral-500 mb-1">
@@ -46,6 +50,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
             type="text"
             formControlName="name"
             placeholder="e.g. Marcus Chen"
+            autocomplete="off"
             class="input-brutal"
           />
         </div>
@@ -59,6 +64,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
             type="email"
             formControlName="email"
             placeholder="student@campus.edu"
+            autocomplete="off"
             class="input-brutal"
           />
           @if (registerForm.get('email')?.invalid && registerForm.get('email')?.touched) {
@@ -76,6 +82,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
             Year
           </label>
           <select formControlName="academicYear" class="input-brutal">
+            <option value="" disabled selected>Select Year of Study</option>
             <option value="Freshman (1st Year)">Freshman</option>
             <option value="Sophomore (2nd Year)">Sophomore</option>
             <option value="Junior (3rd Year)">Junior</option>
@@ -93,6 +100,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
             type="password"
             formControlName="password"
             placeholder="••••••••"
+            autocomplete="new-password"
             class="input-brutal"
           />
         </div>
@@ -106,6 +114,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
             type="password"
             formControlName="confirmPassword"
             placeholder="••••••••"
+            autocomplete="new-password"
             class="input-brutal"
           />
           @if (registerForm.hasError('passwordMismatch') && registerForm.get('confirmPassword')?.touched) {
@@ -137,7 +146,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
     </div>
   `
 })
-export class RegisterComponent {
+export class RegisterComponent implements OnInit {
   private fb = inject(FormBuilder);
   private auth = inject(AuthService);
   private router = inject(Router);
@@ -149,10 +158,21 @@ export class RegisterComponent {
   registerForm = this.fb.group({
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
     email: ['', [Validators.required, Validators.email]],
-    academicYear: ['Freshman (1st Year)', [Validators.required]],
+    academicYear: ['', [Validators.required]],
     password: ['', [Validators.required, Validators.minLength(8), Validators.maxLength(72)]],
     confirmPassword: ['', [Validators.required]]
   }, { validators: passwordMatchValidator });
+
+  ngOnInit(): void {
+    // Explicitly guarantee all fields in registration form start completely blank
+    this.registerForm.reset({
+      name: '',
+      email: '',
+      academicYear: '',
+      password: '',
+      confirmPassword: ''
+    });
+  }
 
   onSubmit(): void {
     if (this.registerForm.invalid) {

@@ -179,6 +179,14 @@ DESC)`, keeping rows where `rn <= max_tips`. `max_tips` is passed as `NULL` by t
 bound comes from `tips.max_dashboard` in `system_settings` (3 by default) rather than from code —
 VĐ-05 forbids overriding configuration from the application.
 
+**This bound applies to one generation run, not to what a dashboard shows.** The stored rows for a
+month accumulate across runs — `dedupe_key` is per rule and per category, so a later run on the same
+month can store a row an earlier run did not. The number a student actually *sees* is bounded at
+`GET /api/v1/dashboard`, which reads the same setting at request time. So `GET /api/v1/tips` may return
+more than `tips.max_dashboard` rows for a month while the dashboard shows at most that many; that is
+the two bounds working as designed, not a disagreement. Nothing is deleted to reconcile them — a tip
+off the dashboard is still stored, still returned here, and still bookmarkable.
+
 ### 4.1 Rules 1 and 2 share a band edge on purpose
 
 Rule 2's band is `[near, exceeded)` and rule 1's is `[exceeded, ∞)`. That is the same split

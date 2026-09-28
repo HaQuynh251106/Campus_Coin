@@ -532,7 +532,7 @@ with the wrong month.
 | UC-12 B1 | Saving-goal progress | same | — | — | the view's `CASE` | `savingsGoalPercentageAppearsOnlyWhenAGoalIsSet`, `negativeGoalPercentageIsReportedRatherThanClamped` |
 | UC-12 B2 | The highest-spending category | same | — | — | `v_top_category_current_month` | `topCategoryIsTheLargestExpenseCategory`, `incomeAloneDoesNotProduceATopCategory` |
 | UC-12 B3 | Tips, ranked | same | — | `findTips` | `v_dashboard_tips` + the DAO's month predicate (§5.1) | `tipsAreTheCurrentMonthsAndAlreadyRanked`, `tipsFromAnotherMonthAreNotShown`, `theDemoDashboardReportsTheSeededMonth` |
-| BR-14 | The tip block is bounded | same | — | — | `tips.max_dashboard` read by `sp_generate_tips` | `theTipBlockIsBounded` |
+| BR-14 | The tip block is bounded | same | `getDashboard` | `findTipsLimited` | `tips.max_dashboard`, read at request time and applied by the DAO's bounded query | `theTipBlockIsBounded`, `theDashboardNeverExceedsTheConfiguredLimit` |
 | UC-12 B3 | Pinned first (BR-14) | same | — | — | the view's `ORDER BY` | `pinnedTipsLeadTheList` |
 | UC-12 B3 | A dismissed tip never returns | same | — | — | the view's `state <> 'DISMISSED'` | `dismissedTipsNeverComeBack` |
 | UC-12 B3 | Live announcements | same | — | `findAnnouncementsForStudent` | `v_active_announcements` + the DAO's audience filter (§5.2) | `announcementsAreFilteredByAudience`, `announcementsOutsideTheirWindowAreNotShown` |

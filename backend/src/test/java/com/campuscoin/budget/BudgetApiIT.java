@@ -20,6 +20,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import com.campuscoin.common.setting.SettingReader;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
@@ -44,6 +45,9 @@ import com.fasterxml.jackson.databind.JsonNode;
  * {@code budget_alert_log} row. {@code NotificationApiIT} covers reading them.
  */
 class BudgetApiIT extends AbstractBudgetApiIT {
+
+    /** UC-23: where an administrator changes the thresholds BR-12 classifies against. */
+    private static final String ADMIN_SETTINGS_URL = "/api/v1/admin/settings";
 
     // ==================================================================
     //  UC-13 read: the list and the single read
@@ -251,6 +255,100 @@ class BudgetApiIT extends AbstractBudgetApiIT {
         assertThat(budgetStatusOf(token, budgetId)).isEqualTo("EXCEEDED");
         assertThat(budgetRemainingOf(token, budgetId)).isEqualByComparingTo("-5.00");
         assertThat(budgetPctOf(token, budgetId)).isEqualByComparingTo("105.00");
+    }
+
+    @Test
+    @DisplayName("BR-12/VĐ-05: the administrator's exceeded threshold moves the student's status")
+    void theExceededStatusFollowsTheConfiguredThreshold() throws Exception {
+        // The test above stops at the default: at 85% the status is NEAR, and past the limit it is
+        // EXCEEDED. Both of those hold for a view that hard-codes `spent >= limit` and never reads
+        // budget.exceeded_threshold_pct at all, which is what the view did. This test is the one that
+        // cannot pass that way, because it moves the threshold and asserts the SAME spending is
+        // reclassified in both directions.
+        //
+        // The rule, from docs/api/budgets.md: EXCEEDED is `consumedPct >= budget.exceeded_threshold_pct`,
+        // measured against the configured SHARE of the limit rather than the limit itself. The two
+        // directions therefore differ in what they prove: lowering the bar below the current spending
+        // catches a view that never reads the key, and raising it above catches a view that reads the
+        // key but keeps a second hard-coded `spent >= limit` branch in front of the configured one.
+        String studentToken = loginNewStudent();
+        String adminToken = adminLogin();
+        Long categoryId = defaultCategoryId(DEFAULT_EXPENSE_NAME);
+        Long budgetId = createBudget(studentToken, categoryId, "100.00", thisMonth()).get("id").asLong();
+
+        String originalNear = settingValue(SettingReader.BUDGET_NEAR_THRESHOLD_PCT);
+        String originalExceeded = settingValue(SettingReader.BUDGET_EXCEEDED_THRESHOLD_PCT);
+        try {
+            // 80.00 of 100.00, recorded through the API because that is what the view sums.
+            createTransaction(studentToken, categoryId, "80.00", today(), "four fifths of the limit");
+            assertThat(budgetStatusOf(studentToken, budgetId))
+                    .as("80%% is exactly budget.near_threshold_pct's seeded value")
+                    .isEqualTo("NEAR");
+
+            // Lowering the bar below the spending must reclassify the SAME row, with no new record.
+            patchSetting(adminToken, SettingReader.BUDGET_EXCEEDED_THRESHOLD_PCT, "50");
+            assertThat(settingValue(SettingReader.BUDGET_EXCEEDED_THRESHOLD_PCT))
+                    .as("the setting really holds 50 before the budget is read")
+                    .isEqualTo("50");
+            assertThat(budgetPctOf(studentToken, budgetId))
+                    .as("the dependent read is the same row, unchanged: only the threshold moved")
+                    .isEqualByComparingTo("80.00");
+            assertThat(budgetStatusOf(studentToken, budgetId))
+                    .as("80%% is past a 50%% exceeded bar")
+                    .isEqualTo("EXCEEDED");
+
+            // Raised above the spending, and above the limit itself: 120% is over budget but under
+            // the configured bar, so it is NEAR and not EXCEEDED. A view whose EXCEEDED branch reads
+            // the limit instead of the share reports EXCEEDED here, which is why this half is needed.
+            createTransaction(studentToken, categoryId, "40.00", today(), "over the limit");
+            patchSetting(adminToken, SettingReader.BUDGET_EXCEEDED_THRESHOLD_PCT, "150");
+            assertThat(budgetPctOf(studentToken, budgetId)).isEqualByComparingTo("120.00");
+            assertThat(budgetStatusOf(studentToken, budgetId))
+                    .as("120%% spent is under a 150%% exceeded bar: over the limit, not over the bar")
+                    .isEqualTo("NEAR");
+
+            // Back to the documented default, and the row returns to EXCEEDED on the same 120%.
+            patchSetting(adminToken, SettingReader.BUDGET_EXCEEDED_THRESHOLD_PCT, "100");
+            assertThat(budgetStatusOf(studentToken, budgetId))
+                    .as("the classification follows the setting back, so it is not one-way")
+                    .isEqualTo("EXCEEDED");
+        } finally {
+            // Restored from the values read above rather than from the documented defaults, so a
+            // suite that changed them cannot be reset to the wrong number by this test.
+            patchSetting(adminToken, SettingReader.BUDGET_NEAR_THRESHOLD_PCT, originalNear);
+            patchSetting(adminToken, SettingReader.BUDGET_EXCEEDED_THRESHOLD_PCT, originalExceeded);
+        }
+    }
+
+    @Test
+    @DisplayName("BR-12/VĐ-05: a near threshold above the exceeded one still leaves the row EXCEEDED")
+    void anInvertedNearThresholdDoesNotHideAnExceededBudget() throws Exception {
+        // The two thresholds are independent settings, so nothing stops an administrator setting near
+        // above exceeded. When that happens the CASE's order is what decides: EXCEEDED is tested
+        // first, so a row past the exceeded bar is EXCEEDED even though it is also past the near bar.
+        // A view that tested near first would answer NEAR here, which would understate the worse of
+        // the two labels - the direction that matters for a student.
+        String studentToken = loginNewStudent();
+        String adminToken = adminLogin();
+        Long categoryId = defaultCategoryId(DEFAULT_EXPENSE_NAME);
+        Long budgetId = createBudget(studentToken, categoryId, "100.00", thisMonth()).get("id").asLong();
+
+        String originalNear = settingValue(SettingReader.BUDGET_NEAR_THRESHOLD_PCT);
+        String originalExceeded = settingValue(SettingReader.BUDGET_EXCEEDED_THRESHOLD_PCT);
+        try {
+            createTransaction(studentToken, categoryId, "90.00", today(), "ninety percent");
+
+            patchSetting(adminToken, SettingReader.BUDGET_NEAR_THRESHOLD_PCT, "200");
+            patchSetting(adminToken, SettingReader.BUDGET_EXCEEDED_THRESHOLD_PCT, "50");
+
+            assertThat(budgetPctOf(studentToken, budgetId)).isEqualByComparingTo("90.00");
+            assertThat(budgetStatusOf(studentToken, budgetId))
+                    .as("90%% is past both bars; the worse label is the correct one")
+                    .isEqualTo("EXCEEDED");
+        } finally {
+            patchSetting(adminToken, SettingReader.BUDGET_NEAR_THRESHOLD_PCT, originalNear);
+            patchSetting(adminToken, SettingReader.BUDGET_EXCEEDED_THRESHOLD_PCT, originalExceeded);
+        }
     }
 
     @Test
@@ -1107,5 +1205,29 @@ class BudgetApiIT extends AbstractBudgetApiIT {
         assertThat(response.getStatusCode()).as("body=%s", response.getBody())
                 .isEqualTo(HttpStatus.OK);
         return body(response).get(field);
+    }
+
+    /**
+     * Changes one threshold through the administrator's own endpoint.
+     *
+     * <p>The real path, not a database write: VĐ-05 makes the thresholds configurable, and a test that
+     * set them with SQL would prove only that the view can read a row - not that the setting an
+     * administrator changes is the one the student's screen reflects.
+     */
+    private void patchSetting(String adminToken, String key, String value) throws Exception {
+        ResponseEntity<String> response = send(HttpMethod.PATCH, ADMIN_SETTINGS_URL + "/" + key,
+                adminToken, Map.of("value", value));
+        assertThat(response.getStatusCode())
+                .as("PATCH %s=%s body=%s", key, value, response.getBody())
+                .isEqualTo(HttpStatus.OK);
+        assertThat(body(response).get("value").asText()).isEqualTo(value);
+    }
+
+    /** The setting as the database holds it, so an assertion never trusts a request over a read. */
+    private String settingValue(String key) throws Exception {
+        List<String> values = stringsFrom(
+                "SELECT setting_value FROM system_settings WHERE setting_key = ?", key);
+        assertThat(values).as("seeded setting %s exists", key).hasSize(1);
+        return values.get(0);
     }
 }

@@ -220,12 +220,19 @@ Read this before §4; three of its points are cases a tester most often reports 
 
 | Setting | Seeded value | Meaning |
 |---|---|---|
-| `tips.max_dashboard` | `3` | The most tips the dashboard may carry. Read by `sp_generate_tips` when tips are *generated*; the dashboard reports what exists |
+| `tips.max_dashboard` | `3` | The most tips the dashboard may carry. Read in **two** places: `sp_generate_tips` bounds one generation run, and the dashboard's own read path bounds what it displays |
 
 It is a row in `system_settings`, not a constant in the code. Changing it is an administrator action
-(module 11); this endpoint accepts no parameter and no endpoint here changes it. Note that it bounds
-**generation**: reducing it does not delete tips that already exist, so M7-09 asserts the endpoint
-returns no more than the setting - and any tips the generator already wrote.
+(module 11); this endpoint accepts no parameter and no endpoint here changes it.
+
+Note that it bounds **two different things**, and the distinction matters. `sp_generate_tips` caps a
+single generation run, but the rows accumulate for a month — the dedupe key is per rule and per
+category, so a later run after the student's data shifted stores rows the earlier runs did not. The
+displayed count is therefore bounded where the reading happens, at `GET /api/v1/dashboard`, which reads
+the setting at request time and returns at most that many tips. Reducing it deletes nothing: a tip cut
+off the dashboard still exists, is still returned by `GET /api/v1/tips`, and comes back if the limit is
+raised. M7-09 asserts the endpoint returns no more than the setting *and* that the rest of the month's
+tips are still stored and still readable.
 
 ---
 

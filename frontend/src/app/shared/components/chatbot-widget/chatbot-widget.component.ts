@@ -6,6 +6,7 @@ import {
   AfterViewChecked,
   OnInit,
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Input,
   signal,
   computed,
@@ -31,12 +32,12 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
     <!-- Chat Window Panel (Opens when Mascot is clicked; hides mascot launcher per A.2) -->
     @if (isOpen()) {
       @if (isGuestMode) {
-        <!-- Gated Panel for Guests on Landing Page (Exclusive to logged-in users) -->
+        <!-- Gated Panel for Guests on Landing Page (Exclusive to logged-in users, full Dark Mode support) -->
         <div
-          class="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-subtle-lg flex flex-col overflow-hidden animate-scale-up z-50 select-none"
+          class="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-2xl shadow-subtle-lg flex flex-col overflow-hidden animate-scale-up z-50 select-none"
         >
           <!-- Header with close (✕) control -->
-          <div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-850 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
+          <div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
             <div class="flex items-center gap-2.5">
               <div class="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-amber-700 dark:text-amber-400 shadow-xs">
                 <app-icon name="squirrel-logo" [size]="18" strokeWidth="1.75"></app-icon>
@@ -46,7 +47,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
                   Campus Coin Assistant
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Online"></span>
                 </h3>
-                <span class="text-[10px] text-[var(--color-text-muted)] block">
+                <span class="text-[10px] text-neutral-500 dark:text-neutral-400 block">
                   Student Financial Mascot & Coach
                 </span>
               </div>
@@ -55,7 +56,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
             <button
               type="button"
               (click)="closeChat()"
-              class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 p-1 cursor-pointer rounded-md transition-colors text-xs"
+              class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-700 p-1 cursor-pointer rounded-md transition-colors text-xs"
               title="Close panel"
               aria-label="Close panel"
             >
@@ -66,7 +67,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
           <!-- Gated Body (No input, no chips, no mock conversation) -->
           <div class="p-6 flex flex-col items-center text-center space-y-4 bg-white dark:bg-neutral-900">
             <!-- Mascot Illustration Avatar -->
-            <div class="w-16 h-16 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shadow-xs relative">
+            <div class="w-16 h-16 rounded-2xl bg-amber-500/10 dark:bg-amber-500/15 border-2 border-amber-500/30 dark:border-amber-500/40 flex items-center justify-center text-amber-600 dark:text-amber-400 shadow-xs relative">
               <app-icon name="squirrel-logo" [size]="34" strokeWidth="1.6"></app-icon>
               <span class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-amber-500 text-neutral-950 flex items-center justify-center text-[10px] shadow-xs border-2 border-white dark:border-neutral-900 font-bold">
                 🔒
@@ -77,7 +78,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
               <h4 class="font-semibold text-sm sm:text-base text-neutral-900 dark:text-neutral-50 tracking-tight">
                 Log in first to chat with Sooc!
               </h4>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed font-normal">
+              <p class="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed font-normal">
                 Sign in with your campus account — then we can budget, tag dining expenses, and track your allowance together!
               </p>
             </div>
@@ -95,7 +96,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
               <a
                 routerLink="/auth/register"
                 (click)="closeChat()"
-                class="flex-1 py-2.5 px-3 bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700 font-medium text-xs rounded-lg transition-colors text-center flex items-center justify-center cursor-pointer"
+                class="flex-1 py-2.5 px-3 bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700 font-medium text-xs rounded-lg transition-colors text-center flex items-center justify-center cursor-pointer"
               >
                 <span>Sign up</span>
               </a>
@@ -105,10 +106,10 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
       } @else {
         <!-- Chat Panel for Logged-In Student Portal. Every reply here comes from the backend. -->
         <div
-          class="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 h-[460px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-subtle-lg flex flex-col overflow-hidden animate-scale-up z-50 select-none"
+          class="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 h-[460px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-2xl shadow-subtle-lg flex flex-col overflow-hidden animate-scale-up z-50 select-none"
         >
           <!-- Chat Header with explicit close (✕) control (A.2) -->
-          <div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-850 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
+          <div class="px-4 py-3 bg-neutral-50 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
             <div class="flex items-center gap-2.5">
               <div class="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-amber-700 dark:text-amber-400 shadow-xs">
                 <app-icon name="squirrel-logo" [size]="18" strokeWidth="1.75"></app-icon>
@@ -118,7 +119,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
                   Campus Coin Assistant
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Online"></span>
                 </h3>
-                <span class="text-[10px] text-[var(--color-text-muted)] block">
+                <span class="text-[10px] text-neutral-500 dark:text-neutral-400 block">
                   Student Financial Mascot & Coach
                 </span>
               </div>
@@ -127,7 +128,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
             <button
               type="button"
               (click)="closeChat()"
-              class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 p-1 cursor-pointer rounded-md transition-colors text-xs"
+              class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-700 p-1 cursor-pointer rounded-md transition-colors text-xs"
               title="Close chat"
               aria-label="Close chat"
             >
@@ -228,26 +229,31 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
             }
           </div>
 
-          <!-- Quick Suggestion Chips -->
+          <!-- Quick Suggestion Chips. Disabled while the backend has said the assistant cannot
+               answer: a chip is a send path exactly like the form below, so leaving it live would
+               offer the student a question the panel already knows will fail. -->
           <div class="px-3 py-1.5 border-t border-neutral-100 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex items-center gap-1.5 overflow-x-auto text-[11px] no-scrollbar">
             <button
               type="button"
               (click)="sendQuickPrompt('How is my food spending?')"
-              class="shrink-0 px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors cursor-pointer"
+              [disabled]="isUnavailable()"
+              class="shrink-0 px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-neutral-100 dark:disabled:hover:bg-neutral-800"
             >
               Food spending?
             </button>
             <button
               type="button"
               (click)="sendQuickPrompt('What is my budget status?')"
-              class="shrink-0 px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors cursor-pointer"
+              [disabled]="isUnavailable()"
+              class="shrink-0 px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-neutral-100 dark:disabled:hover:bg-neutral-800"
             >
               Budget caps?
             </button>
             <button
               type="button"
               (click)="sendQuickPrompt('What is my current balance?')"
-              class="shrink-0 px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors cursor-pointer"
+              [disabled]="isUnavailable()"
+              class="shrink-0 px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-neutral-100 dark:disabled:hover:bg-neutral-800"
             >
               Balance & savings?
             </button>
@@ -262,7 +268,7 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
           }
 
           <!-- Chat Input Footer with Accessible Contrast (A.3) -->
-          <form (ngSubmit)="onSend()" class="p-2.5 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex items-end gap-2">
+          <form (ngSubmit)="onSend()" autocomplete="off" class="p-2.5 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex items-end gap-2">
             <textarea
               #inputField
               rows="1"
@@ -270,28 +276,29 @@ import { SquirrelMascotComponent } from '../squirrel-mascot/squirrel-mascot.comp
               (input)="userInput.set($any($event.target).value); autoGrow($event)"
               (keydown)="onKeydown($event)"
               name="chatInput"
+              autocomplete="off"
               placeholder="Ask about budgets, meals, allowance…"
-              [disabled]="isTyping()"
-              class="flex-1 px-3 py-1.5 text-xs bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-600 dark:placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none max-h-24 overflow-y-auto chat-scrollbar"
+              [disabled]="isUnavailable()"
+              class="flex-1 px-3 py-1.5 text-xs bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-600 dark:placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none max-h-24 overflow-y-auto chat-scrollbar disabled:opacity-60 disabled:cursor-not-allowed"
             ></textarea>
             <button
               type="submit"
-              [disabled]="!userInput().trim() || isTyping()"
+              [disabled]="!canSend()"
               class="p-2 rounded-lg shadow-xs transition-all duration-150 flex items-center justify-center border"
-              [class.bg-amber-500]="userInput().trim() && !isTyping()"
-              [class.hover:bg-amber-600]="userInput().trim() && !isTyping()"
-              [class.active:scale-95]="userInput().trim() && !isTyping()"
-              [class.text-neutral-950]="userInput().trim() && !isTyping()"
-              [class.border-amber-600/30]="userInput().trim() && !isTyping()"
-              [class.cursor-pointer]="userInput().trim() && !isTyping()"
-              [class.bg-neutral-100]="!userInput().trim() || isTyping()"
-              [class.dark:bg-neutral-800]="!userInput().trim() || isTyping()"
-              [class.text-neutral-400]="!userInput().trim() || isTyping()"
-              [class.dark:text-neutral-500]="!userInput().trim() || isTyping()"
-              [class.border-neutral-200]="!userInput().trim() || isTyping()"
-              [class.dark:border-neutral-700]="!userInput().trim() || isTyping()"
-              [class.cursor-not-allowed]="!userInput().trim() || isTyping()"
-              title="Send message"
+              [class.bg-amber-500]="canSend()"
+              [class.hover:bg-amber-600]="canSend()"
+              [class.active:scale-95]="canSend()"
+              [class.text-neutral-950]="canSend()"
+              [class.border-amber-600/30]="canSend()"
+              [class.cursor-pointer]="canSend()"
+              [class.bg-neutral-100]="!canSend()"
+              [class.dark:bg-neutral-800]="!canSend()"
+              [class.text-neutral-400]="!canSend()"
+              [class.dark:text-neutral-500]="!canSend()"
+              [class.border-neutral-200]="!canSend()"
+              [class.dark:border-neutral-700]="!canSend()"
+              [class.cursor-not-allowed]="!canSend()"
+              [attr.title]="sendTitle()"
             >
               <app-icon name="arrow-right" [size]="14" strokeWidth="2.5"></app-icon>
             </button>
@@ -344,6 +351,7 @@ export class ChatbotWidgetComponent implements OnInit, AfterViewChecked {
 
   private chatbotService = inject(ChatbotService);
   private mascotService = inject(MascotService);
+  private cdr = inject(ChangeDetectorRef);
 
   @ViewChild('scrollContainer') private scrollContainer?: ElementRef;
   @ViewChild('inputField') private inputField?: ElementRef<HTMLTextAreaElement>;
@@ -369,6 +377,24 @@ export class ChatbotWidgetComponent implements OnInit, AfterViewChecked {
   unavailableReason = computed(
     () => this.availability()?.reason || 'The assistant is unavailable right now.'
   );
+
+  /**
+   * Whether the panel may send a question: something typed, no turn in flight, and a provider behind
+   * the endpoint.
+   *
+   * The third term is the one that was missing. `isUnavailable()` is only true once the backend has
+   * *positively* said the assistant cannot answer, so this can never lock the panel out on a status
+   * check that merely failed - a `null` availability leaves every control live and lets a real send
+   * report the real problem, which is the behaviour the availability signal was built for.
+   */
+  canSend = computed(() => !!this.userInput().trim() && !this.isTyping() && !this.isUnavailable());
+
+  /** The send button's tooltip, which has to explain a fourth reason the button can be inert. */
+  sendTitle = computed(() => {
+    if (this.isUnavailable()) return 'The assistant is unavailable';
+    if (this.isTyping()) return 'Assistant is responding…';
+    return 'Send message';
+  });
 
   ngOnInit(): void {
     // Asks the provider nothing - the endpoint reports configuration - so this costs no quota and is
@@ -418,10 +444,17 @@ export class ChatbotWidgetComponent implements OnInit, AfterViewChecked {
   }
 
   onSend(): void {
-    const text = this.userInput().trim();
-    if (!text || this.isTyping()) return;
+    const text = (this.inputField?.nativeElement?.value ?? this.userInput()).trim();
+    if (!text || this.isTyping() || this.isUnavailable()) return;
+
+    // Immediately clear both the reactive signal and the DOM textarea value
     this.userInput.set('');
+    if (this.inputField?.nativeElement) {
+      this.inputField.nativeElement.value = '';
+    }
     this.resetInputHeight();
+    this.cdr.markForCheck();
+
     this.chatbotService.sendMessage(text);
   }
 
@@ -433,9 +466,14 @@ export class ChatbotWidgetComponent implements OnInit, AfterViewChecked {
    * a multi-line question impossible — or never send, which is not what a chat box does.
    */
   onKeydown(event: KeyboardEvent): void {
+    if (event.isComposing || event.keyCode === 229) {
+      return;
+    }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      this.onSend();
+      if (!this.isTyping()) {
+        this.onSend();
+      }
     }
   }
 
@@ -449,6 +487,7 @@ export class ChatbotWidgetComponent implements OnInit, AfterViewChecked {
   private resetInputHeight(): void {
     const el = this.inputField?.nativeElement;
     if (el) {
+      el.value = '';
       el.style.height = 'auto';
     }
   }

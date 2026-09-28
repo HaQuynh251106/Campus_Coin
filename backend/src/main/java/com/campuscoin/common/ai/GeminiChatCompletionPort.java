@@ -19,6 +19,7 @@ import com.google.genai.types.FunctionCallingConfigMode;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
 import com.google.genai.types.HttpOptions;
+import com.google.genai.types.HttpRetryOptions;
 import com.google.genai.types.Part;
 import com.google.genai.types.Tool;
 import com.google.genai.types.ToolConfig;
@@ -173,7 +174,22 @@ public class GeminiChatCompletionPort implements ChatCompletionPort {
         this.settingReader = settingReader;
 
         HttpOptions.Builder http = HttpOptions.builder()
-                .timeout(properties.effectiveTimeoutSeconds() * 1000);
+                .timeout(properties.effectiveTimeoutSeconds() * 1000)
+                // One attempt, no retry. The SDK's own default is five attempts on 408/429/500/502/503/504
+                // (HttpRetryOptions.attempts, confirmed against google-genai-1.73.0), with a backoff that
+                // starts at one second and doubles. On a spent daily quota - which is the ordinary failure
+                // of a free-tier key, not an exceptional one - that turns a single refusal into five calls
+                // spread over roughly thirty seconds, and the student waits through all of them to be told
+                // what the first response already said. It also multiplies the outbound requests the
+                // deployment makes against a quota that is already exhausted, which is the opposite of the
+                // behaviour wanted.
+                //
+                // A conversation is not a place where a silent retry is invisible anyway: every failure is
+                // turned into a visible 503 by this class, so a retry cannot rescue the student's turn, only
+                // delay the truth. The provider's own 503 UNAVAILABLE is a transient high-demand signal and
+                // would be the one case worth retrying, but it is indistinguishable here from the 429 that
+                // is not, and the brief requires failing promptly rather than making the user wait.
+                .retryOptions(HttpRetryOptions.builder().attempts(1).build());
 
         // Only when a test or a self-hosted gateway needs a different endpoint, exactly as the
         // suggestion adapter does.
