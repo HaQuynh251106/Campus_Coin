@@ -33,20 +33,6 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * The student-facing authentication endpoints: UC-01, UC-02 and UC-03.
- *
- * <p>Six endpoints, no more. There is no {@code /refresh}, no {@code /change-password}, no
- * session listing and no {@code /users/*} alias, because no use case in this module defines one;
- * each would be a new flow rather than a new URL for an existing one.
- *
- * <p>This controller does HTTP and nothing else: it binds and validates the body, reads the
- * client address for the session record, and hands off. The rules live in the services, so the
- * administrator controller can reuse them (UC-05).
- *
- * <p>Sign-in and registration are open to anonymous callers; sign-out requires a token, and the
- * identity is taken from that token rather than from the request.
- */
 @RestController
 @RequestMapping("/api/v1/auth")
 @Tag(name = "Authentication", description = "Student registration, sign-in, sign-out and password reset "

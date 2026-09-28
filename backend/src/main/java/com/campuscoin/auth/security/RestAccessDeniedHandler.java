@@ -14,14 +14,6 @@ import com.campuscoin.common.exception.ApiError;
 import com.campuscoin.common.exception.ErrorCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-/**
- * Answers an authenticated-but-not-permitted request with 403.
- *
- * <p>UC-05 E1: a student reaching an administrator-only URL is rejected on the server, not by
- * hiding the page. The caller is known here, so 403 is correct and different from the 401 the
- * entry point returns - the client should show a "not permitted" state, not send the user back
- * to sign-in.
- */
 @Component
 public class RestAccessDeniedHandler implements AccessDeniedHandler {
 

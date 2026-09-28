@@ -31,26 +31,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * The shared default categories every student can choose from: UC-20, BR-06.
- *
- * <p>Three endpoints: list, create and edit. There is no {@code DELETE}, because a default category is
- * retired rather than removed - {@code PATCH {"isActive": false}} is BR-07's answer, keeps the name and
- * the history of every transaction filed under it, and is reversible. There is no {@code PUT}: two
- * fields change already-changed values, and the update is a partial one by nature, since the database
- * procedure writes each column as {@code IFNULL(new, old)}.
- *
- * <p><b>{@code GET} exists because no other route can serve it.</b> {@code GET /api/v1/categories} is
- * the student's list: it merges the caller's own categories with the shared ones, so it returns rows an
- * administrator cannot edit and, for an administrator, it would omit nothing but explain nothing. What
- * UC-20 needs is exactly {@code user_id IS NULL} - the shared rows, retired ones included - which is a
- * different question with a different answer.
- *
- * <p><b>The response is the student module's {@link CategoryResponse}.</b> A default category is the
- * same thing to an administrator as to a student - a name, a type, an icon, a colour, whether it is
- * retired - so a second DTO would be a second definition of one row. {@code isDefault} is true on every
- * row returned here, and the mapper publishes no owner, which is what makes reusing it safe.
- */
 @RestController
 @RequestMapping("/api/v1/admin/categories")
 @Tag(name = "Administration - categories",

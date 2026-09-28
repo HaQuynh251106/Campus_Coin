@@ -25,30 +25,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * The student's financial reports: UC-15, and the reads UC-16 exports.
- *
- * <p>Two endpoints, and the split between them is the module's central decision rather than a
- * preference. Most of a report can be asked about <em>any</em> month: {@code v_monthly_income_expense}
- * and {@code v_category_month_totals} are keyed by {@code period_month}, so a student can review
- * September in December. The breakdown by day or by week cannot: both of its views derive their range
- * from {@code CURDATE()} inside the database session and answer about the current month only. Serving
- * the two together would mean one payload whose month was selectable for its totals and fixed for its
- * bars, and no field of that payload would reveal it - every number would be individually correct.
- * So they are two reads, and the second refuses a month it cannot honour instead of quietly ignoring
- * one.
- *
- * <p><b>UC-16 is not a third endpoint.</b> BR-18 requires that an export file be produced only when
- * the user asks and that nothing be buffered - "the file is generated at call time" - which is exactly
- * what these two reads already do. An export route returning the same figures as CSV would be a
- * second way to ask one question (section 13), and its payload would be the one these endpoints
- * return, formatted differently. The reports a client exports are the reports it fetched; see
- * {@code MODULE_08_REPORTS.md} §4 for the full reasoning, including what was deliberately not built.
- *
- * <p>Every method reads the caller with {@code @AuthenticationPrincipal}, so identity comes from the
- * verified bearer token. No endpoint accepts a user id, which is what makes reading another student's
- * report impossible rather than merely refused (BR-02).
- */
 @RestController
 @RequestMapping("/api/v1/reports")
 @Tag(name = "Reports",
@@ -178,14 +154,6 @@ public class ReportController {
                 parseGranularity(granularity));
     }
 
-    /**
-     * Reads the granularity parameter.
-     *
-     * <p>Parsed here rather than bound as an enum so the failure is a field-level validation error
-     * naming the value that was wrong, in the same shape as every other validation problem the API
-     * reports - rather than a type-mismatch message that describes Java's binding instead of the
-     * request.
-     */
     private ReportGranularity parseGranularity(String granularity) {
         try {
             return ReportGranularity.valueOf(granularity.trim().toUpperCase(java.util.Locale.ROOT));

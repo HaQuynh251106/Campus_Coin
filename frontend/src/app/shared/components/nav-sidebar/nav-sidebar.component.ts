@@ -143,13 +143,10 @@ export class NavSidebarComponent {
   }
 
   onLogout(): void {
-    // AuthService.logout() returns a COLD observable - the request is only sent once
-    // something subscribes. Without this subscribe no HTTP call was made at all, so the
-    // server-side session was never revoked and the token stayed in localStorage.
+
     this.auth.logout().subscribe({
       next: () => this.router.navigate(['/auth/login']),
-      // Navigate even when the call fails: the local session is already cleared, so
-      // leaving the user on the page they just signed out of would be the worse outcome.
+
       error: () => this.router.navigate(['/auth/login'])
     });
   }

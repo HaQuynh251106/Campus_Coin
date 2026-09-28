@@ -9,13 +9,6 @@ import io.swagger.v3.oas.models.servers.Server;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * OpenAPI / Swagger configuration.
- *
- * <p>Declares the Bearer scheme so the Swagger UI "Authorize" button can attach a real token to
- * protected calls, which is what makes manual verification of UC-02 and UC-05 possible straight
- * from the browser.
- */
 @Configuration
 public class OpenApiConfig {
 
@@ -50,8 +43,7 @@ public class OpenApiConfig {
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
                                 .description("JWT access token issued by the sign-in endpoints.")))
-                // Applied globally so every operation shows the lock icon; the public endpoints
-                // override it with @SecurityRequirements in their controllers.
+
                 .addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME));
     }
 }

@@ -18,8 +18,7 @@ export const STUDENT_SIDEBAR_EXTRA_ITEMS: NavItem[] = [
   { label: 'Categories', route: '/app/categories', icon: 'categories' },
   { label: 'Recurring', route: '/app/recurring', icon: 'repeat' },
   { label: 'Tips', route: '/app/tips', icon: 'insights' },
-  // Module 12. All five are student-only and live in the sidebar's "Explore" group, so an admin
-  // session — which has no student data to import, analyse or project — never sees them.
+
   { label: 'Import CSV', route: '/app/imports', icon: 'upload' },
   { label: 'Monthly Insights', route: '/app/insights', icon: 'sparkles' },
   { label: 'Anomaly Check', route: '/app/anomalies', icon: 'search' },

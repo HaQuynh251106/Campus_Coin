@@ -8,17 +8,6 @@ import { RecentActivityService } from '../../core/services/recent-activity.servi
 import { ToastService } from '../../core/services/toast.service';
 import { RecentActivity } from '../../core/models/recent-activity.model';
 
-/**
- * Module 12 (UC-26) — what the student recently opened or changed.
- *
- * The list is the server's and only the server's. Nothing is kept in `localStorage`, because a
- * client-side history would show entries the API has never heard of — and the student would be
- * reading a log of their own browser rather than of their account.
- *
- * Each entry can be logged by the student, which is the honest way to exercise the record endpoint:
- * the button says it is recording the action, and the timestamp on the entry afterwards is the
- * server's, not one this screen invented.
- */
 @Component({
   selector: 'app-recent-activity',
   standalone: true,
@@ -204,16 +193,14 @@ export class RecentActivityComponent implements OnInit {
     this.recentService.record(Number(this.newTransactionId), this.newAction).subscribe({
       next: () => {
         this.isRecording = false;
-        // Read back rather than prepending the response, so the order and the timestamps are the
-        // server's and not this screen's guess at them.
+
         this.reload();
         this.toast.success('Action recorded.');
         this.cdr.markForCheck();
       },
       error: err => {
         this.isRecording = false;
-        // A record the student does not own is refused with 404 rather than 403, so the message is
-        // the server's to write — it knows whether the id is wrong or the entry is not theirs.
+
         this.recordError =
           err.error?.message || 'That entry could not be recorded. Check the entry number and try again.';
         this.cdr.markForCheck();
@@ -221,11 +208,6 @@ export class RecentActivityComponent implements OnInit {
     });
   }
 
-  /**
-   * The category tag shows a name, and this contract publishes only the category's id and type —
-   * not its name. Showing a made-up name would be inventing data, so the tag carries what is
-   * actually there: the direction the money moved.
-   */
   entryCategoryLabel(entry: RecentActivity): string {
     return entry.categoryType === 'INCOME' ? 'Income' : 'Expense';
   }

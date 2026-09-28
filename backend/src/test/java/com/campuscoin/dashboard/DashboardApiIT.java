@@ -16,35 +16,13 @@ import org.springframework.http.ResponseEntity;
 import com.campuscoin.common.setting.SettingReader;
 import com.fasterxml.jackson.databind.JsonNode;
 
-/**
- * UC-12 over the real HTTP stack: request, security filter, controller, service, DAO, MySQL.
- *
- * <p>Every test registers its own student with a random address, so no test depends on another's rows
- * and the seeded accounts and announcements are only ever read. Where a test needs a row the API has
- * no route for yet - an administrator-only announcement, a pinned tip - it produces it the way the
- * module that owns it will, and removes it afterwards.
- *
- * <p><b>The tests that matter most are the ones about what is <em>not</em> in the response.</b> This is
- * the one endpoint that returns a named student's income, spending, top category and personal advice
- * in a single payload, so a missing filter here does not leak an identifier - it leaks a financial
- * picture. The suite therefore asserts four separate refusals: another student's figures, an
- * announcement addressed to administrators, a tip the student dismissed, and a month's tips shown
- * under another month's heading.
- */
 class DashboardApiIT extends AbstractDashboardApiIT {
 
-    /** UC-18's tips endpoint. The bare route lists, {@code /generate} runs the nightly job on demand. */
     private static final String TIPS_URL = "/api/v1/tips";
 
-    /** UC-23's threshold endpoint, which is the route that changes {@code tips.max_dashboard}. */
     private static final String ADMIN_SETTINGS_URL = "/api/v1/admin/settings";
 
-    /** UC-19's endpoint, used to prove a tip the dashboard hides is still a real, saveable tip. */
     private static final String BOOKMARKS_URL = "/api/v1/bookmarks";
-
-    // ==================================================================
-    //  UC-12 B1 - the month's totals
-    // ==================================================================
 
     @Test
     @DisplayName("UC-12: a new student's dashboard opens with zeroed totals and no top category")
@@ -64,11 +42,8 @@ class DashboardApiIT extends AbstractDashboardApiIT {
                 .isEqualByComparingTo("0.00");
         assertThat(summary.get("currency").asText()).isEqualTo("USD");
 
-        // A student who has spent nothing has no highest-spending category to name. The block is
-        // absent rather than a placeholder row carrying a zero.
         assertThat(dashboard.has("topCategory")).isFalse();
 
-        // The two list blocks are always present, and empty is a real answer.
         assertThat(dashboard.get("tips")).isEmpty();
     }
 
@@ -89,7 +64,7 @@ class DashboardApiIT extends AbstractDashboardApiIT {
                 .isEqualByComparingTo("200.00");
         assertThat(new BigDecimal(summary.get("totalExpense").asText()))
                 .isEqualByComparingTo("24.50");
-        // BR-10: the net figure is the difference, computed by the database rather than here.
+
         assertThat(new BigDecimal(summary.get("netAmount").asText()))
                 .isEqualByComparingTo("175.50");
     }
@@ -110,7 +85,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
                 TRANSACTIONS_URL + "/" + toDelete, token, null);
         assertThat(deleted.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
-        // The row still exists as far as the table is concerned; the view is what excludes it.
         assertThat(countOf("SELECT COUNT(*) FROM transactions WHERE id = ?", toDelete)).isEqualTo(1);
         assertThat(new BigDecimal(dashboard(token).get("summary").get("totalExpense").asText()))
                 .isEqualByComparingTo("30.00");
@@ -123,7 +97,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
         createTransaction(token, defaultCategoryId(INCOME_CATEGORY), "200.00", thisMonthOn(1),
                 "Monthly allowance");
 
-        // No goal: the view emits NULL, and a substituted zero would read as "made no progress".
         JsonNode summary = dashboard(token).get("summary");
         assertThat(new BigDecimal(summary.get("monthlySavingsGoal").asText()))
                 .isEqualByComparingTo("0.00");
@@ -134,7 +107,7 @@ class DashboardApiIT extends AbstractDashboardApiIT {
         summary = dashboard(token).get("summary");
         assertThat(new BigDecimal(summary.get("monthlySavingsGoal").asText()))
                 .isEqualByComparingTo("100.00");
-        // 200.00 net against a 100.00 goal is 200.00%.
+
         assertThat(new BigDecimal(summary.get("savingsGoalPct").asText()))
                 .isEqualByComparingTo("200.00");
     }
@@ -152,15 +125,10 @@ class DashboardApiIT extends AbstractDashboardApiIT {
 
         assertThat(new BigDecimal(summary.get("netAmount").asText()))
                 .isEqualByComparingTo("-40.00");
-        // A month that went backwards against the goal is a real answer to the same question, not a
-        // value to floor at zero.
+
         assertThat(new BigDecimal(summary.get("savingsGoalPct").asText()))
                 .isEqualByComparingTo("-40.00");
     }
-
-    // ==================================================================
-    //  UC-12 B2 - the top category
-    // ==================================================================
 
     @Test
     @DisplayName("UC-12 B2: the highest-spending expense category is named, with its icon and colour")
@@ -173,8 +141,7 @@ class DashboardApiIT extends AbstractDashboardApiIT {
 
         assertThat(top.get("categoryName").asText()).isEqualTo(TRANSPORT);
         assertThat(new BigDecimal(top.get("totalAmount").asText())).isEqualByComparingTo("40.00");
-        // The view publishes no icon or colour, so the DAO joins `categories` for them; these are the
-        // seeded values, which is what proves the join found the right row.
+
         assertThat(top.get("categoryIcon").asText()).isEqualTo("bus");
         assertThat(top.get("categoryColor").asText()).isEqualTo("#3B82F6");
     }
@@ -186,7 +153,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
         createTransaction(token, defaultCategoryId(INCOME_CATEGORY), "200.00", thisMonthOn(1),
                 "Monthly allowance");
 
-        // The view ranks only EXPENSE categories, so income cannot become the "highest spending" one.
         assertThat(dashboard(token).has("topCategory")).isFalse();
     }
 
@@ -209,10 +175,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
                 .isEqualTo(FOOD);
     }
 
-    // ==================================================================
-    //  UC-12 B3 - tips
-    // ==================================================================
-
     @Test
     @DisplayName("UC-12 B3: tips are the current month's, in the order the view ranked them")
     void tipsAreTheCurrentMonthsAndAlreadyRanked() throws Exception {
@@ -220,8 +182,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
         Long userId = userIdOf(token);
         Long food = defaultCategoryId(FOOD);
 
-        // A budget at 80% produces a NEAR_BUDGET tip, and a large unbudgeted category produces a
-        // NO_BUDGET_SET one - two tips with different scores, so the order is observable.
         setBudget(token, food, "30.00");
         createTransaction(token, food, "24.00", thisMonthOn(6), "Campus Cafe");
         createTransaction(token, defaultCategoryId(TRANSPORT), "60.00", thisMonthOn(7), "Bus pass");
@@ -231,9 +191,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
         JsonNode tips = dashboard(token).get("tips");
         assertThat(tips).isNotEmpty();
 
-        // The order the dashboard returns must be the order the view ranked them: read the view's own
-        // display_order rather than restating the rule, so this asserts the dashboard reports the
-        // ranking instead of inventing a second one.
         List<Long> expected = longValuesFrom("""
                 SELECT tip_id FROM v_dashboard_tips
                  WHERE user_id = ? AND period_month = ? AND state <> 'DISMISSED'
@@ -260,8 +217,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
         LocalDate lastMonth = thisMonth().minusMonths(1);
         generateTips(userId, lastMonth, 3);
 
-        // The tip exists - which is the point. v_dashboard_tips has no time filter of its own, so
-        // without the DAO's month predicate these rows would appear under this month's heading.
         assertThat(tipIdsFor(userId, lastMonth)).isNotEmpty();
         assertThat(dashboard(token).get("tips")).isEmpty();
     }
@@ -307,8 +262,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
 
         dismissTip(dismissed);
 
-        // The row is still there - the view's `state <> 'DISMISSED'` is what removes it - and it is
-        // not merely reordered to the end.
         assertThat(countOf("SELECT COUNT(*) FROM user_tips WHERE id = ?", dismissed)).isEqualTo(1);
         assertThat(tipIdsOf(dashboard(token).get("tips"))).doesNotContain(dismissed);
     }
@@ -319,8 +272,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
         String token = loginNewStudent();
         Long userId = userIdOf(token);
 
-        // No transactions at all: the only rule that fires is the generic "too little data" tip, whose
-        // category_id is NULL on the table.
         generateTips(userId, thisMonth(), 3);
 
         JsonNode tips = dashboard(token).get("tips");
@@ -329,18 +280,11 @@ class DashboardApiIT extends AbstractDashboardApiIT {
         assertThat(tips.get(0).get("state").asText()).isEqualTo("NEW");
     }
 
-    // ==================================================================
-    //  UC-12 B3 - announcements
-    // ==================================================================
-
     @Test
     @DisplayName("UC-12 B3: only the audiences a student may see are returned, never an admin notice")
     void announcementsAreFilteredByAudience() throws Exception {
         String token = loginNewStudent();
 
-        // The view applies the active flag and the window but no audience filter, so this is the one
-        // filter the module has to add. A notice written for administrators on a student's dashboard
-        // would be a disclosure, not a styling bug.
         Long adminOnly = insertAnnouncement("Administrator maintenance window", "WARNING", "ADMINS",
                 LocalDateTime.now().minusHours(1), LocalDateTime.now().plusDays(1), true);
         Long forEveryone = insertAnnouncement("Library extended hours", "INFO", "ALL",
@@ -399,7 +343,7 @@ class DashboardApiIT extends AbstractDashboardApiIT {
             JsonNode found = announcementById(dashboard(token).get("announcements"), openEnded);
 
             assertThat(found).isNotNull();
-            // ck_ann_window permits a null end, and the view reads that as "still running".
+
             assertThat(found.has("endsAt")).isFalse();
             assertThat(found.get("severity").asText()).isEqualTo("INFO");
         } finally {
@@ -416,8 +360,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
         List<String> titles = new java.util.ArrayList<>();
         announcements.forEach(announcement -> titles.add(announcement.get("title").asText()));
 
-        // Seeded by 05_seed.sql as STUDENTS, active, now → +90 and +60 days. A dashboard that showed
-        // nothing here would mean the window or the audience filter was wrong.
         assertThat(titles).contains("Welcome to Campus Coin");
     }
 
@@ -435,24 +377,12 @@ class DashboardApiIT extends AbstractDashboardApiIT {
         try {
             List<Long> returned = announcementIdsOf(dashboard(token).get("announcements"));
 
-            // The view has no ORDER BY of its own, so the order is the DAO's.
             assertThat(returned.indexOf(newer)).isLessThan(returned.indexOf(older));
         } finally {
             deleteAnnouncement(older);
             deleteAnnouncement(newer);
         }
     }
-
-    // ==================================================================
-    //  The seeded demo account
-    //
-    //  Read-only, and it has to stay that way. The seeded student is shared by every test in the
-    //  suite, and an HTTP write is its own transaction that no rollback can undo - so a test here
-    //  that recorded a transaction would change the figures the assertions in this section expect.
-    //  (It did: a top-category test written against the demo account failed its sibling with
-    //  319.00 where 189.00 was expected.) A test that needs to change the data registers its own
-    //  student instead, which is what every other test in this class does.
-    // ==================================================================
 
     @Test
     @DisplayName("UC-12: the seeded demo account's dashboard reports its month's figures")
@@ -462,14 +392,13 @@ class DashboardApiIT extends AbstractDashboardApiIT {
         JsonNode dashboard = dashboard(token);
         JsonNode summary = dashboard.get("summary");
 
-        // db/06_demo.sql: income 200.00 + 60.00, spending 120.00 + 8.00 + 24.00 + 12.00 + 25.00.
         assertThat(new BigDecimal(summary.get("totalIncome").asText()))
                 .isEqualByComparingTo("260.00");
         assertThat(new BigDecimal(summary.get("totalExpense").asText()))
                 .isEqualByComparingTo("189.00");
         assertThat(new BigDecimal(summary.get("netAmount").asText()))
                 .isEqualByComparingTo("71.00");
-        // The saving goal is seeded at 100.00 and the allowance baseline at 200.00.
+
         assertThat(new BigDecimal(summary.get("monthlySavingsGoal").asText()))
                 .isEqualByComparingTo("100.00");
         assertThat(new BigDecimal(summary.get("monthlyAllowanceBaseline").asText()))
@@ -477,25 +406,18 @@ class DashboardApiIT extends AbstractDashboardApiIT {
         assertThat(new BigDecimal(summary.get("savingsGoalPct").asText()))
                 .isEqualByComparingTo("71.00");
 
-        // Dorm rent is the largest single expense and Hostel/Rent the largest category total.
         JsonNode top = dashboard.get("topCategory");
         assertThat(top.get("categoryName").asText()).isEqualTo("Hostel/Rent");
         assertThat(new BigDecimal(top.get("totalAmount").asText())).isEqualByComparingTo("120.00");
 
-        // Three tips exist for this month, generated by the demo script, all still NEW.
         JsonNode tips = dashboard.get("tips");
         assertThat(tips).isNotEmpty();
         assertThat(tips).allSatisfy(tip ->
                 assertThat(tip.get("state").asText()).isEqualTo("NEW"));
 
-        // The savings-goal tip belongs to no category, so it omits the field while the others carry
-        // it. This is the one shape a demo-account dashboard exercises that a controlled fixture
-        // does not: a mixed list.
         assertThat(tipIdsOf(tips)).hasSizeGreaterThan(1);
         assertThat(tips.get(0).has("categoryId")).isFalse();
 
-        // Both seeded announcements are live for a student, and the seeded category icon and colour
-        // reach the response - which is what proves the join to `categories` found the row.
         assertThat(announcementIdsOf(dashboard.get("announcements"))).isNotEmpty();
         assertThat(top.get("categoryIcon").asText()).isEqualTo("home");
         assertThat(top.get("categoryColor").asText()).isEqualTo("#EF4444");
@@ -509,48 +431,12 @@ class DashboardApiIT extends AbstractDashboardApiIT {
 
         JsonNode tips = dashboard(token).get("tips");
 
-        // The list is bounded by the setting BR-14 names (`tips.max_dashboard`, three by default).
-        // It is deliberately NOT asserted equal to the month's stored tip count: the bound is what
-        // makes a dashboard a dashboard, and the stored rows for a month may exceed it, because the
-        // generator bounds one run while the dedupe key is per rule and per category, so a second
-        // run in the same month stores the rows the first one's top-N cut off. The bound is applied
-        // where the dashboard reads, which is what the next assertion states and what
-        // theDashboardNeverExceedsTheConfiguredLimit reproduces from scratch.
         long maxDashboard = longValuesFrom(
                 "SELECT CAST(setting_value AS UNSIGNED) FROM system_settings WHERE setting_key = ?",
                 "tips.max_dashboard").get(0);
         assertThat(tips.size()).isLessThanOrEqualTo((int) maxDashboard);
     }
 
-    // ==================================================================
-    //  BR-14 - the bound is enforced where the dashboard reads (UC-12 B3, UC-23)
-    // ==================================================================
-
-    /**
-     * BR-14, end to end: the administrator's number reaches the student's screen.
-     *
-     * <p><b>The defect this exists to catch, stated as the sequence that produced it.</b> The bound
-     * used to live only in {@code sp_generate_tips}, which applies it inside one run
-     * ({@code WHERE r.rn <= v_max_tips}). The stored rows for a month are not bounded by it:
-     * {@code user_tips.dedupe_key} is {@code user_id|period_month|tip_template_id|category_id}, so a
-     * second run in the same month ranks a shifted top-N and stores the rows the first run cut off -
-     * each one new, so {@code INSERT IGNORE} keeps it. {@code v_dashboard_tips} then applies no limit
-     * of its own, so the dashboard showed every accumulated row. With the setting at 3, a real
-     * student's dashboard returned 4 and 5 tips. The test that guarded this passed only because its
-     * seed generated once.
-     *
-     * <p><b>Why the three scenarios are one loop over the same fixture rather than three fixtures.</b>
-     * The relationship under test is <em>setting value in, displayed count out</em>. Rebuilding the
-     * student between scenarios would change the tips as well as the setting, and the assertion could
-     * then pass for a reason that has nothing to do with the bound. One student, one set of stored
-     * rows, three settings: the only thing that varies is the administrator's number.
-     *
-     * <p><b>Every mutation goes through the product's own routes.</b> The tips are generated by
-     * {@code POST /api/v1/tips/generate} - the same generator the nightly job runs, on demand - and
-     * the setting is changed by {@code PATCH /api/v1/admin/settings/tips.max_dashboard}. Neither is
-     * reached by direct SQL: a fixture that inserted tip rows itself would prove only that the
-     * dashboard can count.
-     */
     @Test
     @DisplayName("BR-14: the administrator's tips.max_dashboard bounds the student's dashboard")
     void theDashboardNeverExceedsTheConfiguredLimit() throws Exception {
@@ -560,9 +446,7 @@ class DashboardApiIT extends AbstractDashboardApiIT {
 
         int originalValue = settingAsInt(SettingReader.TIPS_MAX_DASHBOARD);
         try {
-            // A student whose own data generates tips, recorded through the transactions API
-            // because that is what the generator reads. One budget is exceeded and two expense
-            // categories carry spending with no budget, so several rules fire at once.
+
             Long food = defaultCategoryId(FOOD);
             setBudget(studentToken, food, "30.00");
             createTransaction(studentToken, food, "120.00", thisMonthOn(3),
@@ -573,7 +457,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
                     thisMonthOn(5), "Bus and train passes");
             setSavingsGoal(studentToken, "100.00");
 
-            // Run 1: the ordinary generation, exactly what the nightly job does.
             assertThat(send(HttpMethod.POST, TIPS_URL + "/generate", studentToken, null)
                     .getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -582,21 +465,11 @@ class DashboardApiIT extends AbstractDashboardApiIT {
                     .as("the first run filled the configured limit and no more")
                     .isGreaterThan(0);
 
-            // The spending that makes the second run rank differently. Two expense categories with
-            // no budget and large totals displace the first run's lower-scored advice, so the second
-            // run's top-N contains a (rule, category) pair the first run never stored - and the
-            // dedupe key is per rule and per category, so those rows are not duplicates and are kept.
-            // This is the half of the defect that matters: the bound is per run, and the month
-            // accumulates across runs. Nothing here is a fixture trick - a student who spends more
-            // between two nightly runs does exactly this.
             createTransaction(studentToken, defaultCategoryId(ENTERTAINMENT), "5000.00",
                     thisMonthOn(6), "Concert tickets, front row");
             createTransaction(studentToken, defaultCategoryId(MISCELLANEOUS), "4000.00",
                     thisMonthOn(7), "Replacement laptop charger and cables");
 
-            // Run 2, same month, through the real application path. A student pressing "refresh", or
-            // the next nightly tick, is the same call. Whatever the run produced is left alone: the
-            // point is that the stored rows now exceed the setting, not that they are trimmed.
             assertThat(send(HttpMethod.POST, TIPS_URL + "/generate", studentToken, null)
                     .getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -607,14 +480,9 @@ class DashboardApiIT extends AbstractDashboardApiIT {
                             storedTipIds.size())
                     .isGreaterThan(3);
 
-            // The ranking the view computes, which is what the dashboard must return a prefix of.
-            // Read separately so the assertion can distinguish "cut off the tail" from "lost a
-            // high-ranked tip", and so the oracle is the schema's ordering rather than a test's.
             List<Long> rankedTipIds = rankedTipIdsFor(userId, thisMonth());
             assertThat(rankedTipIds).hasSameSizeAs(storedTipIds);
 
-            // BR-14's three acceptance values, and the number the setting is actually moved to is
-            // read back from the database rather than assumed from the request.
             for (int configured : List.of(1, 3, 5)) {
                 setMaxDashboard(adminToken, configured);
 
@@ -625,40 +493,23 @@ class DashboardApiIT extends AbstractDashboardApiIT {
                 JsonNode dashboard = dashboard(studentToken);
                 JsonNode tips = dashboard.get("tips");
 
-                // BEFORE STATE was the setting; CAUSE was the administrator's change; this is the
-                // DEPENDENT READ. EXPECTED is a count capped at the configured number.
                 assertThat(tips.size())
                         .as("dashboard showed %d tips under tips.max_dashboard=%d",
                                 tips.size(), configured)
                         .isLessThanOrEqualTo(configured);
 
-                // The bound is a bound, not a floor: a month that holds fewer tips than the limit
-                // shows what it holds rather than padding to the limit.
                 assertThat(tips.size()).isLessThanOrEqualTo(storedTipIds.size());
 
-                // What is shown is the top of the ranking, not an arbitrary subset. Asserted as a
-                // prefix of the rows in the view's own ranked order rather than as a containment,
-                // because "the bound cut off the tail" and "the bound dropped a high-ranked tip"
-                // are different bugs: a typo'd OR in the view's ORDER BY would produce the second
-                // and still pass a containment check.
                 List<Long> shown = tipIdsOf(tips);
                 assertThat(shown).isEqualTo(rankedTipIds.subList(0, shown.size()));
             }
 
-            // Raising the limit must not invent, and lowering it must not destroy. The stored rows
-            // are the same rows before and after every setting change: BR-14 governs the display,
-            // and no tip is deleted to make a count come out right.
             assertThat(tipIdsFor(userId, thisMonth())).containsExactlyElementsOf(storedTipIds);
 
-            // A tip the dashboard hid is still a real tip of this student's: the tips screen is
-            // deliberately unbounded, so narrowing the dashboard does not narrow UC-18.
             setMaxDashboard(adminToken, 1);
             JsonNode tipsScreen = body(send(HttpMethod.GET, TIPS_URL, studentToken, null));
             assertThat(tipsScreen.get("tips").size()).isEqualTo(storedTipIds.size());
 
-            // And a tip the dashboard hid is still bookmarkable, which is the concrete meaning of
-            // "history preserved": the rows the bound cuts off are not detached from the rest of the
-            // product. This also proves the foreign key from a bookmark to a hidden tip still holds.
             Long hiddenTipId = rankedTipIds.get(rankedTipIds.size() - 1);
             assertThat(tipIdsOf(dashboard(studentToken).get("tips"))).doesNotContain(hiddenTipId);
 
@@ -674,8 +525,7 @@ class DashboardApiIT extends AbstractDashboardApiIT {
                     .as("the bookmark survived the setting change it was created under")
                     .isEqualTo(1);
         } finally {
-            // The setting is shared by every student in the container, so it is put back where it
-            // was found - otherwise this test would silently retune every later test's dashboard.
+
             setMaxDashboard(adminToken, originalValue);
         }
     }
@@ -690,22 +540,11 @@ class DashboardApiIT extends AbstractDashboardApiIT {
         try {
             setMaxDashboard(adminToken, 5);
 
-            // A student registered moments ago has no transactions, so the generator's
-            // too-little-data rule produces at most its one generic tip and there is nothing for a
-            // bound to cut. Applying a limit must not turn "no tips" into a placeholder row.
             assertThat(dashboard(token).get("tips")).isEmpty();
         } finally {
             setMaxDashboard(adminToken, originalValue);
         }
     }
-
-    // ==================================================================
-    //  Ownership and security
-    // ==================================================================
-
-    // ==================================================================
-    //  Ownership and security
-    // ==================================================================
 
     @Test
     @DisplayName("BR-02: one student's dashboard never contains another student's figures")
@@ -735,8 +574,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
 
         ResponseEntity<String> response = send(HttpMethod.GET, DASHBOARD_URL, adminToken, null);
 
-        // The dashboard returns a named student's income and spending. An administrator has no route
-        // here and no use case for one.
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(errorCodeOf(response)).isEqualTo("ACCESS_DENIED");
     }
@@ -762,9 +599,7 @@ class DashboardApiIT extends AbstractDashboardApiIT {
     void theResponseNeverNamesTheOwner() throws Exception {
         String token = loginNewStudent();
         createTransaction(token, defaultCategoryId(FOOD), "24.00", thisMonthOn(6), "Campus Cafe");
-        // A goal, so that the one nullable field of the summary is present too. Without it
-        // savingsGoalPct is legitimately absent - asserted by its own test - and this check would
-        // only be comparing the fields a student with no goal happens to see.
+
         setSavingsGoal(token, "150.00");
 
         JsonNode dashboard = dashboard(token);
@@ -776,7 +611,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
         assertThat(fieldNamesOf(dashboard.get("topCategory")))
                 .containsExactlyInAnyOrderElementsOf(DOCUMENTED_TOP_CATEGORY_FIELDS);
 
-        // The views carry user_id and the announcements view carries created_by; neither may appear.
         assertThat(dashboard.toString()).doesNotContain("userId", "user_id", "createdBy",
                 "created_by");
     }
@@ -786,10 +620,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
     void theMonthIsNotSelectable() throws Exception {
         String token = loginNewStudent();
 
-        // A `?month=` would be a promise the views cannot keep: v_dashboard_summary and
-        // v_top_category_current_month both derive their month from the database's own clock. Rather
-        // than answer a January question with September's figures, the endpoint ignores the parameter
-        // and states which month it answered for.
         ResponseEntity<String> response = send(HttpMethod.GET,
                 DASHBOARD_URL + "?month=2020-01", token, null);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -815,16 +645,10 @@ class DashboardApiIT extends AbstractDashboardApiIT {
             dashboard(token);
         }
 
-        // A dashboard is the kind of screen where a careless implementation marks things seen or
-        // records a view. Every one of those would be a write behind a GET.
         assertThat(tipStateOf(tipId)).isEqualTo(stateBefore);
         assertThat(countOf("SELECT COUNT(*) FROM notifications WHERE user_id = ?", userId))
                 .isEqualTo(notificationsBefore);
     }
-
-    // ==================================================================
-    //  Helpers
-    // ==================================================================
 
     private void setSavingsGoal(String token, String goal) throws Exception {
         ResponseEntity<String> response = send(HttpMethod.PATCH, PROFILE_URL, token,
@@ -842,13 +666,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
                 .isEqualTo(HttpStatus.CREATED);
     }
 
-    /**
-     * UC-23: an administrator changes {@code tips.max_dashboard} through the PATCH route.
-     *
-     * <p>The product's own route rather than an {@code UPDATE}: the endpoint has a value-shape check,
-     * an adjustability allow-list and an audit row behind it, and a test that wrote the table
-     * directly would leave all three unexercised while appearing to prove the same thing.
-     */
     private void setMaxDashboard(String adminToken, int value) throws Exception {
         ResponseEntity<String> response = send(HttpMethod.PATCH,
                 ADMIN_SETTINGS_URL + "/" + SettingReader.TIPS_MAX_DASHBOARD, adminToken,
@@ -859,7 +676,6 @@ class DashboardApiIT extends AbstractDashboardApiIT {
         assertThat(body(response).get("value").asText()).isEqualTo(String.valueOf(value));
     }
 
-    /** The setting as the database holds it, so an assertion never trusts a request over a read. */
     private int settingAsInt(String key) throws Exception {
         return Math.toIntExact(longValuesFrom(
                 "SELECT CAST(setting_value AS UNSIGNED) FROM system_settings WHERE setting_key = ?",

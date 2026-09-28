@@ -28,26 +28,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * The transactions a student recently viewed or edited: UC-26.
- *
- * <p>Two endpoints. The list is a read; recording is a write, and it is a request of its own rather
- * than a side effect of reading a transaction - see {@code RecentActivityService} for why that
- * boundary is where it is.
- *
- * <p><b>Why this is not under {@code /transactions}.</b> The collection belongs to module 12, its
- * write goes through {@code sp_touch_recent_activity} rather than through module 4's procedures, and
- * its entries are not transactions - they are references to them, carrying an action and a time. A
- * route under {@code /api/v1/transactions/**} would tell a reader that these are transaction
- * operations, and it would put a module-12 capability behind module 4's URL. The one thing the
- * transaction module would have had to do differently is record a view on its own read path, and it
- * deliberately does not.
- *
- * <p>Every method reads the caller with {@code @AuthenticationPrincipal}, so identity comes from the
- * verified bearer token. No endpoint accepts a user id, and the one identifier either endpoint does
- * accept - a transaction - is checked against the caller's ownership by the database, so no request can
- * record activity against, or read back, another student's record.
- */
 @RestController
 @RequestMapping("/api/v1/recent-activity")
 @Tag(name = "Recent activity",

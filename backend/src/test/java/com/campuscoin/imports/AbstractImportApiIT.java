@@ -27,34 +27,6 @@ import com.campuscoin.support.AbstractMySqlIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-/**
- * The fixtures UC-11's suite needs: identity, a file to import, and the database reads that can show
- * what the endpoint stored.
- *
- * <p><b>Every test registers a fresh student.</b> An import is owned by the account that uploaded it,
- * its rows are reached through that batch, and the duplicate check compares the file against the
- * student's own records - so a suite that reused one account would have each test teaching the rules
- * and leaving the records the next one then compares against. A failure would then depend on the
- * order the tests ran in, which is exactly the kind of coupling that makes a suite stop being
- * evidence. A random address per test costs a registration and buys independence.
- *
- * <p><b>The file is sent as JSON text, not as a multipart upload.</b> That is the endpoint's own
- * contract, argued in {@code UploadCsvRequest}: this build has no multipart configuration and no
- * over-size handler, and adding both for one endpoint would leave its most likely refusal answered by
- * Spring's default rather than by this API's error contract. So every fixture here builds the file's
- * text and sends it in {@code content}.
- *
- * <p><b>Nothing is inserted into the import tables directly.</b> A fixture that wrote
- * {@code import_batches} and {@code import_rows} by hand would have to invent the counters the
- * preview's own loop computes and the verdicts the duplicate detector reaches - and a test asserting
- * that an invalid row is identifiable would then be testing the fixture's insert rather than the
- * reader. Every batch under test is a batch a real caller uploaded.
- *
- * <p><b>But a record the file is compared against <em>is</em> created through the API</b>, for the
- * same reason: {@code POST /api/v1/transactions} is how a row becomes one of the student's live
- * records, with the triggers and the ownership running over it, so "an earlier record of the same
- * amount in the same category" is the state the detector actually reads.
- */
 abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
 
     protected static final String IMPORTS_URL = "/api/v1/imports";
@@ -67,57 +39,29 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
 
     protected static final String PASSWORD = "Student@123";
 
-    /** The seeded shared categories the fixtures file their records under. */
     protected static final String FOOD = "Food";
     protected static final String TRANSPORT = "Transport";
 
-    /** The zone the application and the database session both run in (VĐ-10). */
     protected static final ZoneId APPLICATION_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
-    /**
-     * A date far enough back that no fixture depends on when the suite runs.
-     *
-     * <p>UC-11 refuses a future date at the commit (BR-08), and a fixture dated "today" would move
-     * every day - so the dates here are fixed. They are in the past relative to the project's own
-     * timeline, which is all BR-08 asks.
-     */
     protected static final LocalDate EARLIER = LocalDate.of(2026, 9, 18);
     protected static final LocalDate LATER = LocalDate.of(2026, 9, 21);
 
-    /** A date no test may use for a record that has to import: BR-08 refuses it at the commit. */
     protected static final LocalDate IN_THE_FUTURE = LocalDate.of(2099, 1, 1);
 
-    /**
-     * The complete set of properties one previewed row may carry.
-     *
-     * <p>A literal rather than a reflected set, so a field added to the response fails a test instead
-     * of quietly widening the published contract. There is no {@code userId}: {@code import_rows} has
-     * no owner column at all - the owner is always the batch's - so the shape could not carry one.
-     */
     protected static final List<String> DOCUMENTED_ROW_FIELDS = List.of(
             "id", "csvRowNo", "rawData", "parsedDate", "parsedAmount", "parsedType",
             "parsedDescription", "parsedCategoryName", "resolvedCategoryId",
             "aiSuggestedCategoryId", "rowStatus", "errorMessage", "transactionId");
 
-    /** The complete set of properties the batch response may carry. */
     protected static final List<String> DOCUMENTED_BATCH_FIELDS = List.of(
             "id", "originalFilename", "status", "modifiable", "totalRows", "validRows", "errorRows",
             "duplicateRows", "importedRows", "createdAt", "committedAt", "rows");
 
-    /**
-     * The complete set of properties a list entry may carry.
-     *
-     * <p>Pinned here rather than in {@code OpenApiContractIT}, which says so in as many words: this
-     * shape is never a response of its own - it is the element type of {@code ImportBatchListResponse}
-     * - and the contract test reads the response object rather than descending into a referenced
-     * schema's own properties, so listing it there would assert something about a reference that does
-     * not exist.
-     */
     protected static final List<String> DOCUMENTED_SUMMARY_FIELDS = List.of(
             "id", "originalFilename", "status", "modifiable", "totalRows", "validRows", "errorRows",
             "duplicateRows", "importedRows", "createdAt", "committedAt");
 
-    /** The properties of the list response's wrapper. */
     protected static final List<String> DOCUMENTED_LIST_FIELDS = List.of("limit", "entries");
 
     @Autowired
@@ -125,10 +69,6 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
 
     @Autowired
     protected ObjectMapper objectMapper;
-
-    // ==================================================================
-    //  HTTP
-    // ==================================================================
 
     protected ResponseEntity<String> send(HttpMethod method, String url, String token, Object body) {
         HttpHeaders headers = new HttpHeaders();
@@ -163,17 +103,6 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
         return names;
     }
 
-    // ==================================================================
-    //  The file
-    // ==================================================================
-
-    /**
-     * A CSV file whose header names the three required columns.
-     *
-     * <p>{@code date,amount,type} are required and the other two are optional - a file without a
-     * {@code category} column still imports, every row falling back to the default category for its
-     * type. Every fixture here includes both, because the interesting cases are about values.
-     */
     protected static String csv(String... rows) {
         return csvWithHeader("date,amount,type,description,category", rows);
     }
@@ -182,13 +111,11 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
         return header + "\n" + String.join("\n", rows) + "\n";
     }
 
-    /** One well-formed data row. */
     protected static String rowOf(LocalDate date, String amount, String type, String description,
                                   String category) {
         return date + "," + amount + "," + type + "," + description + "," + category;
     }
 
-    /** A file of {@code rowCount} identical well-formed rows, for the size bound. */
     protected static String csvWithNumberOfRows(int rowCount) {
         StringBuilder content = new StringBuilder("date,amount,type,description,category\n");
         for (int index = 0; index < rowCount; index++) {
@@ -197,17 +124,11 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
         return content.toString();
     }
 
-    // ==================================================================
-    //  The endpoints
-    // ==================================================================
-
-    /** Uploads a file, unasserted - most tests here are about what the upload answered or refused. */
     protected ResponseEntity<String> upload(String token, String filename, String content) {
         return send(HttpMethod.POST, IMPORTS_URL, token,
                 Map.of("filename", filename, "content", content));
     }
 
-    /** Uploads a file and asserts it became a preview, which is the setup most tests need. */
     protected JsonNode uploadExpectingCreated(String token, String content) throws Exception {
         ResponseEntity<String> response = upload(token, "records.csv", content);
         assertThat(response.getStatusCode())
@@ -278,15 +199,10 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
         return body(response);
     }
 
-    // ==================================================================
-    //  Reading a preview
-    // ==================================================================
-
     protected static long batchIdOf(JsonNode batch) {
         return batch.get("id").asLong();
     }
 
-    /** One entry of a preview, found by the file line it came from. */
     protected static JsonNode rowAt(JsonNode batch, int csvRowNo) {
         for (JsonNode row : batch.get("rows")) {
             if (row.get("csvRowNo").asInt() == csvRowNo) {
@@ -309,7 +225,6 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
         return message == null || message.isNull() ? null : message.asText();
     }
 
-    /** The transaction ids of every imported row, in file order. */
     protected static List<Long> importedTransactionIds(JsonNode batch) {
         List<Long> ids = new ArrayList<>();
         for (JsonNode row : batch.get("rows")) {
@@ -319,10 +234,6 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
         }
         return ids;
     }
-
-    // ==================================================================
-    //  Identity
-    // ==================================================================
 
     protected String register(String email) {
         ResponseEntity<String> response = send(HttpMethod.POST, REGISTER_URL, null, Map.of(
@@ -336,7 +247,6 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
         return email;
     }
 
-    /** A fresh student's token, on an account nobody else's tests have touched. */
     protected String loginNewStudent() throws Exception {
         String email = randomEmail();
         register(email);
@@ -369,15 +279,10 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
         return "imports.test." + UUID.randomUUID() + "@student.campuscoin.edu";
     }
 
-    // ==================================================================
-    //  Records to compare against
-    // ==================================================================
-
     protected Long defaultCategoryId(String name) throws Exception {
         return longValueFrom("SELECT id FROM categories WHERE user_id IS NULL AND name = ?", name);
     }
 
-    /** Creates one transaction through the API, which is how the triggers and the queries see it. */
     protected Long createTransaction(String token, Long categoryId, String amount, LocalDate date,
                                      String description) throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
@@ -392,21 +297,15 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
         return body(response).get("id").asLong();
     }
 
-    /** The student's existing record that a file's row may turn out to duplicate. */
     protected Long anExistingRecord(String token, String categoryName, String amount, LocalDate date,
                                     String description) throws Exception {
         return createTransaction(token, defaultCategoryId(categoryName), amount, date, description);
     }
 
-    /** How many transactions the student has on the books, live ones only. */
     protected int liveTransactionCountOf(Long userId) throws Exception {
         return countOf("SELECT COUNT(*) FROM transactions WHERE user_id = ? AND is_deleted = 0",
                 userId);
     }
-
-    // ==================================================================
-    //  Database assertions
-    // ==================================================================
 
     protected String storedBatchStatusOf(Long batchId) throws Exception {
         return columnInDatabase(batchId, "import_batches", "status");
@@ -425,17 +324,14 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
         }
     }
 
-    /** How many rows a batch has, whatever state they are in - a cancel keeps them. */
     protected int storedRowCountOf(Long batchId) throws Exception {
         return countOf("SELECT COUNT(*) FROM import_rows WHERE batch_id = ?", batchId);
     }
 
-    /** How many batches the student has, which is what the row cap is measured against. */
     protected int storedBatchCountOf(Long userId) throws Exception {
         return countOf("SELECT COUNT(*) FROM import_batches WHERE user_id = ?", userId);
     }
 
-    /** The student's stored mapping for a keyword, or null when they have none (UC-08 B6). */
     protected String storedRuleCategoryNameOf(Long userId, String keyword) throws Exception {
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(
@@ -450,18 +346,10 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
         }
     }
 
-    /**
-     * The stored {@code transactions.description} of a record this suite created, read directly.
-     *
-     * <p>Read through the {@code transactions} table rather than through an endpoint, because the
-     * question is what is <em>at rest</em> - a read that went through the API would decrypt the value
-     * and could not answer it (OB-018).
-     */
     protected String storedDescriptionOf(Long transactionId) throws Exception {
         return columnInDatabase(transactionId, "transactions", "description");
     }
 
-    /** The source the rule learner recorded, which is {@code IMPORT} for a mapping a commit taught. */
     protected String storedRuleSourceOf(Long userId, String keyword) throws Exception {
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(
@@ -475,8 +363,7 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
     }
 
     protected String columnInDatabase(Long id, String table, String column) throws Exception {
-        // The table and column names come from test literals only, never from a request, so
-        // interpolating them is safe; the id is bound.
+
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(
                      "SELECT " + column + " FROM " + table + " WHERE id = ?")) {
@@ -511,7 +398,6 @@ abstract class AbstractImportApiIT extends AbstractMySqlIntegrationTest {
         }
     }
 
-    /** Binds fixture parameters, using the declared type for a date and a null-safe set for the rest. */
     private static void bind(PreparedStatement statement, Object... parameters) throws Exception {
         for (int index = 0; index < parameters.length; index++) {
             Object value = parameters[index];

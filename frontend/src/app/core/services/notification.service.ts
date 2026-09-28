@@ -52,7 +52,7 @@ export class NotificationService {
         this.notifications.set(mapped);
       },
       error: () => {
-        // Quiet fallback
+
       }
     });
   }
@@ -118,7 +118,7 @@ export class NotificationService {
         );
       },
       error: () => {
-        // Fallback optimistic update
+
         this.notifications.update(items =>
           items.map(item => String(item.id) === String(id) ? { ...item, read: true } : item)
         );

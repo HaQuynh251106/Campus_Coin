@@ -19,24 +19,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * How the system is being used: UC-23.
- *
- * <p>Two endpoints, both read-only, and they stay separate because they are two shapes rather than two
- * views of one: the first is a single row of scalar totals, the second is a ranking over every
- * category. Merging them would either bury a list inside a summary row or drop the category identity the
- * ranking is about.
- *
- * <p><b>No endpoint here returns one student's figures.</b> Every number is a count or a total across
- * many accounts, which is the whole of what UC-23 asks for. The two money columns are sums over the
- * plaintext amounts the encryption pass deliberately left in the clear (OB-013) - an aggregate that
- * cannot be resolved back to an individual - and no administrator route returns a single student's
- * transactions, budgets or spending.
- *
- * <p><b>Nothing is computed in the service.</b> Both figures come from database views, whose
- * definitions of "student", "active" and "not deleted" are the schema's; a second answer in Java would
- * be a second definition that could drift from the one students' own screens are built on.
- */
 @RestController
 @RequestMapping("/api/v1/admin/stats")
 @Tag(name = "Administration - statistics",

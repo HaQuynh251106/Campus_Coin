@@ -13,7 +13,6 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
 }
 
-/* Modern SaaS Component Styles (Replacing legacy brutalist styles) */
 .card-brutal {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -70,7 +69,6 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: none;
 }
 
-/* Button Variants */
 .btn-brutal-primary {
   background-color: #EAB308;
   color: #09090B;
@@ -125,7 +123,6 @@ h1, h2, h3, h4, h5, h6 {
   border-color: #3F3F46;
 }
 
-/* Modern Inputs */
 .input-brutal {
   width: 100%;
   border: 1px solid var(--color-border);
@@ -156,7 +153,6 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.2);
 }
 
-/* Modern Badge & Tag */
 .badge-brutal {
   display: inline-flex;
   align-items: center;
@@ -175,7 +171,6 @@ h1, h2, h3, h4, h5, h6 {
   border-color: #27272A;
 }
 
-/* Typography & Contrast Utilities */
 .text-main {
   color: var(--color-text-main);
 }
@@ -202,7 +197,6 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0.04em;
 }
 
-/* Print Styling for Reports */
 @media print {
   body {
     background-color: #ffffff !important;

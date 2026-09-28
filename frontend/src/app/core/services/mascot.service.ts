@@ -22,8 +22,8 @@ export type MascotAnchor =
 export interface AnchorCoord {
   id: MascotAnchor;
   name: string;
-  xPercent: number; // viewport percentage from left
-  yPercent: number; // viewport percentage from top
+  xPercent: number;
+  yPercent: number;
   cssStyle: { top?: string; bottom?: string; left?: string; right?: string };
 }
 
@@ -36,19 +36,16 @@ export class MascotService {
   private platformId = inject(PLATFORM_ID);
   private isBrowser = isPlatformBrowser(this.platformId);
 
-  // Reactive State Signals
   readonly currentState = signal<MascotState>('idle');
   readonly bubbleText = signal<string | null>(null);
   readonly isChatOpen = signal<boolean>(false);
   readonly currentAnchor = signal<MascotAnchor>('bottom-right');
 
-  // Timers
   private stateResetTimer?: any;
   private bubbleResetTimer?: any;
   private inactivityTimer?: any;
   private roamingIntervalTimer?: any;
 
-  // Guest Roaming Prompts for Landing Page
   private readonly guestPrompts = [
     "Log in and I'll help you manage your money!",
     'Click me to try the AI assistant!',
@@ -65,11 +62,9 @@ export class MascotService {
     }
   }
 
-  // --- State Triggers ---
-
   triggerState(state: MascotState, bubble?: string, durationMs = 3500): void {
     if (this.isChatOpen() && state !== 'chat-open') {
-      // Don't interrupt open chat with background idle/walk
+
       return;
     }
 
@@ -111,13 +106,12 @@ export class MascotService {
     this.triggerState('chat-open', 'How can I help you today?', 0);
   }
 
-  // Specific Business Event Hooks
   onTransactionLogged(): void {
     this.triggerState('deposit', 'Got it, tucked that one away!', 4000);
   }
 
   onQuickAddTyping(): void {
-    // 30% chance to flip coin when typing to avoid spamming
+
     if (Math.random() < 0.35 && this.currentState() === 'idle') {
       this.triggerState('coin-flip', 'Thinking it over?', 3000);
     }
@@ -147,7 +141,6 @@ export class MascotService {
     this.bubbleText.set(prompt);
   }
 
-  // Router listener for Walk/Hop transitions
   private initRouterListener(): void {
     this.router.events
       .pipe(filter(event => event instanceof NavigationEnd))
@@ -159,7 +152,6 @@ export class MascotService {
           return;
         }
 
-        // On student routes: Walk / hop animation transition (silent, no bubble spamming per navigation)
         if (url.includes('/reports') || url.includes('/budgets') || url.includes('/quick-add') || url.includes('/home')) {
           this.triggerState('walk', undefined, 2200);
         } else {
@@ -168,7 +160,6 @@ export class MascotService {
       });
   }
 
-  // B.4 Proactive Greeting: Trigger once per browser session after 3.5s delay
   private initProactiveGreeting(): void {
     if (!this.isBrowser) return;
     try {
@@ -184,7 +175,6 @@ export class MascotService {
     } catch {}
   }
 
-  // Inactivity Detector (Sleepy state after 90 seconds of no user interaction)
   private initInactivityDetector(): void {
     const resetInactivity = () => {
       if (this.currentState() === 'sleepy') {
@@ -195,7 +185,7 @@ export class MascotService {
         if (!this.isChatOpen() && this.currentState() !== 'guest-roaming') {
           this.triggerState('sleepy', "I'll nap here — click me if you need anything!", 0);
         }
-      }, 90000); // 90 seconds
+      }, 90000);
     };
 
     const events = ['mousemove', 'keydown', 'scroll', 'touchstart'];

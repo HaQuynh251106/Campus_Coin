@@ -22,14 +22,6 @@ import com.campuscoin.support.AbstractMySqlIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-/**
- * UC-05: the administrator portal as a separate entry point sharing one authentication service.
- *
- * <p>The pair UC-05 A1 and E1 is what these tests pin down. A1 is the credential check - a student
- * account posting to the administrator login is refused with 403. E1 is the route check - a
- * student token presented to anything under {@code /api/v1/admin/**} is refused server-side, so
- * hiding the administrator UI is not what protects it.
- */
 class AdminAuthApiIT extends AbstractMySqlIntegrationTest {
 
     private static final String REGISTER_URL = "/api/v1/auth/register";
@@ -38,12 +30,6 @@ class AdminAuthApiIT extends AbstractMySqlIntegrationTest {
 
     private static final String PASSWORD = "Student@123";
 
-    /**
-     * An admin-only route that has no body and does not exist yet, used to test the route rule
-     * itself. The security chain runs before the dispatcher, so the role check and the 401/403
-     * split are decided here whether or not a controller is mapped - which is exactly what
-     * UC-05 E1 requires, since hiding the administrator UI must not be the protection.
-     */
     private static final String PROTECTED_ADMIN_ROUTE = "/api/v1/admin/auth/protected-route-probe";
 
     @Autowired
@@ -51,10 +37,6 @@ class AdminAuthApiIT extends AbstractMySqlIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    // ------------------------------------------------------------------
-    //  UC-05 B3: the administrator signs in
-    // ------------------------------------------------------------------
 
     @Test
     @DisplayName("UC-05 B3: the seeded administrator signs in and receives an ADMIN token")
@@ -69,8 +51,6 @@ class AdminAuthApiIT extends AbstractMySqlIntegrationTest {
         assertThat(body.get("tokenType").asText()).isEqualTo("Bearer");
         assertThat(body.get("user").get("role").asText()).isEqualTo("ADMIN");
 
-        // Session handling is the same code path as the student portal, so a session row exists
-        // here too and the token is what authenticates, not the role claim alone.
         assertThat(body.toString()).doesNotContain("passwordHash", "tokenVersion");
     }
 
@@ -87,7 +67,6 @@ class AdminAuthApiIT extends AbstractMySqlIntegrationTest {
         assertThat(objectMapper.readTree(response.getBody()).get("errorCode").asText())
                 .isEqualTo("ACCESS_DENIED");
 
-        // The refusal must not have opened a session for the student.
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(
                      "SELECT COUNT(*) FROM user_sessions s JOIN users u ON u.id = s.user_id "
@@ -106,9 +85,6 @@ class AdminAuthApiIT extends AbstractMySqlIntegrationTest {
         String studentEmail = randomEmail();
         registerStudent(studentEmail, PASSWORD);
 
-        // A student's correct password is refused as a wrong-role 403, while an address that does
-        // not exist is a 401 - the two are distinguishable only by someone who already holds the
-        // password, which is the same position the student portal puts an administrator in.
         ResponseEntity<String> student = post(ADMIN_LOGIN_URL,
                 Map.of("email", studentEmail, "password", PASSWORD));
         ResponseEntity<String> unknown = post(ADMIN_LOGIN_URL,
@@ -137,7 +113,6 @@ class AdminAuthApiIT extends AbstractMySqlIntegrationTest {
         registerStudent(email, PASSWORD);
         promoteToAdmin(email);
 
-        // An account promoted to ADMIN, signed in, then disabled: both halves of BR-03 in one test.
         String token = loginAt(ADMIN_LOGIN_URL, email, PASSWORD);
 
         try (Connection connection = openDatabaseConnection();
@@ -153,15 +128,9 @@ class AdminAuthApiIT extends AbstractMySqlIntegrationTest {
         assertThat(objectMapper.readTree(freshLogin.getBody()).get("errorCode").asText())
                 .isEqualTo("ACCOUNT_DISABLED");
 
-        // The token issued while the account was active must stop working immediately, even
-        // though its signature is still valid and it has not expired.
         assertThat(exchange(PROTECTED_ADMIN_ROUTE, token, null).getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
     }
-
-    // ------------------------------------------------------------------
-    //  UC-05 E1: the route itself is protected
-    // ------------------------------------------------------------------
 
     @Test
     @DisplayName("UC-05 E1: a student token is refused by an admin route with 403, not 401")
@@ -170,9 +139,6 @@ class AdminAuthApiIT extends AbstractMySqlIntegrationTest {
         registerStudent(email, PASSWORD);
         String studentToken = loginAt(STUDENT_LOGIN_URL, email, PASSWORD);
 
-        // 403 rather than 401 is the point: the caller is authenticated, and the answer is that
-        // this identity may not use this route (UC-05 E1). The route only has to refuse; the
-        // controller beside it is never reached.
         ResponseEntity<String> response = exchange(PROTECTED_ADMIN_ROUTE, studentToken, null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
@@ -195,14 +161,9 @@ class AdminAuthApiIT extends AbstractMySqlIntegrationTest {
     void adminTokenWorksOnStudentRoutes() throws Exception {
         String adminToken = loginAt(ADMIN_LOGIN_URL, SEEDED_ADMIN_EMAIL, SEEDED_ADMIN_PASSWORD);
 
-        // The admin role is a superset for authentication purposes; only /admin/** is restricted.
         assertThat(exchange("/api/v1/auth/logout", adminToken, null).getStatusCode())
                 .isEqualTo(HttpStatus.NO_CONTENT);
     }
-
-    // ------------------------------------------------------------------
-    //  Helpers
-    // ------------------------------------------------------------------
 
     private static String randomEmail() {
         return "admin." + UUID.randomUUID() + "@student.campuscoin.edu";
@@ -218,7 +179,6 @@ class AdminAuthApiIT extends AbstractMySqlIntegrationTest {
                 .isEqualTo(HttpStatus.CREATED);
     }
 
-    /** Uses the database's own role column, standing in for the administrator module's promote. */
     private void promoteToAdmin(String email) throws Exception {
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(

@@ -14,34 +14,7 @@ import org.springframework.http.ResponseEntity;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-/**
- * UC-26 — the transactions a student recently viewed or edited, end to end over HTTP.
- *
- * <p>Everything here runs against a real MySQL with the project's own procedures loaded, because the
- * behaviour under test is not in the Java: the ownership check is inside
- * {@code sp_touch_recent_activity}, the visibility rule is inside {@code v_user_recent_activity}, and
- * the dedupe is {@code uk_recent}. A mocked database would let every one of these pass while the SQL
- * said something else.
- *
- * <p>What this class is trying to break:
- *
- * <ul>
- *   <li>that one student can record activity against another student's transaction, and that the
- *       refusal does not leak which identifiers exist;</li>
- *   <li>that the list can be made to show another student's rows;</li>
- *   <li>that the entry set is right: one row per transaction and action, moved rather than duplicated
- *       when the same action happens twice;</li>
- *   <li>that the description is decrypted on the way out and is an envelope at rest;</li>
- *   <li>that a trashed transaction leaves the list and comes back on restore without being
- *       re-recorded;</li>
- *   <li>that the path is behind the student role rule and not the authenticated catch-all.</li>
- * </ul>
- */
 class RecentActivityApiIT extends AbstractRecentActivityApiIT {
-
-    // ==================================================================
-    //  Recording
-    // ==================================================================
 
     @Test
     @DisplayName("A view is recorded and comes back as an entry of the caller's own")
@@ -70,9 +43,6 @@ class RecentActivityApiIT extends AbstractRecentActivityApiIT {
                 "SELECT occurred_at FROM recent_activity WHERE user_id = ? AND transaction_id = ? "
                         + "AND action = 'VIEWED'", userId, transactionId).get(0);
 
-        // uk_recent is (user_id, transaction_id, action), and the procedure upserts onto it with
-        // ON DUPLICATE KEY UPDATE occurred_at = NOW(). So a second view is one row with a later time,
-        // not two rows - which is what "recently viewed" has to mean.
         recordExpectingCreated(token, transactionId, "VIEWED");
 
         assertThat(activityRowCount(userId, transactionId, "VIEWED")).isEqualTo(1);
@@ -99,9 +69,6 @@ class RecentActivityApiIT extends AbstractRecentActivityApiIT {
         recordExpectingCreated(token, transactionId, "VIEWED");
         recordExpectingCreated(token, transactionId, "EDITED");
 
-        // uk_recent is (user_id, transaction_id, action), so the two acts are two rows. A list that
-        // collapsed them would lose the distinction UC-26 is about. The order is the query's, not the
-        // fixture's: the two writes land inside the same second, so the tie-break decides.
         assertThat(actionsFor(userId, transactionId)).containsExactlyInAnyOrder("EDITED", "VIEWED");
 
         JsonNode list = recent(token);
@@ -119,10 +86,7 @@ class RecentActivityApiIT extends AbstractRecentActivityApiIT {
 
         assertThat(entry.get("categoryId").asLong()).isEqualTo(defaultCategoryId(FOOD));
         assertThat(entry.get("categoryType").asText()).isEqualTo("EXPENSE");
-        // decimalValue() rather than asText(): Jackson parses a JSON float as a double unless
-        // USE_BIG_DECIMAL_FOR_FLOATS is on, so asText() reports 25.0 for a stored 25.00 and would make
-        // this assertion about scale rather than about the figure. The suite's other amount
-        // assertions compare the same way - see TransactionApiIT and RecurringRuleApiIT.
+
         assertThat(entry.get("amount").decimalValue()).isEqualByComparingTo("25.00");
         assertThat(entry.get("txnDate").asText()).isEqualTo(today().toString());
         assertThat(entry.get("description").asText()).isEqualTo("Lunch with Linh");
@@ -137,8 +101,6 @@ class RecentActivityApiIT extends AbstractRecentActivityApiIT {
 
         JsonNode entry = recordExpectingCreated(token, transactionId, "VIEWED");
 
-        // Read straight from the column: asserting through the response would prove only that the round
-        // trip works, not that the database never held the words.
         String stored = storedDescriptionOf(transactionId);
         assertThat(stored).as("stored description").isNotEqualTo("Secret lunch");
         assertThat(stored).doesNotContain("Secret lunch");
@@ -158,10 +120,6 @@ class RecentActivityApiIT extends AbstractRecentActivityApiIT {
         assertThat(entry.has("description")).isFalse();
     }
 
-    // ==================================================================
-    //  The list
-    // ==================================================================
-
     @Test
     @DisplayName("The list is the caller's own entries, most recent first")
     void listsMostRecentFirst() throws Exception {
@@ -178,8 +136,6 @@ class RecentActivityApiIT extends AbstractRecentActivityApiIT {
         assertThat(entryTransactionIdsOf(list)).containsExactlyInAnyOrder(first, second);
         assertThat(list.get("entries")).hasSize(2);
 
-        // Ordered by occurred_at DESC. The two writes are inside the same second in a test run, so the
-        // id tie-break decides; what matters is that the order is stable between two identical calls.
         assertThat(entryTransactionIdsOf(recent(token)))
                 .containsExactlyElementsOf(entryTransactionIdsOf(list));
     }
@@ -225,8 +181,6 @@ class RecentActivityApiIT extends AbstractRecentActivityApiIT {
         assertThat(capped.get("limit").asInt()).isEqualTo(1);
         assertThat(capped.get("entries")).hasSize(1);
 
-        // Zero and above the ceiling are refused rather than clamped: the response reports the limit it
-        // applied, so silently changing it would make its own body untrue.
         for (String bad : List.of("0", "-1", "51")) {
             ResponseEntity<String> response = recentWithLimit(token, bad);
             assertThat(response.getStatusCode())
@@ -250,10 +204,6 @@ class RecentActivityApiIT extends AbstractRecentActivityApiIT {
         assertThat(entry.has("userId")).isFalse();
     }
 
-    // ==================================================================
-    //  Ownership: BR-02
-    // ==================================================================
-
     @Test
     @DisplayName("Another student's transaction cannot be recorded, and looks exactly like a missing one")
     void cannotRecordAgainstAnotherStudentsTransaction() throws Exception {
@@ -261,9 +211,6 @@ class RecentActivityApiIT extends AbstractRecentActivityApiIT {
         String tokenB = loginNewStudent();
         Long bTransaction = aTransaction(tokenB, "B's books");
 
-        // The row exists and belongs to somebody else. The procedure refuses it with 45000, and the
-        // response must be indistinguishable from the one for an identifier that matches nothing - or
-        // a caller could enumerate other students' transaction identifiers one request at a time.
         ResponseEntity<String> notMine = record(tokenA, bTransaction, "VIEWED");
         ResponseEntity<String> notThere = record(tokenA, 999_999_999L, "VIEWED");
 
@@ -274,15 +221,10 @@ class RecentActivityApiIT extends AbstractRecentActivityApiIT {
         assertThat(body(notMine).get("message").asText())
                 .isEqualTo(body(notThere).get("message").asText());
 
-        // And nothing was written on the other student's behalf.
         Long bUserId = userIdOf(tokenB);
         assertThat(activityRowCount(bUserId, bTransaction, "VIEWED")).isZero();
         assertThat(recent(tokenA).get("entries")).isEmpty();
     }
-
-    // ==================================================================
-    //  The trash, and the timestamp the client does not send
-    // ==================================================================
 
     @Test
     @DisplayName("A trashed transaction leaves the list, and restoring it brings the entry back")
@@ -297,8 +239,6 @@ class RecentActivityApiIT extends AbstractRecentActivityApiIT {
         assertThat(trash(token, transactionId).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
         assertThat(recent(token).get("entries")).isEmpty();
 
-        // The activity row survives the soft delete; the view is what hides it. That is why restoring
-        // needs no repair step and why the entry is not re-recorded.
         assertThat(activityRowCount(userId, transactionId, "VIEWED")).isEqualTo(1);
 
         assertThat(restore(token, transactionId).getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -312,9 +252,6 @@ class RecentActivityApiIT extends AbstractRecentActivityApiIT {
         String token = loginNewStudent();
         Long transactionId = aTransaction(token, "Lunch");
 
-        // Sent and ignored rather than refused: the field is not part of the contract, and rejecting it
-        // would be a new way for a client to fail. What matters is that the stored time is the
-        // database's, not the future one sent here.
         ResponseEntity<String> response = send(HttpMethod.POST, RECENT_URL, token, Map.of(
                 "transactionId", transactionId,
                 "action", "VIEWED",
@@ -331,10 +268,6 @@ class RecentActivityApiIT extends AbstractRecentActivityApiIT {
                 userId, transactionId).get(0);
         assertThat(stored).startsWith(String.valueOf(LocalDate.now(APPLICATION_ZONE).getYear()));
     }
-
-    // ==================================================================
-    //  Validation
-    // ==================================================================
 
     @Test
     @DisplayName("A missing transactionId, a missing action, or an unknown action are field errors")
@@ -353,22 +286,14 @@ class RecentActivityApiIT extends AbstractRecentActivityApiIT {
         assertThat(errorCodeOf(noAction)).isEqualTo("VALIDATION_ERROR");
         assertThat(fieldNamesIn(body(noAction))).containsExactly("action");
 
-        // A third action never reaches the procedure: `fail-on-numbers-for-enums` and Jackson's enum
-        // binding reject it at the boundary, which is what keeps the procedure's own 45000 meaning
-        // "not your transaction" rather than "bad action".
         ResponseEntity<String> badAction = record(token, 1L, "DELETED");
         assertThat(badAction.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(fieldNamesIn(body(badAction))).containsExactly("action");
 
-        // An ordinal is not a member name, and must not be read as one.
         ResponseEntity<String> ordinal = send(HttpMethod.POST, RECENT_URL, token,
                 Map.of("transactionId", 1, "action", 0));
         assertThat(ordinal.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
-
-    // ==================================================================
-    //  Security (section 7.5)
-    // ==================================================================
 
     @Test
     @DisplayName("Section 7.5: no token is 401, and an administrator token is 403 on both endpoints")
@@ -383,9 +308,6 @@ class RecentActivityApiIT extends AbstractRecentActivityApiIT {
         assertThat(send(HttpMethod.POST, RECENT_URL, null, body).getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
 
-        // The path matches none of the student prefixes, so without its own rule it would fall to
-        // /api/** — which admits any authenticated account. This is the assertion that fails if that
-        // rule is ever dropped, and it is why the rule exists.
         assertThat(errorCodeOf(send(HttpMethod.GET, RECENT_URL, adminToken, null)))
                 .isEqualTo("ACCESS_DENIED");
         assertThat(send(HttpMethod.GET, RECENT_URL, adminToken, null).getStatusCode())

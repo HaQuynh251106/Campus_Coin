@@ -21,42 +21,6 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
-/**
- * Asks the system to categorise one of the student's own records, and learns from their filing: UC-08.
- *
- * <p><b>One endpoint, and the resource is a proposal rather than a record.</b> The record is module 4's
- * and module 4 is where it is created, corrected, trashed and restored; nothing here reads or writes
- * the collection the student browses. What this route addresses is a question - "what would you file
- * this under?" - asked about a record they already own, and the answer is advisory by BR-13.
- *
- * <p><b>Why this is not under {@code /transactions}.</b> The suggestion is stored in three columns of
- * {@code transactions}, so the first instinct is that the route belongs there - and it was considered.
- * It does not hold up for three reasons, the same three {@code AnomalyController} gives for the flags
- * it writes. Module 4's {@code Transaction} leaves those three columns unmapped on purpose, so that no
- * statement module 4 builds can write them; the categorisation write therefore goes through a path
- * module 4 does not know about. The response is not a transaction but a proposal about one. And a route
- * under {@code /api/v1/transactions/**} would read to a client as a module-4 operation, when the one
- * thing module 4 would have had to do differently - consult a categoriser as it saves - is exactly what
- * it does not do: filing a record must not depend on a provider being reachable.
- *
- * <p><b>Why {@code /api/v1/ai} is the right collection when the answer often involves no AI.</b> The
- * namespace is the set of routes that ask the system to reason about the student's own data and report
- * what it concluded, together with where the conclusion came from. {@code source} makes that explicit on
- * every response, and the deployment setting {@code ai.enabled} can turn the external half off without
- * turning the route off - a student's own learned mappings still answer, which is the property that
- * makes this a feature rather than a demo. Naming the route after the model would be false the first
- * time it is answered from a keyword rule; naming it after the capability is not.
- *
- * <p><b>The client names a record and nothing else.</b> There is no category field in the request, so
- * the mapping the system learns is derived from where the student actually filed the record - not from
- * what a client says they did. There is no {@code userId}, so identity comes from the verified bearer
- * token, and the record is loaded by {@code (id, user_id)}: another student's record is answered with the
- * same {@code 404} as one that does not exist.
- *
- * <p><b>Nothing this route returns changes where the money is counted.</b> The student's own category is
- * never written here (BR-13), so the proposal is a note beside the record and the learning is a change
- * to the system's memory, not to their history.
- */
 @RestController
 @RequestMapping("/api/v1/ai")
 @Tag(name = "AI categorisation",

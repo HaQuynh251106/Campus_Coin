@@ -9,21 +9,6 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 
-/**
- * Which notifier a deployment gets, decided without starting the application.
- *
- * <p><b>Why this is a unit test.</b> The choice is a pure function of configuration - sink on, host
- * present, sender present - and there is no reason to pay for a database container to exercise it.
- * {@link ApplicationContextRunner} starts just enough context to run the {@code @Bean} method and
- * nothing else.
- *
- * <p><b>The assertion worth having is the one about the empty host.</b> The bug this design avoids is
- * Spring Boot's {@code spring.mail.host} auto-configuration being triggered by an empty string, which
- * would hand a deployment with no mail server a live {@code JavaMailSender} aimed at nothing instead
- * of the no-op. The test therefore configures an explicitly blank host and requires a
- * {@link NoopPasswordResetNotifier}, not merely "a notifier". A future refactor back to
- * {@code spring.mail} would fail here rather than in production.
- */
 class PasswordResetConfigTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
@@ -82,9 +67,7 @@ class PasswordResetConfigTest {
         assertThat(impl.getHost()).isEqualTo("smtp.example.com");
         assertThat(impl.getPort()).isEqualTo(2525);
         assertThat(impl.getUsername()).isEqualTo("apikey");
-        // The password is set on the sender so the mail library can authenticate with it. It is
-        // never logged; this assertion exists so a refactor cannot silently drop it and turn every
-        // authenticated send into a failure.
+
         assertThat(impl.getPassword()).isEqualTo("secret");
         assertThat(impl.getJavaMailProperties())
                 .containsEntry("mail.smtp.auth", "true")
@@ -99,7 +82,7 @@ class PasswordResetConfigTest {
                 new Smtp("smtp.example.com", null, null, null, true, false));
 
         assertThat(sender.getPort()).isEqualTo(587);
-        // No username means no authentication, the ordinary case for a local catcher.
+
         assertThat(sender.getJavaMailProperties()).containsEntry("mail.smtp.auth", "false");
     }
 }

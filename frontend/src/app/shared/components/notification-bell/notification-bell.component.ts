@@ -154,17 +154,6 @@ export class NotificationBellComponent {
     this.notifService.markAllAsRead();
   }
 
-  /**
-   * Opening a notification both marks it read and follows the route the server put on it.
-   *
-   * `linkUrl` is published by `GET /notifications` as a route the API chose (`/budgets`), and it
-   * was arriving here unused — the row only ever marked itself read, so the message telling a
-   * student their budget was close to its limit could not take them to that budget. The value is
-   * relative to the app shell, hence the `/app` prefix.
-   *
-   * `POST /notifications/{id}/read` is one-way (docs §10), so a second click on an already-read row
-   * only navigates.
-   */
   onItemClick(item: NotificationItem): void {
     if (!item.read) {
       this.notifService.markAsRead(item.id);
@@ -177,7 +166,6 @@ export class NotificationBellComponent {
     }
   }
 
-  /** `/budgets` → `/app/budgets`; anything the server did not send has no route to follow. */
   private resolveRoute(linkUrl?: string): string | null {
     if (!linkUrl) return null;
     if (linkUrl.startsWith('/app')) return linkUrl;

@@ -26,33 +26,6 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
-/**
- * A student's saving tips, and pinning or dismissing one: UC-18.
- *
- * <p>Four endpoints: list a month's tips, list the months that have tips, generate this month's, and
- * change one tip's state. There is no create, no edit and no delete: a tip is written by
- * {@code sp_generate_tips}, which applies the six rules and renders the text through a template, and
- * the only part of it a student owns is whether they kept it. Offering an edit would let a client
- * write advice the rules never produced; offering a delete would remove the row that
- * {@code uk_tip_dedupe} uses to keep a dismissed tip from coming back.
- *
- * <p><b>Generating is its own endpoint rather than a side effect of reading.</b> Listing a month is a
- * read and generates nothing, so opening the tips screen cannot alter the list being shown; the
- * student asks for a refresh explicitly. It is also what makes the advice current on demand instead
- * of only when the scheduled run next fires.
- *
- * <p><b>Changing state is a {@code POST} to a {@code /state} sub-path, not a {@code PATCH} of a
- * field.</b> The transition sets two columns together - the state and the timestamp
- * {@code ck_tip_state} pairs with it - and which pair depends on the state; a client that could set
- * {@code pinnedAt} directly could produce a pinned tip with no pinned time, which the schema refuses
- * and which has no meaning. The same shape the notification module uses for marking a message read,
- * and for the same reason: the server decides what a state change writes.
- *
- * <p>Every method reads the caller with {@code @AuthenticationPrincipal}, so identity comes from the
- * verified bearer token. No endpoint accepts a user id, so there is no way to reach another student's
- * tips - which matters here because a tip's title and body are readable prose about one student's
- * spending, naming their categories and the amounts they spent on them.
- */
 @RestController
 @RequestMapping("/api/v1/tips")
 @Tag(name = "Saving Tips",

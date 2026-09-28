@@ -27,25 +27,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * The configuration values a running installation is tuned through: UC-23 and VĐ-05.
- *
- * <p>Two endpoints, and the split is the point: {@code GET} shows every setting with a flag saying
- * which may be changed, and {@code PATCH} changes one, addressed by its key.
- *
- * <p><b>{@code system_settings} holds two kinds of row and both are listed.</b> Six are business
- * thresholds a deployment is expected to tune - the two budget percentages, the two spike-detection
- * values, the dashboard tip count and the reset-token lifetime. The rest are deployment configuration
- * ({@code app.currency}, {@code app.timezone}), authentication policy read by the application, or
- * values belonging to capabilities this build does not have. Hiding those would leave an administrator
- * unable to see the currency their system runs in or the session lifetime in force, so they are
- * returned with {@code adjustable: false} and the update endpoint refuses them. The flag and the
- * refusal come from one list, so they cannot disagree.
- *
- * <p><b>The key is in the path, not in the body</b>, so one setting occupies one address, the
- * allow-list is discoverable by listing, and a request cannot name one key in its URL and another in
- * its payload.
- */
 @RestController
 @RequestMapping("/api/v1/admin/settings")
 @Tag(name = "Administration - settings",

@@ -283,7 +283,7 @@ export class ProfileComponent implements OnInit {
           this.cdr.markForCheck();
         },
         error: () => {
-          // Graceful fallback to token cached data
+
         }
       });
     }
@@ -317,14 +317,6 @@ export class ProfileComponent implements OnInit {
     });
   }
 
-  /**
-   * Appearance and text size are account settings (UC-27), not browser settings, so each change is
-   * written through `PATCH /profile/me/preferences` rather than only to `localStorage`.
-   *
-   * The local value is applied first so the change is visible immediately, then saved. If the save
-   * fails the local value is left as the student set it and the error is reported — silently
-   * reverting a control the student just used would be worse than telling them it did not stick.
-   */
   setTheme(dark: boolean): void {
     this.theme.setDarkMode(dark);
     this.savePreference({ themePreference: dark ? 'DARK' : 'LIGHT' });

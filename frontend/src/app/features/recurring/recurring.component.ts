@@ -13,14 +13,6 @@ import {
   CreateRecurringRuleRequest
 } from '../../core/models/recurring-rule.model';
 
-/**
- * Module 5 (UC-09) — set up, edit, pause, end and remove a recurring income or expense.
- *
- * This screen did not exist before. The module's own integration notes call for it by name, and
- * the Quick Add form had been collecting a "Recurring Frequency" the transaction contract has no
- * field for — so the control reached nothing. Everything here talks to the real
- * `/api/v1/recurring-rules` endpoints.
- */
 @Component({
   selector: 'app-recurring',
   standalone: true,
@@ -358,10 +350,6 @@ export class RecurringComponent implements OnInit {
     return RecurringRuleService.describeSchedule(rule);
   }
 
-  /**
-   * A rule carries no `type` of its own — the category decides whether it is income or expense
-   * (BR-05). The label is therefore read from the category the rule belongs to.
-   */
   isIncome(rule: RecurringRule): boolean {
     return this.categories.find(c => String(c.id) === String(rule.categoryId))?.type === 'INCOME';
   }
@@ -372,8 +360,7 @@ export class RecurringComponent implements OnInit {
   }
 
   private filterCategories(type: CategoryType): void {
-    // BR-07: retired categories are not offered for new records, including new rules. See the same
-    // guard in quick-add; `GET /categories` returns retired rows on purpose.
+
     this.filteredCategories = this.categories.filter(c => c.type === type && c.isActive !== false);
     const current = this.ruleForm.get('categoryId')?.value;
     const stillValid = this.filteredCategories.some(c => String(c.id) === String(current));
@@ -408,8 +395,7 @@ export class RecurringComponent implements OnInit {
     const cat = this.categories.find(c => String(c.id) === String(rule.categoryId));
     this.flowType = cat?.type ?? 'EXPENSE';
     this.filterCategories(this.flowType);
-    // A retired category freezes every field but `categoryId`, so the form says why rather than
-    // letting the student fill in a form that cannot save.
+
     this.categoryRetired = cat?.isActive === false;
 
     this.ruleForm.reset({
@@ -422,13 +408,11 @@ export class RecurringComponent implements OnInit {
       nextRunDate: rule.nextRunDate ?? '',
       description: rule.description ?? ''
     });
-    // `startDate` is not part of the update contract at all — disabling it keeps the control from
-    // implying it could be sent.
+
     this.ruleForm.get('startDate')?.disable();
     this.showModal = true;
   }
 
-  /** With a retired category the save is refused unless the category itself changed. */
   categoryRetiredOnlyCategoryInvalid(): boolean {
     if (!this.editingId || !this.categoryRetired) return false;
     const original = this.rules.find(r => r.id === this.editingId);
@@ -459,8 +443,7 @@ export class RecurringComponent implements OnInit {
   }
 
   private saveCreate(): void {
-    // `getRawValue()` so the disabled startDate is still read on create — it is only disabled
-    // while editing, and a create must send it.
+
     const val = this.ruleForm.getRawValue();
     const endDate = (val.endDate || '').trim();
     const nextRunDate = (val.nextRunDate || '').trim();
@@ -473,8 +456,7 @@ export class RecurringComponent implements OnInit {
       startDate: val.startDate as string,
       description: (val.description || '').trim()
     };
-    // Only send the optional dates when they were actually filled in — an empty `endDate` is the
-    // "clear it" signal on PATCH, but on create there is nothing to clear.
+
     if (endDate) body.endDate = endDate;
     if (nextRunDate) body.nextRunDate = nextRunDate;
 
@@ -493,11 +475,6 @@ export class RecurringComponent implements OnInit {
     });
   }
 
-  /**
-   * Sends only what the student actually edited. `description` and `endDate` are the two fields
-   * with an empty state, so they are the two that map a cleared value to `''` — doing that for
-   * `categoryId`, `amount` or `frequency` would turn an untouched field into a validation error.
-   */
   private saveEdit(id: number): void {
     const val = this.ruleForm.getRawValue();
     const body: Record<string, unknown> = {};
@@ -525,7 +502,7 @@ export class RecurringComponent implements OnInit {
       },
       error: err => {
         this.isSaving = false;
-        // An ended rule is final, so this is not a retry — it needs a new rule.
+
         if (RecurringRuleService.isEndedError(err)) {
           this.modalError = 'This rule has ended and cannot be changed. Create a new one instead.';
         } else {
@@ -582,7 +559,7 @@ export class RecurringComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: err => {
-        // The rule has posted after all, so it cannot be deleted — offer "end" as the real action.
+
         if (RecurringRuleService.isInUseError(err)) {
           this.toast.warning('This rule has already posted transactions, so it cannot be deleted. End it instead.');
         } else {
@@ -592,7 +569,6 @@ export class RecurringComponent implements OnInit {
     });
   }
 
-  /** `sv-SE` yields `YYYY-MM-DD`, which avoids the UTC-midnight off-by-one a Date would bring. */
   private today(): string {
     return new Date().toLocaleDateString('sv-SE');
   }

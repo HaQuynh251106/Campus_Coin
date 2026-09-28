@@ -31,25 +31,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * The text of the advice the tip generator produces: UC-21 B3 and B4.
- *
- * <p>Three endpoints: list, create and edit. There is no delete, because
- * {@code user_tips.tip_template_id} restricts deletion and a template that is switched off with its
- * history intact is what the audit trail is for. There is no {@code PUT}: the update is partial by
- * nature, since the database procedure writes each column as {@code IFNULL(new, old)}.
- *
- * <p><b>A template is not a tip.</b> This controller manages the wording and the condition that
- * {@code sp_generate_tips} renders and decides by - "you have spent {amount} of your {limit}" and the
- * rule that says when to say it. The tips students actually receive are UC-18 and belong to the tips
- * module; nothing here can read, change or produce one. Switching a template off stops it producing
- * new advice and leaves every tip already generated untouched.
- *
- * <p><b>{@code code} is immutable, and sending a different one is refused rather than ignored.</b>
- * {@code sp_admin_upsert_tip_template}'s update branch does not write the column at all, so accepting
- * the request would report success while nothing moved. Sending the current code unchanged is allowed,
- * so a client can round-trip a whole template through this endpoint.
- */
 @RestController
 @RequestMapping("/api/v1/admin/tip-templates")
 @Tag(name = "Administration - tip templates",

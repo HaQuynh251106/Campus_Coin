@@ -48,10 +48,10 @@ export class AnnouncementBannerComponent {
 
   cardClasses(): string {
     if (this.isWarning()) {
-      // Phần cảnh báo được thể hiện rõ: viền dày, màu vàng đậm nổi bật, shadow và thanh viền cảnh báo
+
       return 'bg-amber-100/90 dark:bg-amber-950/50 border-2 border-amber-500 dark:border-amber-400 border-l-4 border-l-amber-600 dark:border-l-amber-400 shadow-sm';
     }
-    // Tông màu vàng chủ đạo cho toàn bộ các thông báo khác (INFO, SUCCESS)
+
     return 'bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/90 dark:border-amber-800/40 border-l-4 border-l-amber-500';
   }
 

@@ -4,22 +4,6 @@ import com.campuscoin.admin.entity.TipConditionType;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * One saving-tip template as the administration screen shows it (UC-21).
- *
- * <p>{@code titleTemplate} and {@code bodyTemplate} are templates, not finished prose: the database
- * renders them with the student's own figures when {@code sp_generate_tips} produces a tip, which is
- * why they are named "template" rather than "title" and "body". An administrator editing one is
- * editing what every student in that condition will be told.
- *
- * <p>{@code conditionParams} is deliberately not published. The column is a {@code JSON} blob whose
- * meaning the schema does not document and which nothing in this build reads, so exposing it would be
- * offering a field neither side can interpret. It is recorded as a follow-up in
- * {@code docs/OVERNIGHT_BLOCKERS.md} rather than guessed at.
- *
- * <p>Deliberately absent: {@code createdBy}, and the timestamps. The audit trail records who changed
- * a template and when, which is the record UC-22 B5 asks for.
- */
 @Schema(description = "An administrator-managed saving-tip template (UC-21).")
 public record TipTemplateResponse(
 

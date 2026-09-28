@@ -30,26 +30,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * The accounts on the system: UC-22.
- *
- * <p>Three endpoints: list the accounts, enable or disable one, and send one a password reset link.
- * There is no {@code DELETE} - VĐ-06 says an administrator does not remove an account's credentials,
- * only block access to it, and disabling is reversible by the same endpoint that did it. There is no
- * {@code GET /{id}} either: the two writes return the account they acted on, so a bare read would be
- * the same row without the list's context.
- *
- * <p><b>Who is calling never comes from the request.</b> Every method reads the caller from the
- * verified bearer token, and the path id is only ever the account being acted on. A client cannot
- * claim to be another administrator, and no endpoint accepts an actor id it could set to itself.
- *
- * <p><b>The whole path is {@code ADMIN}-only</b>, enforced in {@code SecurityConfig} before any of these
- * methods runs. That is also what makes the {@code 404} on the two write endpoints safe: it does reveal
- * whether an account id exists, which module 10's bookmarks deliberately refuse to do ("not yours and
- * does not exist look identical"), and the difference is the caller. A student probing ids would be
- * learning about other students' rows; an administrator is already entitled to list every account on
- * this very screen.
- */
 @RestController
 @RequestMapping("/api/v1/admin/users")
 @Tag(name = "Administration - users",

@@ -7,20 +7,6 @@ import { TipService } from '../../core/services/tip.service';
 import { ToastService } from '../../core/services/toast.service';
 import { SavingTip } from '../../core/models/tip.model';
 
-/**
- * Module 9 (UC-18) — the saving tips screen.
- *
- * Three rules shape this component, and all three come from the module rather than from taste:
- *
- * 1. **The array is rendered in the order it arrives.** Pinned tips lead and the rest follow the
- *    database's ranking; sorting by `potentialSaving` would put a different tip on top than the
- *    ranking chose, and a pinned one would drift down the page. There is no `sort()` here, and no
- *    `sort` pipe.
- * 2. **Reading never generates.** An empty month is a real answer. The generator runs when the
- *    student asks for it, not because the list came back short.
- * 3. **Dismissal is terminal.** The API refuses to move a dismissed tip back, so the screen says so
- *    before the click rather than after the `400`.
- */
 @Component({
   selector: 'app-tips',
   standalone: true,
@@ -221,8 +207,7 @@ export class TipsComponent implements OnInit {
       },
       error: err => {
         this.isLoading = false;
-        // A bad month is refused rather than read as another one, so the picker goes back to what
-        // was showing instead of quietly displaying a different month's advice.
+
         if (err.status === 400) {
           this.toast.warning(err.error?.message || 'That month is not valid. Showing the current month.');
           this.selectedMonth = '';
@@ -243,7 +228,7 @@ export class TipsComponent implements OnInit {
     this.isGenerating = true;
     this.tipService.generateTips().subscribe({
       next: tips => {
-        // The generator's own response is the new list, so there is no follow-up read.
+
         this.tips = tips;
         this.selectedMonth = '';
         this.isGenerating = false;
@@ -264,8 +249,7 @@ export class TipsComponent implements OnInit {
   setState(tip: SavingTip, state: 'NEW' | 'PINNED'): void {
     this.tipService.setTipState(tip.id, state).subscribe({
       next: updated => {
-        // A pinned tip must lead the list, and the API returns it that way on the next read. The
-        // local array is re-read rather than re-sorted, so the ranking stays the database's.
+
         this.loadTips();
         this.toast.success(state === 'PINNED' ? 'Tip pinned.' : 'Tip unpinned.');
       },
@@ -293,7 +277,7 @@ export class TipsComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: err => {
-        // `400` on `state` means the tip was already dismissed elsewhere, so the list is stale.
+
         if (TipService.isDismissedTerminal(err)) {
           this.toast.warning('That tip was already dismissed.');
           this.loadTips();
@@ -312,7 +296,7 @@ export class TipsComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: err => {
-        // Already saved — that is not a failure, and the user's intent is satisfied.
+
         if (TipService.isAlreadySavedError(err)) {
           this.savedTipIds = new Set([...this.savedTipIds, tip.id]);
           this.toast.info('That tip is already saved.');
@@ -328,7 +312,6 @@ export class TipsComponent implements OnInit {
     return this.savedTipIds.size;
   }
 
-  /** `2026-09` → `September 2026`. The API sends `yyyy-MM` and no human label. */
   monthLabel(month: string): string {
     const [y, m] = (month || '').split('-');
     const names = [

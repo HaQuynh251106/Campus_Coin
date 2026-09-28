@@ -31,33 +31,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * Saving an item to look at again, noting why, and removing it: UC-19.
- *
- * <p>Four endpoints: list what is saved, save a tip, change the note on one, and un-mark one. There is
- * no endpoint that creates an item to bookmark - a tip is produced by {@code sp_generate_tips} (UC-18)
- * and this module only points at one - and no endpoint that changes what a bookmark points at, because
- * {@code trg_bookmarks_before_update} exists partly to make that unchangeable.
- *
- * <p><b>A bookmark is not a pin (VĐ-03), and the two are reachable through different routes.</b>
- * Pinning is {@code POST /api/v1/tips/{id}/state} and it is about display order - a pinned tip leads the
- * dashboard. Bookmarking is this controller and it is about keeping: it saves the item into a list that
- * outlives the session, which is UC-19's postcondition. The same tip can be both, and neither endpoint
- * changes the other's column. There is deliberately no way to pin a tip from here and no way to save one
- * from the tips endpoint, so a client cannot confuse the two acts by using the wrong URL.
- *
- * <p><b>The insight branch of UC-19 is refused rather than served.</b> UC-19 B1 names a tip or an
- * insight, and {@code bookmarks.item_type} holds both, but insights are UC-17 - inside module 12, locked
- * pending the project owner's approval - and {@code insights} has no read path anywhere in this
- * repository. {@code POST} therefore accepts {@code itemType} and answers {@code INSIGHT} with a field
- * error naming the reason, instead of exposing a locked module's contract or pretending the branch
- * works. See {@code BookmarkService} and {@code docs/OVERNIGHT_BLOCKERS.md}.
- *
- * <p>Every method reads the caller with {@code @AuthenticationPrincipal}, so identity comes from the
- * verified bearer token. No endpoint accepts a user id, so there is no way to reach another student's
- * saved list - which matters here because the list is advice about one student's own spending together
- * with a note they wrote in their own words.
- */
 @RestController
 @RequestMapping("/api/v1/bookmarks")
 @Tag(name = "Bookmarks",

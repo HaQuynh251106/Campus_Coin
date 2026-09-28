@@ -7,19 +7,13 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
-/**
- * Shared default avatar constant referencing the mascot SVG on a soft gold/cream circular base.
- */
 export const DEFAULT_AVATAR_URL = '/assets/images/default-avatar.svg';
 
-/**
- * Sanitizes an avatar URL: rejects null/undefined, empty strings, and legacy stock person photos.
- */
 export function resolveAvatarUrl(url?: string | null): string {
   if (!url || typeof url !== 'string' || url.trim() === '') {
     return DEFAULT_AVATAR_URL;
   }
-  // Discard any legacy stock photos of real people
+
   if (url.includes('images.unsplash.com')) {
     return DEFAULT_AVATAR_URL;
   }
@@ -106,23 +100,22 @@ export class AvatarComponent {
     const classes: string[] = [];
     const s = this._size();
 
-    // Size mappings
     if (typeof s === 'number') {
       classes.push(`w-[${s}px]`, `h-[${s}px]`);
     } else {
       switch (s) {
         case 'sm':
-          classes.push('w-8', 'h-8'); // 32px (Header top bar)
+          classes.push('w-8', 'h-8');
           break;
         case 'lg':
-          classes.push('w-14', 'h-14'); // 56px (Profile page)
+          classes.push('w-14', 'h-14');
           break;
         case 'xl':
-          classes.push('w-20', 'h-20'); // 80px
+          classes.push('w-20', 'h-20');
           break;
         case 'md':
         default:
-          classes.push('w-9', 'h-9'); // 36px (Sidebar user block)
+          classes.push('w-9', 'h-9');
           break;
       }
     }

@@ -414,7 +414,6 @@ export class QuickAddComponent implements OnInit {
   filteredCategories: Category[] = [];
   recentList: Transaction[] = [];
 
-  /** The proposal currently on screen, if any. At most one — asking for another replaces it. */
   suggestion: CategorySuggestion | null = null;
   suggestingTxId: string | null = null;
   applyingSuggestion = false;
@@ -459,9 +458,7 @@ export class QuickAddComponent implements OnInit {
   }
 
   private filterCategoriesByType(type: TransactionType): void {
-    // BR-07: a retired category keeps its history but must not be offered for new records. The
-    // list has to be filtered here rather than left to the server, because `GET /categories`
-    // deliberately returns retired rows so the student can still find them on the Categories page.
+
     this.filteredCategories = this.categories.filter(c => c.type === type && c.isActive !== false);
     if (this.filteredCategories.length > 0 && !this.txForm.get('categoryId')?.value) {
       this.txForm.patchValue({ categoryId: String(this.filteredCategories[0].id) });
@@ -506,8 +503,7 @@ export class QuickAddComponent implements OnInit {
       this.txService.addTransaction(payload).subscribe({
         next: () => {
           this.mascotService.onTransactionLogged();
-          // The repeat is a second record, so it is a second call. The rule copies this
-          // transaction's amount, category and description — the server does not do that link.
+
           if (this.repeatFrequency !== 'NONE') {
             this.createRepeatRule();
           } else {
@@ -527,13 +523,6 @@ export class QuickAddComponent implements OnInit {
     }
   }
 
-  /**
-   * Creates the recurring rule that repeats the transaction just saved.
-   *
-   * The transaction is already recorded by the time this runs, so a failure here must not look
-   * like a failure to save. It says what did happen and points at the page where the rule can be
-   * set up directly.
-   */
   private createRepeatRule(): void {
     const val = this.txForm.getRawValue();
     this.ruleService.createRule({
@@ -560,14 +549,6 @@ export class QuickAddComponent implements OnInit {
     });
   }
 
-  /**
-   * Asks for a category proposal for one entry (M12, UC-08).
-   *
-   * This never writes the category. The proposal is stored beside the record as advice, and the
-   * entry keeps whatever category it already had until the student presses "Use this category" —
-   * at which point it is an ordinary `PATCH` on the transactions endpoint, the same write the
-   * category dropdown performs.
-   */
   suggestCategory(tx: Transaction): void {
     this.suggestingTxId = String(tx.id);
     this.categorisationService.suggestCategory(Number(tx.id)).subscribe({
@@ -584,7 +565,6 @@ export class QuickAddComponent implements OnInit {
     });
   }
 
-  /** Files the entry under the proposed category — a normal update, on the student's say-so. */
   acceptSuggestion(tx: Transaction): void {
     if (!this.suggestion?.categoryId) return;
     this.applyingSuggestion = true;
@@ -613,7 +593,6 @@ export class QuickAddComponent implements OnInit {
       });
   }
 
-  /** Leaves the entry exactly as it was. The proposal is advice, so declining it costs nothing. */
   dismissSuggestion(): void {
     this.suggestion = null;
     this.cdr.markForCheck();
@@ -627,8 +606,7 @@ export class QuickAddComponent implements OnInit {
       date: tx.date || tx.txnDate,
       categoryId: String(tx.categoryId),
       description: tx.description,
-      // A transaction carries no frequency, so an edit never offers one. Whether this row repeats
-      // is a rule, and a rule is changed on the Recurring page.
+
       repeatFrequency: 'NONE'
     });
     this.filterCategoriesByType(tx.type);
@@ -640,12 +618,6 @@ export class QuickAddComponent implements OnInit {
     this.resetForm();
   }
 
-  /**
-   * Deletes the entry (a soft delete — the row is kept and can be restored).
-   *
-   * Deleting twice answers `409` rather than a second `204`, because reporting success for a
-   * removal that did not happen would be false. That means the local list is stale, so it reloads.
-   */
   async onDelete(id: string | number): Promise<void> {
     const ok = await this.toast.confirm(
       'Delete Transaction',
@@ -682,7 +654,6 @@ export class QuickAddComponent implements OnInit {
     });
   }
 
-  /** `sv-SE` yields `YYYY-MM-DD`; `toISOString()` would convert to UTC and can shift the day. */
   private today(): string {
     return new Date().toLocaleDateString('sv-SE');
   }

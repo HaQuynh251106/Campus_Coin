@@ -14,11 +14,7 @@ export interface AdminAnnouncement {
   title: string;
   body: string;
   audience: 'ALL' | 'STUDENTS' | 'ADMINS';
-  /**
-   * The three members `announcements.severity` declares in the schema and
-   * `AnnouncementSeverity` publishes. There is no `CRITICAL` — the column is a three-value `ENUM`,
-   * so a request carrying one would be refused rather than stored.
-   */
+
   severity: 'INFO' | 'WARNING' | 'SUCCESS';
   startsAt: string;
   endsAt?: string | null;

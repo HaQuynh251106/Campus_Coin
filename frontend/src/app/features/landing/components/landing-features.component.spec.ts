@@ -40,7 +40,6 @@ describe('LandingFeaturesComponent', () => {
     expect(el.textContent).toContain('AI-Powered Financial Assistant');
     expect(el.textContent).toContain('Smart financial intelligence, built for student life');
 
-    // 7 capabilities rendered
     expect(el.textContent).toContain('Talk to Your Money in Plain English');
     expect(el.textContent).toContain('Instant Categorization as You Type');
     expect(el.textContent).toContain('Bulk Bank Statement Import with Auto-Tagging');

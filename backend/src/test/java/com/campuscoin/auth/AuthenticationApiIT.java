@@ -29,14 +29,6 @@ import com.campuscoin.support.AbstractMySqlIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-/**
- * UC-01 and UC-02 over the real HTTP stack: request, security filter, controller, service,
- * repository, MySQL.
- *
- * <p>Each test registers its own account with a random address so the suite does not depend on
- * execution order and the in-memory throttle counters cannot leak between tests. The seeded
- * accounts are only read.
- */
 class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
 
     private static final String REGISTER_URL = "/api/v1/auth/register";
@@ -57,10 +49,6 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
-    // ------------------------------------------------------------------
-    //  UC-01 Registration
-    // ------------------------------------------------------------------
-
     @Test
     @DisplayName("UC-01: a new student is created as ACTIVE with a bcrypt hash and no session")
     void registerCreatesActiveStudent() throws Exception {
@@ -73,7 +61,7 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
                 "confirmPassword", VALID_PASSWORD));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        // UC-01 B6: registration does not sign the student in, so there is no token to return.
+
         assertThat(response.getBody()).isNullOrEmpty();
 
         try (Connection connection = openDatabaseConnection();
@@ -92,7 +80,6 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
             }
         }
 
-        // UC-02 B3: no session was opened by registering.
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(
                      "SELECT COUNT(*) FROM user_sessions s JOIN users u ON u.id = s.user_id WHERE u.email = ?")) {
@@ -144,7 +131,6 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
         JsonNode body = objectMapper.readTree(response.getBody());
         assertThat(body.get("errorCode").asText()).isEqualTo("VALIDATION_ERROR");
 
-        // Every offending field is reported, so the form can highlight each one.
         assertThat(fieldNames(body)).contains("fullName", "email", "password");
     }
 
@@ -176,10 +162,6 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
         assertThat(fieldNames(body)).contains("confirmPassword");
     }
 
-    // ------------------------------------------------------------------
-    //  UC-02 Sign-in
-    // ------------------------------------------------------------------
-
     @Test
     @DisplayName("UC-02 B2/B3: valid credentials return a token, a session and the account summary")
     void loginSucceedsAndOpensSession() throws Exception {
@@ -194,7 +176,7 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
 
         assertThat(body.get("accessToken").asText()).isNotBlank();
         assertThat(body.get("tokenType").asText()).isEqualTo("Bearer");
-        // auth.session_ttl_minutes is seeded as 120.
+
         assertThat(body.get("expiresIn").asLong()).isEqualTo(7200);
 
         JsonNode user = body.get("user");
@@ -203,7 +185,6 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
         assertThat(user.get("role").asText()).isEqualTo("STUDENT");
         assertThat(user.get("id").asLong()).isPositive();
 
-        // The session row is what makes sign-out possible, and it stores only the token's hash.
         String token = body.get("accessToken").asText();
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(
@@ -214,13 +195,12 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
                 assertThat(row.next()).as("a session row must exist").isTrue();
                 assertThat(row.getString("session_token_hash")).isNotEqualTo(token);
                 assertThat(row.getString("session_token_hash")).hasSize(64);
-                // No refresh flow is defined, so the column stays NULL.
+
                 assertThat(row.getString("refresh_token_hash")).isNull();
                 assertThat(row.getTimestamp("revoked_at")).isNull();
             }
         }
 
-        // UC-23 reads this column, so signing in must record it.
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(
                      "SELECT last_login_at FROM users WHERE email = ?")) {
@@ -262,7 +242,6 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
         JsonNode wrongPasswordBody = objectMapper.readTree(wrongPassword.getBody());
         JsonNode unknownEmailBody = objectMapper.readTree(unknownEmail.getBody());
 
-        // Identical code and message: neither tells the caller which half was wrong.
         assertThat(wrongPasswordBody.get("errorCode").asText()).isEqualTo("INVALID_CREDENTIALS");
         assertThat(unknownEmailBody.get("errorCode").asText()).isEqualTo("INVALID_CREDENTIALS");
         assertThat(wrongPasswordBody.get("message").asText())
@@ -281,8 +260,7 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         JsonNode body = objectMapper.readTree(response.getBody());
-        // A2 requires the student to be told the account is disabled so they can contact an
-        // administrator; this is only reachable by someone who knows the password.
+
         assertThat(body.get("errorCode").asText()).isEqualTo("ACCOUNT_DISABLED");
     }
 
@@ -299,10 +277,6 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
                 "sessionToken", "session_token", "refreshToken", "refresh_token");
     }
 
-    // ------------------------------------------------------------------
-    //  UC-02 Sign-out and token handling
-    // ------------------------------------------------------------------
-
     @Test
     @DisplayName("UC-02 B5: signing out revokes the session and the token stops working")
     void logoutRevokesTheToken() throws Exception {
@@ -313,8 +287,6 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
         ResponseEntity<String> logout = exchange(LOGOUT_URL, HttpMethod.POST, token, null);
         assertThat(logout.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
-        // The token's own expiry has not passed, so this proves the session check is what
-        // rejects it (UC-02 A3).
         ResponseEntity<String> afterLogout = exchange(LOGOUT_URL, HttpMethod.POST, token, null);
         assertThat(afterLogout.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
 
@@ -350,8 +322,6 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
         ResponseEntity<String> malformed = exchange(LOGOUT_URL, HttpMethod.POST, "not-a-jwt", null);
         assertThat(malformed.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
 
-        // Flip the final character of the signature: the token is well-formed but no longer
-        // verifies against the signing key.
         char last = token.charAt(token.length() - 1);
         String tampered = token.substring(0, token.length() - 1) + (last == 'A' ? 'B' : 'A');
         ResponseEntity<String> tamperedResponse = exchange(LOGOUT_URL, HttpMethod.POST, tampered, null);
@@ -365,8 +335,6 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
         register(email);
         login(email);
 
-        // Minting with a negative lifetime produces a correctly signed but already expired token,
-        // which is the one case the public API cannot create.
         User user = userRepository.findById(userIdOf(email)).orElseThrow();
         JwtService.IssuedToken expired = jwtService.issue(user, -1, Instant.now());
 
@@ -381,7 +349,6 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
         register(email);
         String token = login(email);
 
-        // Move the session's expiry into the past; the token itself is untouched.
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(
                      "UPDATE user_sessions s JOIN users u ON u.id = s.user_id "
@@ -401,7 +368,6 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
         register(email);
         String token = login(email);
 
-        // This is what a password reset or an account disable does in the database.
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(
                      "UPDATE users SET token_version = token_version + 1 WHERE email = ?")) {
@@ -422,8 +388,7 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
 
         assertThat(exchange(LOGOUT_URL, HttpMethod.POST, token, null).getStatusCode())
                 .isEqualTo(HttpStatus.NO_CONTENT);
-        // The second call carries a revoked token, so it is answered as unauthenticated rather
-        // than as a conflict; either way the client ends up signed out.
+
         assertThat(exchange(LOGOUT_URL, HttpMethod.POST, token, null).getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
     }
@@ -439,7 +404,6 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
         assertThat(exchange(LOGOUT_URL, HttpMethod.POST, firstToken, null).getStatusCode())
                 .isEqualTo(HttpStatus.NO_CONTENT);
 
-        // A second device must not be signed out by the first device's sign-out.
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(
                      "SELECT COUNT(*) FROM user_sessions s JOIN users u ON u.id = s.user_id "
@@ -452,10 +416,6 @@ class AuthenticationApiIT extends AbstractMySqlIntegrationTest {
         }
         assertThat(secondToken).isNotEqualTo(firstToken);
     }
-
-    // ------------------------------------------------------------------
-    //  Helpers
-    // ------------------------------------------------------------------
 
     private static String randomEmail() {
         return "test." + UUID.randomUUID() + "@student.campuscoin.edu";

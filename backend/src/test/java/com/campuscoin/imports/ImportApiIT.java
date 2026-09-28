@@ -13,41 +13,18 @@ import org.springframework.http.ResponseEntity;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-/**
- * UC-11 end to end: upload a file, read the preview, correct a row, commit or abandon it.
- *
- * <p><b>This is an integration suite rather than a unit suite, and it is the only one UC-11 can have
- * for these cases.</b> The commit is {@code sp_apply_csv_batch}'s whole body: the student's override is
- * authoritative there, the file's own category name is resolved only when there is none, the type's
- * default is the last resort, and a row the database refuses becomes an error row rather than ending
- * the walk. Every assertion below about what a commit produced is therefore an assertion about a
- * stored procedure and the triggers it fires - none of which a plain unit test can reach. The
- * arithmetic that <em>is</em> pure lives in {@code imports/service/} instead, where a boundary such as
- * "a date exactly the window's width apart" is one line rather than a sequence of dated records.
- *
- * <p><b>What each test is allowed to depend on.</b> Every test registers a fresh student with a random
- * address, so no test sees another's batches, rows, records or learned rules. The seeded accounts are
- * read (the administrator signs in, to prove the role rule) but never modified. No test depends on the
- * order the suite runs in.
- */
 class ImportApiIT extends AbstractImportApiIT {
-
-    // ==================================================================
-    //  The published contract
-    // ==================================================================
 
     @Test
     @DisplayName("UC-11: the preview, its rows and the list carry exactly the documented fields")
     void theResponsesCarryExactlyTheDocumentedFields() throws Exception {
         String token = loginNewStudent();
 
-        // A file with one row of each verdict, so every branch of the row shape is present at once: an
-        // importable row, a row the reader could not parse, and a row the student already has.
         anExistingRecord(token, FOOD, "12.50", EARLIER, "Campus Cafe");
         JsonNode batch = uploadExpectingCreated(token, csv(
-                rowOf(LATER, "12.50", "EXPENSE", "Campus Cafe", FOOD),          // duplicate of that
-                rowOf(LATER, "30.00", "EXPENSE", "Textbook", TRANSPORT),        // importable
-                rowOf(LATER, "not a number", "EXPENSE", "Broken", FOOD)));      // unreadable
+                rowOf(LATER, "12.50", "EXPENSE", "Campus Cafe", FOOD),
+                rowOf(LATER, "30.00", "EXPENSE", "Textbook", TRANSPORT),
+                rowOf(LATER, "not a number", "EXPENSE", "Broken", FOOD)));
 
         assertThat(fieldNamesOf(batch)).containsExactlyInAnyOrderElementsOf(DOCUMENTED_BATCH_FIELDS);
         assertThat(batch.get("rows")).hasSize(3);
@@ -64,13 +41,8 @@ class ImportApiIT extends AbstractImportApiIT {
                 .as("the nested-only summary shape, which the contract test cannot reach")
                 .containsExactlyInAnyOrderElementsOf(DOCUMENTED_SUMMARY_FIELDS);
 
-        // The list is a history, not the preview: it carries counters and no rows.
         assertThat(list.get("entries").get(0).has("rows")).isFalse();
     }
-
-    // ==================================================================
-    //  The acceptance scenario
-    // ==================================================================
 
     @Test
     @DisplayName("UC-11: an invalid row is identifiable, the valid row imports, and nothing is lost")
@@ -79,22 +51,16 @@ class ImportApiIT extends AbstractImportApiIT {
         Long userId = userIdOf(token);
         String amountMessage = "Amount must be a positive number, with at most 2 decimal places.";
 
-        // One file, three rows: the middle one cannot be read, the two around it can. The point of the
-        // file is that the bad row is a row and not a refusal - a bank export with one malformed line
-        // is still worth importing, and the preview has to say which line to fix.
         JsonNode preview = uploadExpectingCreated(token, csv(
                 rowOf(EARLIER, "12.50", "EXPENSE", "Campus Cafe", FOOD),
                 rowOf(LATER, "-5.00", "EXPENSE", "Refund confusion", FOOD),
                 rowOf(LATER, "45.00", "EXPENSE", "Textbook", "")));
 
-        // Nothing is imported by the upload, and the batch says so.
         assertThat(preview.get("status").asText()).isEqualTo("PREVIEWED");
         assertThat(preview.get("modifiable").asBoolean()).isTrue();
         assertThat(preview.get("importedRows").asInt()).isZero();
         assertThat(liveTransactionCountOf(userId)).isZero();
 
-        // The counters agree with the rows, and the bad row carries a sentence about the value rather
-        // than about a parser.
         assertThat(preview.get("totalRows").asInt()).isEqualTo(3);
         assertThat(preview.get("validRows").asInt()).isEqualTo(2);
         assertThat(preview.get("errorRows").asInt()).isEqualTo(1);
@@ -105,23 +71,17 @@ class ImportApiIT extends AbstractImportApiIT {
         assertThat(rowStatusAt(preview, 4)).isEqualTo("VALID");
         assertThat(errorMessageAt(preview, 3)).isEqualTo(amountMessage);
 
-        // The row is still readable where it was readable: the reader reports the amount's problem and
-        // keeps everything else, so the preview is not a row of blanks beside an explanation.
         assertThat(rowAt(preview, 3).get("parsedDate").asText()).isEqualTo(LATER.toString());
         assertThat(rowAt(preview, 3).get("parsedDescription").asText())
                 .isEqualTo("Refund confusion");
         assertThat(rowAt(preview, 3).get("parsedAmount").isNull()).isTrue();
 
-        // The stored row says the same thing as the response, which is what makes the response a
-        // statement about the database rather than about the request.
         long batchId = batchIdOf(preview);
         assertThat(storedRowStatusOf(batchId, 3)).isEqualTo("ERROR");
         assertThat(storedBatchStatusOf(batchId)).isEqualTo("PREVIEWED");
 
         JsonNode committed = commitExpectingOk(token, batchId);
 
-        // The commit rewrites the counters from its own walk: one row generated a transaction, one was
-        // refused by the reader and never reached the procedure, and nothing was a duplicate.
         assertThat(committed.get("status").asText()).isEqualTo("COMMITTED");
         assertThat(committed.get("modifiable").asBoolean()).isFalse();
         assertThat(committed.get("importedRows").asInt()).isEqualTo(2);
@@ -135,8 +95,6 @@ class ImportApiIT extends AbstractImportApiIT {
         assertThat(rowStatusAt(committed, 4)).isEqualTo("IMPORTED");
         assertThat(errorMessageAt(committed, 3)).isEqualTo(amountMessage);
 
-        // The row's transactionId is the record it became, and the record is a CSV import filed under
-        // the categories the file named - including the fallback for the row that named none.
         assertThat(importedTransactionIds(committed)).hasSize(2);
         long cafeTransaction = rowAt(committed, 2).get("transactionId").asLong();
         long textbookTransaction = rowAt(committed, 4).get("transactionId").asLong();
@@ -145,7 +103,7 @@ class ImportApiIT extends AbstractImportApiIT {
         assertThat(columnInDatabase(cafeTransaction, "transactions", "source")).isEqualTo("CSV");
         assertThat(longValueFrom("SELECT category_id FROM transactions WHERE id = ?", cafeTransaction))
                 .isEqualTo(defaultCategoryId(FOOD));
-        // BR-05: the row named no category, so the procedure falls back to the default for the type.
+
         assertThat(longValueFrom("SELECT category_id FROM transactions WHERE id = ?", textbookTransaction))
                 .isEqualTo(defaultCategoryId("Miscellaneous"));
         assertThat(columnInDatabase(textbookTransaction, "transactions", "txn_date"))
@@ -163,9 +121,6 @@ class ImportApiIT extends AbstractImportApiIT {
         assertThat(rowStatusAt(first, 2)).isEqualTo("VALID");
         assertThat(commitExpectingOk(token, batchIdOf(first)).get("importedRows").asInt()).isEqualTo(1);
 
-        // The second upload is compared against the record the first one produced, so every row is
-        // already recorded - which is the rule that stops a file imported twice from doubling every
-        // figure the student has.
         JsonNode second = uploadExpectingCreated(token, file);
         assertThat(rowStatusAt(second, 2)).isEqualTo("DUPLICATE");
         assertThat(second.get("duplicateRows").asInt()).isEqualTo(1);
@@ -189,7 +144,7 @@ class ImportApiIT extends AbstractImportApiIT {
 
         assertThat(rowStatusAt(preview, 2)).isEqualTo("VALID");
         assertThat(rowStatusAt(preview, 3)).isEqualTo("DUPLICATE");
-        // The note names the earlier date, which is how the student finds the record to look at.
+
         assertThat(errorMessageAt(preview, 3)).contains(EARLIER.toString());
 
         JsonNode committed = commitExpectingOk(token, batchIdOf(preview));
@@ -203,8 +158,6 @@ class ImportApiIT extends AbstractImportApiIT {
         String token = loginNewStudent();
         Long userId = userIdOf(token);
 
-        // Neither name exists, so the preview resolves no category for either row and - because a
-        // comparison needs something to compare - neither is a duplicate.
         JsonNode preview = uploadExpectingCreated(token, csv(
                 rowOf(EARLIER, "22.00", "EXPENSE", "Something", "No Such Category"),
                 rowOf(EARLIER, "33.00", "INCOME", "Something else", "No Such Category")));
@@ -226,17 +179,11 @@ class ImportApiIT extends AbstractImportApiIT {
         assertThat(liveTransactionCountOf(userId)).isEqualTo(2);
     }
 
-    // ==================================================================
-    //  Correcting a row
-    // ==================================================================
-
     @Test
     @DisplayName("UC-11 B6: choosing a category re-decides the row's duplicate verdict, both ways")
     void choosingACategoryReDecidesTheDuplicateQuestion() throws Exception {
         String token = loginNewStudent();
 
-        // The student already has this amount under Transport, and the file says Food - so the row is
-        // importable. Correcting it to Transport makes it a duplicate they can now see.
         anExistingRecord(token, TRANSPORT, "75.00", EARLIER, "Bus pass");
         JsonNode preview = uploadExpectingCreated(token, csv(
                 rowOf(LATER, "75.00", "EXPENSE", "Unclear merchant", FOOD)));
@@ -250,16 +197,11 @@ class ImportApiIT extends AbstractImportApiIT {
         assertThat(filed.get("resolvedCategoryId").asLong()).isEqualTo(defaultCategoryId(TRANSPORT));
         assertThat(filed.get("errorMessage").asText()).contains("You already have a record of 75.00");
 
-        // The verdict was written back, not merely reported: the batch's counters and its stored row
-        // both moved, so a reload shows what the response showed.
         assertThat(storedRowStatusOf(batchId, 2)).isEqualTo("DUPLICATE");
         JsonNode reloaded = getBatchExpectingOk(token, batchId);
         assertThat(reloaded.get("duplicateRows").asInt()).isEqualTo(1);
         assertThat(reloaded.get("validRows").asInt()).isZero();
 
-        // And back: correcting it to a category the student has no record under makes it importable
-        // again, which is the direction that matters most - a false positive would otherwise lose a
-        // record the student does have, with no way to say so.
         JsonNode refiled = fileRowExpectingOk(token, batchId, rowId, defaultCategoryId(FOOD));
         assertThat(refiled.get("rowStatus").asText()).isEqualTo("VALID");
         assertThat(refiled.get("errorMessage").isNull()).isTrue();
@@ -284,8 +226,7 @@ class ImportApiIT extends AbstractImportApiIT {
         long transactionId = rowAt(committed, 2).get("transactionId").asLong();
         assertThat(longValueFrom("SELECT category_id FROM transactions WHERE id = ?", transactionId))
                 .isEqualTo(transport);
-        // BR-05: the record's type is its category's type, so correcting the category is also how a
-        // wrong type in the file is corrected - the transaction carries no type of its own.
+
         assertThat(columnInDatabase(transactionId, "transactions", "import_batch_id"))
                 .isEqualTo(String.valueOf(batchId));
         assertThat(liveTransactionCountOf(userId)).isEqualTo(1);
@@ -302,8 +243,6 @@ class ImportApiIT extends AbstractImportApiIT {
         long batchId = batchIdOf(preview);
         long rowId = rowIdAt(preview, 2);
 
-        // A category of the caller's own, retired after the file was uploaded - so the row still reads
-        // as importable and the endpoint has to be the one that refuses the choice.
         Long personal = createPersonalCategory(token, "Coffee Runs");
         send(HttpMethod.PATCH, "/api/v1/categories/" + personal, token, Map.of("isActive", false));
 
@@ -312,23 +251,16 @@ class ImportApiIT extends AbstractImportApiIT {
         assertThat(errorCodeOf(retired)).isEqualTo("VALIDATION_ERROR");
         assertThat(fieldNamesIn(body(retired))).containsExactly("categoryId");
 
-        // An id that names nothing, and one that names another student's category, are answered
-        // identically - telling them apart would disclose whose category an id is.
         assertThat(fileRow(token, batchId, rowId, 999_999_999L).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
         Long foreign = createPersonalCategory(otherToken, "Their Own Category");
         assertThat(fileRow(token, batchId, rowId, foreign).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
 
-        // And nothing moved: the row is still importable and unfiled.
         assertThat(rowStatusAt(getBatchExpectingOk(token, batchId), 2)).isEqualTo("VALID");
         assertThat(rowAt(getBatchExpectingOk(token, batchId), 2).get("resolvedCategoryId").isNull())
                 .isTrue();
     }
-
-    // ==================================================================
-    //  What the commit's own rules do
-    // ==================================================================
 
     @Test
     @DisplayName("UC-11: one row the database refuses is reported, and the rest of the file imports")
@@ -336,9 +268,6 @@ class ImportApiIT extends AbstractImportApiIT {
         String token = loginNewStudent();
         Long userId = userIdOf(token);
 
-        // The reader does not check the date against the clock - BR-08 is the database's rule and the
-        // procedure enforces it per row - so this file previews as two importable rows and only the
-        // commit can tell the student that one of them cannot be recorded.
         JsonNode preview = uploadExpectingCreated(token, csv(
                 rowOf(IN_THE_FUTURE, "50.00", "EXPENSE", "Tomorrow's lunch", FOOD),
                 rowOf(EARLIER, "50.00", "EXPENSE", "Today's lunch", FOOD)));
@@ -348,8 +277,6 @@ class ImportApiIT extends AbstractImportApiIT {
 
         JsonNode committed = commitExpectingOk(token, batchIdOf(preview));
 
-        // The refused row becomes an ERROR row with a sentence, and the walk continues - which is the
-        // procedure's per-row handler rather than a Java-side all-or-nothing transaction.
         assertThat(rowStatusAt(committed, 2)).isEqualTo("ERROR");
         assertThat(errorMessageAt(committed, 2))
                 .isEqualTo("Rejected by validation (BR-02/BR-07/BR-08)");
@@ -371,9 +298,6 @@ class ImportApiIT extends AbstractImportApiIT {
         Long personal = createPersonalCategory(token, "Lunch Money");
         fileRowExpectingOk(token, batchId, rowIdAt(preview, 2), personal);
 
-        // Retired after the student chose it, so the choice is still stored but no longer usable. The
-        // procedure must not silently resolve the file's own name instead - the student explicitly did
-        // not pick it - so the row becomes an error they can see.
         send(HttpMethod.PATCH, "/api/v1/categories/" + personal, token, Map.of("isActive", false));
 
         JsonNode committed = commitExpectingOk(token, batchId);
@@ -383,10 +307,6 @@ class ImportApiIT extends AbstractImportApiIT {
         assertThat(committed.get("importedRows").asInt()).isZero();
         assertThat(liveTransactionCountOf(userIdOf(token))).isZero();
     }
-
-    // ==================================================================
-    //  What the commit teaches
-    // ==================================================================
 
     @Test
     @DisplayName("UC-08 during UC-11: the commit teaches each imported row's description")
@@ -403,12 +323,10 @@ class ImportApiIT extends AbstractImportApiIT {
 
         commitExpectingOk(token, batchIdOf(preview));
 
-        // One mapping, from the one row that was imported and had a description worth learning from.
         assertThat(storedRuleCategoryNameOf(userId, "campus cafe latte")).isEqualTo(FOOD);
-        // RuleSource.IMPORT, which is the member this module is the writer of.
+
         assertThat(storedRuleSourceOf(userId, "campus cafe latte")).isEqualTo("IMPORT");
-        // A row with no description and a row that was never imported both teach nothing, and that is
-        // an ordinary outcome rather than a failure: the rows were imported, they just changed nothing.
+
         assertThat(countOf("SELECT COUNT(*) FROM category_rules WHERE user_id = ?", userId))
                 .isEqualTo(1);
     }
@@ -418,8 +336,6 @@ class ImportApiIT extends AbstractImportApiIT {
     void anImportedDescriptionIsAnEnvelopeAsSoonAsTheCommitReturns() throws Exception {
         String token = loginNewStudent();
 
-        // A second row with no description at all, so the repair is shown to leave a null alone rather
-        // than to have skipped it: the CASE assigns the same null the procedure stored.
         JsonNode preview = uploadExpectingCreated(token, csv(
                 rowOf(EARLIER, "12.50", "EXPENSE", "M12 verify snack", FOOD),
                 rowOf(EARLIER, "8.00", "EXPENSE", "", FOOD)));
@@ -428,30 +344,16 @@ class ImportApiIT extends AbstractImportApiIT {
         List<Long> ids = importedTransactionIds(committed);
         assertThat(ids).hasSize(2);
 
-        // The direct SELECT an attacker with the database file runs. Sp_apply_csv_batch inserted this
-        // value as the file spelled it, so before the repair this row held the words in the clear and
-        // read back correctly anyway - which is why the defect survived a suite that only ever asked
-        // the API. The assertion is on the stored form, not on what a read returns.
         String stored = storedDescriptionOf(ids.get(0));
         assertThat(stored).isNotNull().doesNotContain("M12 verify snack");
-        // ...and it is a real envelope rather than merely an encoding: the app recovers the text.
+
         assertThat(decryptField(stored)).isEqualTo("M12 verify snack");
 
-        // A row with no description stays null. Encrypting an empty string would make "the student gave
-        // no note" indistinguishable from "the student gave a note" without reading the key.
         assertThat(storedDescriptionOf(ids.get(1))).isNull();
 
-        // The owner still sees the words through the API, which is what makes the repair invisible to
-        // the student. Read through the record endpoint rather than the batch, so the value has come
-        // the whole way back out of the column the repair rewrote.
         assertThat(send(HttpMethod.GET, TRANSACTIONS_URL + "/" + ids.get(0), token, null).getBody())
                 .contains("M12 verify snack");
 
-        // And no row of the batch is left holding the file's own words. Compared against
-        // import_rows.parsed_description - the value the procedure copied - so the check states the
-        // defect itself: "the transaction's stored form is still the file's text". Restricted to rows
-        // that had a description to copy, because two nulls are equal and a row with no note is not a
-        // row holding plaintext.
         assertThat(countOf("SELECT COUNT(*) FROM transactions t JOIN import_rows r "
                         + "ON r.transaction_id = t.id "
                         + "WHERE r.batch_id = ? AND r.parsed_description IS NOT NULL "
@@ -466,43 +368,30 @@ class ImportApiIT extends AbstractImportApiIT {
     void aLearnedMappingSuggestsACategoryWithoutFilingTheRow() throws Exception {
         String token = loginNewStudent();
 
-        // First import: the student's own file teaches the merchant, in the same step that imports it.
         JsonNode teaching = uploadExpectingCreated(token, csv(
                 rowOf(EARLIER, "12.50", "EXPENSE", "Campus Cafe Latte", FOOD)));
         commitExpectingOk(token, batchIdOf(teaching));
 
-        // Second import: the same merchant, but the file files it under Transport. The preview offers
-        // the learned category as advice; the row is still whatever the file said.
         JsonNode preview = uploadExpectingCreated(token, csv(
                 rowOf(LATER, "14.00", "EXPENSE", "Campus Cafe Latte", TRANSPORT)));
         JsonNode row = rowAt(preview, 2);
 
         assertThat(row.get("aiSuggestedCategoryId").asLong()).isEqualTo(defaultCategoryId(FOOD));
-        // OB-006: the suggestion is drawn from the caller's own visible categories, so it can only ever
-        // name a category they may file under. There is no other code path to the column.
-        // And it is advice: the row's own category is untouched and unfiled, and the loaded id is not
-        // written where the procedure would treat it as the student's own choice.
+
         assertThat(row.get("parsedCategoryName").asText()).isEqualTo(TRANSPORT);
         assertThat(row.get("resolvedCategoryId").isNull()).isTrue();
 
-        // BR-13: the commit files it under the file's own name, not under what the system suggested.
         JsonNode committed = commitExpectingOk(token, batchIdOf(preview));
         assertThat(longValueFrom("SELECT category_id FROM transactions WHERE id = ?",
                 rowAt(committed, 2).get("transactionId").asLong()))
                 .isEqualTo(defaultCategoryId(TRANSPORT));
     }
 
-    // ==================================================================
-    //  Reading the preview back
-    // ==================================================================
-
     @Test
     @DisplayName("UC-11 A1: the file's own line is returned as an object, quoting and all")
     void theStoredLineIsReturnedAsAnObject() throws Exception {
         String token = loginNewStudent();
 
-        // A description containing the delimiter and a quote: the two things a naive split would break,
-        // and the reason the response carries the line as an object rather than as a string of JSON.
         JsonNode preview = uploadExpectingCreated(token,
                 csv("2026-09-18,12.50,EXPENSE,\"Campus Cafe, \"\"corner\"\" branch\",Food"));
         JsonNode row = rowAt(preview, 2);
@@ -522,8 +411,6 @@ class ImportApiIT extends AbstractImportApiIT {
         String token = loginNewStudent();
         String otherToken = loginNewStudent();
 
-        // A student who has never imported anything has an empty history, which is a fact about their
-        // own data rather than a missing resource - so it is a 200 with no entries, not a 404.
         ResponseEntity<String> empty = send(HttpMethod.GET, IMPORTS_URL, token, null);
         assertThat(empty.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(body(empty).get("limit").asInt()).isEqualTo(20);
@@ -532,7 +419,6 @@ class ImportApiIT extends AbstractImportApiIT {
         JsonNode first = uploadExpectingCreated(token, csv(rowOf(EARLIER, "10.00", "EXPENSE", "A", FOOD)));
         JsonNode second = uploadExpectingCreated(token, csv(rowOf(EARLIER, "20.00", "EXPENSE", "B", FOOD)));
 
-        // The other student's upload exists in the same database and must not appear.
         uploadExpectingCreated(otherToken, csv(rowOf(EARLIER, "30.00", "EXPENSE", "C", FOOD)));
 
         JsonNode list = list(token);
@@ -543,8 +429,6 @@ class ImportApiIT extends AbstractImportApiIT {
         assertThat(list.get("entries").get(0).get("status").asText()).isEqualTo("PREVIEWED");
         assertThat(list.get("entries").get(0).get("modifiable").asBoolean()).isTrue();
 
-        // A committed batch is no longer modifiable, which is how a student finds the one they were
-        // part way through rather than one that is finished.
         commitExpectingOk(token, batchIdOf(second));
         JsonNode after = list(token);
         assertThat(after.get("entries").get(0).get("status").asText()).isEqualTo("COMMITTED");
@@ -555,8 +439,7 @@ class ImportApiIT extends AbstractImportApiIT {
     @Test
     @DisplayName("UC-11: the list is bounded, and an out-of-range limit is refused rather than clamped")
     void theLimitIsRefusedRatherThanClamped() throws Exception {
-        // Refused rather than reduced, because the response reports the limit it applied and a silently
-        // reduced answer would make that field untrue.
+
         String token = loginNewStudent();
         uploadExpectingCreated(token, csv(rowOf(EARLIER, "10.00", "EXPENSE", "A", FOOD)));
         uploadExpectingCreated(token, csv(rowOf(EARLIER, "20.00", "EXPENSE", "B", FOOD)));
@@ -575,16 +458,10 @@ class ImportApiIT extends AbstractImportApiIT {
                     .isEqualTo(HttpStatus.BAD_REQUEST);
         }
 
-        // A value that is not a number at all is answered as a bad parameter rather than as a field
-        // error, because there is no field to point at.
         assertThat(listWithLimit(token, "abc").getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 
         assertThat(fieldNamesIn(body(listWithLimit(token, "101")))).containsExactly("limit");
     }
-
-    // ==================================================================
-    //  Abandoning an import
-    // ==================================================================
 
     @Test
     @DisplayName("UC-11 A2: cancelling keeps the rows, imports nothing, and cannot be repeated")
@@ -599,17 +476,15 @@ class ImportApiIT extends AbstractImportApiIT {
         JsonNode cancelled = cancelExpectingOk(token, batchId);
         assertThat(cancelled.get("status").asText()).isEqualTo("CANCELLED");
         assertThat(cancelled.get("modifiable").asBoolean()).isFalse();
-        // The counters are the preview's, because the procedure never ran and never rewrote them.
+
         assertThat(cancelled.get("totalRows").asInt()).isEqualTo(1);
         assertThat(cancelled.get("importedRows").asInt()).isZero();
 
-        // The rows survive the decision not to import them, so the student can still see what they had.
         assertThat(storedRowCountOf(batchId)).isEqualTo(1);
         assertThat(cancelled.get("rows")).hasSize(1);
         assertThat(rowStatusAt(cancelled, 2)).isEqualTo("VALID");
         assertThat(liveTransactionCountOf(userId)).isZero();
 
-        // Cancelling again is refused, and so is committing what was abandoned.
         assertThat(cancel(token, batchId).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(commit(token, batchId).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(countOf("SELECT COUNT(*) FROM import_rows WHERE batch_id = ? AND row_status = ?",
@@ -635,30 +510,22 @@ class ImportApiIT extends AbstractImportApiIT {
                 .isEqualTo(HttpStatus.CONFLICT);
     }
 
-    // ==================================================================
-    //  Files that cannot be previewed
-    // ==================================================================
-
     @Test
     @DisplayName("UC-11 A1: a file that cannot be read as CSV is refused, and no batch is stored")
     void anUnusableFileIsRefusedAndStoresNothing() throws Exception {
         String token = loginNewStudent();
         Long userId = userIdOf(token);
 
-        // Every one of these is a thing about the file the student chose, so every one is a field error
-        // on `content` - and none of them leaves a half-built batch behind, which is what makes "the
-        // file either becomes a preview or nothing was stored" true.
         List<String> refused = List.of(
                 "",
                 "   \n  ",
                 "just some text with no commas at all",
-                // A header with no rows: there is nothing to import, so there is nothing to preview.
+
                 "date,amount,type,description,category\n",
-                // Required columns missing, named in the message so the student knows what to add.
+
                 "amount,type,description\n12.50,EXPENSE,Lunch\n",
                 "date,type,description\n2026-09-18,EXPENSE,Lunch\n",
-                // A quoted value that is never closed. Reading on to the end of the file would swallow
-                // every remaining row into one field, which is why this refuses instead of guessing.
+
                 "date,amount,type,description,category\n"
                         + "2026-09-18,12.50,EXPENSE,\"unclosed,Food\n");
 
@@ -673,12 +540,10 @@ class ImportApiIT extends AbstractImportApiIT {
 
         assertThat(storedBatchCountOf(userId)).isZero();
 
-        // The message names the column that is missing, which is a thing the student can go and fix.
         ResponseEntity<String> missingType = upload(token, "records.csv",
                 "date,amount,description\n2026-09-18,12.50,Lunch\n");
         assertThat(body(missingType).get("message").asText()).contains("type");
 
-        // A filename the column cannot hold is a body field error, caught before anything is read.
         ResponseEntity<String> longName = upload(token, "n".repeat(300),
                 csv(rowOf(EARLIER, "10.00", "EXPENSE", "A", FOOD)));
         assertThat(longName.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -693,15 +558,11 @@ class ImportApiIT extends AbstractImportApiIT {
         String token = loginNewStudent();
         Long userId = userIdOf(token);
 
-        // A preview of part of a file would be showing the student something other than their file, so
-        // the cap is a refusal and not a cut.
         ResponseEntity<String> tooManyRows =
                 upload(token, "big.csv", csvWithNumberOfRows(2001));
         assertThat(tooManyRows.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(body(tooManyRows).get("message").asText()).contains("2000");
 
-        // The row cap does not bound the request on its own - one row may carry a very long description
-        // - so a second bound covers it, and it is refused for the same reason.
         String padding = "d".repeat(2_000_001);
         ResponseEntity<String> tooLong = upload(token, "long.csv", csv(
                 rowOf(EARLIER, "10.00", "EXPENSE", padding, FOOD)));
@@ -710,12 +571,10 @@ class ImportApiIT extends AbstractImportApiIT {
 
         assertThat(storedBatchCountOf(userId)).isZero();
 
-        // The cap is a limit and not a wall: a file of exactly the documented row count imports.
         JsonNode atTheCap = uploadExpectingCreated(token, csvWithNumberOfRows(2000));
         assertThat(atTheCap.get("totalRows").asInt()).isEqualTo(2000);
         assertThat(atTheCap.get("errorRows").asInt()).isZero();
-        // Every row is identical, so every row after the first is a duplicate of one this file already
-        // carries - which is the detector chaining within a single file rather than against the table.
+
         assertThat(atTheCap.get("duplicateRows").asInt()).isEqualTo(1999);
     }
 
@@ -730,7 +589,6 @@ class ImportApiIT extends AbstractImportApiIT {
         long batchId = batchIdOf(preview);
         long rowId = rowIdAt(preview, 2);
 
-        // Section 7.5: telling the two apart would let a client enumerate other students' batch ids.
         for (ResponseEntity<String> response : List.of(
                 getBatch(strangerToken, batchId),
                 commit(strangerToken, batchId),
@@ -744,21 +602,15 @@ class ImportApiIT extends AbstractImportApiIT {
         assertThat(fileRow(strangerToken, batchId, rowId, defaultCategoryId(FOOD)).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
 
-        // A row id that is the caller's own but in the wrong batch is the same missing-row answer.
         String secondOwner = loginNewStudent();
         JsonNode other = uploadExpectingCreated(secondOwner, csv(
                 rowOf(EARLIER, "20.00", "EXPENSE", "Lunch", FOOD)));
         assertThat(fileRow(secondOwner, batchIdOf(other), rowId, defaultCategoryId(FOOD))
                 .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 
-        // Nothing the stranger did moved the owner's batch.
         assertThat(storedBatchStatusOf(batchId)).isEqualTo("PREVIEWED");
         assertThat(storedRowStatusOf(batchId, 2)).isEqualTo("VALID");
     }
-
-    // ==================================================================
-    //  Security (section 7.5)
-    // ==================================================================
 
     @Test
     @DisplayName("Section 7.5: no token is 401, and an administrator's token is 403 on every route")
@@ -773,9 +625,6 @@ class ImportApiIT extends AbstractImportApiIT {
         Map<String, Object> uploadBody = Map.of("filename", "records.csv",
                 "content", csv(rowOf(EARLIER, "10.00", "EXPENSE", "A", FOOD)));
 
-        // The route matches none of the student prefixes above it except its own, so without that rule
-        // it would fall to /api/** - which admits any authenticated account. This is the assertion that
-        // fails if the rule is ever dropped, and it is why `/api/v1/imports/**` has one.
         assertThat(send(HttpMethod.POST, IMPORTS_URL, null, uploadBody).getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(send(HttpMethod.GET, IMPORTS_URL, null, null).getStatusCode())
@@ -789,9 +638,6 @@ class ImportApiIT extends AbstractImportApiIT {
         assertThat(send(HttpMethod.POST, IMPORTS_URL + "/" + batchId + "/cancel", null, null)
                 .getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
 
-        // An administrator has no use case for the route, and it writes: an upload stores a batch and
-        // its rows, a commit generates transactions and teaches keyword mappings. A role admitted by
-        // accident could put records on a student's account from a screen with no reason to.
         assertThat(errorCodeOf(send(HttpMethod.GET, IMPORTS_URL, adminToken, null)))
                 .isEqualTo("ACCESS_DENIED");
         assertThat(send(HttpMethod.GET, IMPORTS_URL, adminToken, null).getStatusCode())
@@ -806,11 +652,6 @@ class ImportApiIT extends AbstractImportApiIT {
         assertThat(storedBatchStatusOf(batchId)).isEqualTo("PREVIEWED");
     }
 
-    // ==================================================================
-    //  Helpers
-    // ==================================================================
-
-    /** Creates a category of the caller's own (UC-06) and returns its id. */
     private Long createPersonalCategory(String token, String name) throws Exception {
         ResponseEntity<String> response = send(HttpMethod.POST, "/api/v1/categories", token,
                 Map.of("name", name, "type", "EXPENSE"));

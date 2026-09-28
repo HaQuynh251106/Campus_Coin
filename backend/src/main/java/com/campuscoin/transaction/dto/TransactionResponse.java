@@ -10,37 +10,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * One transaction as the client sees it (UC-07, UC-10).
- *
- * <p><b>{@code type} is derived, and the DTO documents it as such.</b> There is no {@code type}
- * column on {@code transactions}: the value here is {@code categories.type} for the category the
- * record is filed under (BR-05). It is included because every screen that lists a transaction groups
- * or colours it by income versus expense, and making each client join the category it already has in
- * order to learn one field would be a worse contract. What matters is that it is read, never
- * written - no request type in this module has the field.
- *
- * <p><b>The category is flattened, not nested.</b> The name, icon and colour are sent beside
- * {@code categoryId} rather than as a sub-object, because that is the shape the Angular model
- * already declares ({@code categoryName}, {@code categoryIcon}, {@code categoryColor}) and because a
- * list row renders them without needing anything else about the category. Four fields from one
- * already-fetched row cost nothing; a nested object would add a level the templates do not want.
- *
- * <p><b>What is omitted, and why it matters more here than elsewhere.</b> The AI suggestion columns
- * (UC-08), the anomaly flags (UC-24), the two origin links (UC-09, UC-11) and {@code userId} are all
- * absent. The first two are not built yet, and a response that published a field the module cannot
- * populate would be describing behaviour that does not exist. The ownership field is absent for the
- * usual reason: the client has no use for it and must never be tempted to send one back.
- *
- * <p>{@code createdAt} and {@code updatedAt} are absent as well, matching the category module, whose
- * response carries no creation metadata either. Neither UC-07 nor UC-10 shows them, no screen renders
- * them, and publishing a value nothing reads would only invite a client to depend on it.
- * {@code deletedAt} <em>is</em> published, because it is what makes {@code isDeleted} actionable: a
- * trash view has to be able to say when a record was removed.
- *
- * <p>{@code description} is omitted when unset rather than serialised as null, following the
- * convention the previous two modules set for nullable fields; the Angular model marks it optional.
- */
 @Schema(description = "A recorded income or expense (UC-07, UC-10).")
 public record TransactionResponse(
 

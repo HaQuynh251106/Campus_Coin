@@ -28,13 +28,6 @@ import com.campuscoin.support.AbstractMySqlIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-/**
- * UC-03 over the real HTTP stack, with the three reset procedures doing the token work.
- *
- * <p>The raw token is read from the development sink, which is where the application "delivers"
- * the link. That is how a developer drives the flow by hand, so the tests exercise the same path
- * rather than reaching into the database for a token the API never produced.
- */
 class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
 
     private static final String REGISTER_URL = "/api/v1/auth/register";
@@ -47,7 +40,6 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
     private static final String OLD_PASSWORD = "Student@123";
     private static final String NEW_PASSWORD = "Student@456";
 
-    /** UC-03 B3 fixes this wording; every request must return exactly it. */
     private static final String GENERIC_MESSAGE = "If the email exists, a reset link has been sent.";
 
     @Autowired
@@ -55,10 +47,6 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    // ------------------------------------------------------------------
-    //  UC-03 B3 / A2: the request step reveals nothing
-    // ------------------------------------------------------------------
 
     @Test
     @DisplayName("UC-03 B3: a registered address gets the generic message and a usable link")
@@ -72,7 +60,6 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
         assertThat(objectMapper.readTree(response.getBody()).get("message").asText())
                 .isEqualTo(GENERIC_MESSAGE);
 
-        // The link really was issued, and the row holds a hash rather than the token.
         String rawToken = lastTokenFor(email);
         assertThat(rawToken).isNotBlank();
 
@@ -83,7 +70,7 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
             statement.setString(1, email);
             try (ResultSet row = statement.executeQuery()) {
                 assertThat(row.next()).isTrue();
-                // BR-04 / section 7.7: the database must never hold the usable value.
+
                 assertThat(row.getString("token_hash")).isNotEqualTo(rawToken);
                 assertThat(row.getString("token_hash")).hasSize(64);
                 assertThat(row.getTimestamp("used_at")).isNull();
@@ -116,10 +103,6 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
                 .isEqualTo("VALIDATION_ERROR");
     }
 
-    // ------------------------------------------------------------------
-    //  UC-03 B5: the verification step
-    // ------------------------------------------------------------------
-
     @Test
     @DisplayName("UC-03 B5: a freshly issued token verifies and is not consumed by verifying")
     void verifyAcceptsFreshTokenRepeatedly() throws Exception {
@@ -134,8 +117,6 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
             assertThat(objectMapper.readTree(response.getBody()).get("valid").asBoolean()).isTrue();
         }
 
-        // Verifying twice must leave the token consumable, so a student who opens the link and
-        // then reloads the page is not locked out of their own reset.
         assertThat(completeReset(token, NEW_PASSWORD).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
@@ -164,7 +145,6 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
         assertThat(objectMapper.readTree(verify.getBody()).get("errorCode").asText())
                 .isEqualTo("INVALID_RESET_TOKEN");
 
-        // UC-03 A1: the student is told to ask for another link, and doing so works.
         requestReset(email);
         assertThat(post(VERIFY_URL, Map.of("token", lastTokenFor(email))).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
@@ -188,10 +168,6 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
                 .isEqualTo(HttpStatus.OK);
     }
 
-    // ------------------------------------------------------------------
-    //  UC-03 B7 / BR-04: the completion step
-    // ------------------------------------------------------------------
-
     @Test
     @DisplayName("UC-03 B7: completing sets the new password and retires the token")
     void completeResetChangesPassword() throws Exception {
@@ -205,7 +181,6 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
         assertThat(objectMapper.readTree(response.getBody()).get("message").asText())
                 .contains("Your password has been reset");
 
-        // The new password works and the old one no longer does.
         assertThat(post(LOGIN_URL, Map.of("email", email, "password", NEW_PASSWORD))
                 .getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(post(LOGIN_URL, Map.of("email", email, "password", OLD_PASSWORD))
@@ -227,11 +202,9 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
         assertThat(objectMapper.readTree(reuse.getBody()).get("errorCode").asText())
                 .isEqualTo("INVALID_RESET_TOKEN");
 
-        // The second attempt must not have changed the password.
         assertThat(post(LOGIN_URL, Map.of("email", email, "password", NEW_PASSWORD))
                 .getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        // UC-03 A1: the student can recover by requesting another link.
         requestReset(email);
         assertThat(completeReset(lastTokenFor(email), "Student@789").getStatusCode())
                 .isEqualTo(HttpStatus.OK);
@@ -272,7 +245,6 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
         assertThat(objectMapper.readTree(response.getBody()).get("errorCode").asText())
                 .isEqualTo("VALIDATION_ERROR");
 
-        // The rejected attempt must not have burned the link.
         assertThat(completeReset(token, NEW_PASSWORD).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
@@ -290,10 +262,6 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
         assertThat(completeReset(token, NEW_PASSWORD).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
-    // ------------------------------------------------------------------
-    //  BR-03: what a completed reset does to the account
-    // ------------------------------------------------------------------
-
     @Test
     @DisplayName("BR-03 / UC-03 BA note: a reset revokes every open session at once")
     void completeResetRevokesAllSessions() throws Exception {
@@ -306,7 +274,6 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
         assertThat(completeReset(lastTokenFor(email), NEW_PASSWORD).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
 
-        // Both devices are signed out, even though neither token had expired.
         assertThat(exchange(LOGOUT_URL, firstToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(exchange(LOGOUT_URL, secondToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
 
@@ -337,10 +304,6 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
 
         assertThat(tokenVersionOf(email)).as("BR-03 bumps the version").isEqualTo(before + 1);
     }
-
-    // ------------------------------------------------------------------
-    //  Helpers
-    // ------------------------------------------------------------------
 
     private static String randomEmail() {
         return "reset." + UUID.randomUUID() + "@student.campuscoin.edu";
@@ -377,11 +340,6 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
                 "confirmPassword", newPassword));
     }
 
-    /**
-     * The raw token of the most recent link issued for an address, taken from the development
-     * sink. This is the only place the raw value exists outside the response that was never sent,
-     * so reading it here is how a person would drive the flow by hand.
-     */
     private String lastTokenFor(String email) throws IOException {
         assertThat(Files.exists(RESET_SINK))
                 .as("the development reset sink must exist at %s", RESET_SINK)
@@ -395,7 +353,6 @@ class PasswordResetApiIT extends AbstractMySqlIntegrationTest {
                 .orElseThrow(() -> new AssertionError("No reset link was written for " + email));
     }
 
-    /** Moves the account's unused tokens into the past, which the API deliberately cannot do. */
     private void expireTokenOf(String email) throws Exception {
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(

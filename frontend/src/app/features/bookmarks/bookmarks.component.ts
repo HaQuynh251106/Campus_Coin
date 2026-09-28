@@ -8,18 +8,6 @@ import { TipService } from '../../core/services/tip.service';
 import { ToastService } from '../../core/services/toast.service';
 import { Bookmark } from '../../core/models/tip.model';
 
-/**
- * Module 10 (UC-19) — the saved-items list.
- *
- * A bookmark is a row of its own, kept in the database, so the list survives a reload and a device
- * change. The tip's own words come with the row (`tipTitle`, `tipBody`, `tipPotentialSaving`,
- * `tipState`, `tipMonth`), so nothing is resolved per item — that would be one request per row for
- * text already in hand.
- *
- * One deliberate choice: a saved tip whose state is `DISMISSED` **stays in this list**. Keeping an
- * item and displaying it on the dashboard are different things, and dropping the row here would
- * silently discard the advice the student asked to keep.
- */
 @Component({
   selector: 'app-bookmarks',
   standalone: true,
@@ -187,7 +175,7 @@ export class BookmarksComponent implements OnInit {
     this.isLoading = true;
     this.tipService.getBookmarks().subscribe({
       next: list => {
-        // Rendered in the order the API returns — newest saved first. No re-sorting.
+
         this.bookmarks = list || [];
         this.isLoading = false;
         this.cdr.markForCheck();
@@ -214,7 +202,7 @@ export class BookmarksComponent implements OnInit {
 
   saveNote(bm: Bookmark): void {
     this.isSavingNote = true;
-    // An emptied note is sent as `''`, which is the contract's own way to clear it.
+
     const note = this.noteDraft.trim();
     this.tipService.updateBookmarkNote(bm.id, note).subscribe({
       next: updated => {
@@ -255,7 +243,6 @@ export class BookmarksComponent implements OnInit {
     });
   }
 
-  /** `2026-09` → `September 2026`. */
   monthLabel(month: string): string {
     const [y, m] = (month || '').split('-');
     const names = [

@@ -33,26 +33,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * Setting and managing a student's monthly spending limits: UC-13.
- *
- * <p>Five endpoints: list, read, create, edit and delete. They are addressed by id, so ownership
- * cannot be implied by the URL - it is enforced by queries that take the caller's id alongside the
- * record's, and asserted by tests in which one student tries to reach another's budget.
- *
- * <p>Every method reads the caller with {@code @AuthenticationPrincipal}, so identity comes from the
- * verified bearer token. No endpoint accepts a user id, a spend figure or a status: those are the
- * fields a client would use to write a limit it does not own, to report spending that did not
- * happen, or to claim a budget is on track when the alert log disagrees.
- *
- * <p><b>There is no endpoint here that raises a budget alert, and that is deliberate.</b> An alert is
- * UC-14's, and it is raised when a <em>transaction</em> pushes a month's spending past a threshold -
- * {@code sp_check_budget_alerts}, called from the transaction triggers, which is why module 4's
- * create and update endpoints already document it. Setting a limit is a target, not a thing that gets
- * exceeded, so creating one writes no alert. What every response here carries is the month's
- * consumption as the database computes it, so a student who sets a limit they have already passed
- * sees {@code EXCEEDED} at once - without a second alert being written, which BR-12 forbids.
- */
 @RestController
 @RequestMapping("/api/v1/budgets")
 @Tag(name = "Budgets",

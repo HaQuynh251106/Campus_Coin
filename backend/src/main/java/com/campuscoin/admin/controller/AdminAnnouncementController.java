@@ -31,23 +31,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * The notices shown on dashboards: UC-21 B1 and B2.
- *
- * <p>Three endpoints: list, publish and switch on or off. There is no edit and no delete. An
- * announcement is a thing that was published - students may already have read it - so a correction is a
- * new notice with the old one withdrawn, and the withdrawn one stays in the record rather than
- * vanishing from under an audit trail. That is also why every write here goes through a stored
- * procedure: there is no unaudited path to this table, which is the invariant
- * {@code docs/OVERNIGHT_BLOCKERS.md} OB-005 states.
- *
- * <p><b>{@code GET} is not the student dashboard's announcement slice.</b> That one reads
- * {@code v_active_announcements}: only notices that are live right now and addressed to students or to
- * everyone. An administrator must see the expired, the not-yet-started, the withdrawn and the
- * {@code ADMINS}-only rows - the first three are the ones the toggle exists to act on, and the last
- * would otherwise be invisible to the people it is written for. Same table, different question, so a
- * different reader rather than a filter over the student one.
- */
 @RestController
 @RequestMapping("/api/v1/admin/announcements")
 @Tag(name = "Administration - announcements",

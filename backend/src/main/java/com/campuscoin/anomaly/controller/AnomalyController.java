@@ -22,40 +22,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * Records the student's own data suggests may be mistakes: UC-24.
- *
- * <p>Two endpoints. The list is a read; the scan is the write, and it is a request of its own rather
- * than a side effect of reading - the same boundary {@code RecentActivityController} draws, for a
- * related reason. An anomaly flag is a conclusion about the student's data, and a read that recomputed
- * it would make every screen visit, retry and prefetch a potential write against
- * {@code transactions.history}. So listing examines nothing, and the client sends the scan when it
- * means to.
- *
- * <p><b>Why this is not under {@code /transactions}.</b> The flags are columns of {@code transactions},
- * so the first instinct is that the route belongs there - and it was considered. It does not hold up
- * for three reasons. The write does not go through module 4's procedures but through
- * {@code sp_flag_transaction}, which module 4 does not know about and whose three columns
- * {@code Transaction} deliberately leaves unmapped so that no statement that module builds can write
- * them. The response is not a transaction: it is a transaction <em>plus</em> a verdict and an
- * explanation, addressed by nothing but the caller's own identity. And a route under
- * {@code /api/v1/transactions/**} would read to a client as a module-4 operation, while the one thing
- * module 4 would have had to do differently - mark its own records as it reads them - is exactly what
- * it does not do. {@code /api/v1/recent-activity} is the precedent: a module-12 feature that refers to
- * transactions and is not one of them has its own collection.
- *
- * <p><b>No client of this API can state a flag.</b> Neither method accepts a request body. The scan
- * computes what each flag should be from the caller's own records and writes only where its conclusion
- * differs from what is stored; the client's whole contribution is asking for it. A route that accepted
- * a {@code flagType} would let a student mark their own record as reviewed, which is precisely the
- * signal this feature exists to raise, and {@code docs/api/transactions.md} records that as the reason
- * the columns are unmapped on module 4's entity in the first place.
- *
- * <p>Both methods read the caller with {@code @AuthenticationPrincipal}, so identity comes from the
- * verified bearer token. No endpoint accepts a user id and none names a transaction, so there is no way
- * to reach, or to have flagged, another student's record: the queries narrow on {@code user_id} first
- * and {@code sp_flag_transaction} re-checks ownership against the row itself.
- */
 @RestController
 @RequestMapping("/api/v1/anomalies")
 @Tag(name = "Anomaly detection",

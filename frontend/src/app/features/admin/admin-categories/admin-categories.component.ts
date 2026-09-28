@@ -410,10 +410,8 @@ export class AdminCategoriesComponent implements OnInit {
   newTipCondition: TipConditionType = 'GENERIC';
   newTipContent = '';
 
-  /** The seven values `tip_templates.condition_type` accepts, straight from the backend enum. */
   readonly conditionTypes = TIP_CONDITION_TYPES;
 
-  /** Editing an existing default category reuses one modal; null means "create a new one". */
   showCategoryModal = false;
   editingCategoryId: number | string | null = null;
   catName = '';
@@ -423,7 +421,6 @@ export class AdminCategoriesComponent implements OnInit {
   catDescription = '';
   catSortOrder = 0;
 
-  /** The contract refuses a colour that is not `#RRGGBB`, so the button stays off until it is. */
   get isCategoryFormValid(): boolean {
     const colour = this.catColor.trim();
     return this.catName.trim().length > 0 && (colour === '' || /^#[0-9A-Fa-f]{6}$/.test(colour));
@@ -455,9 +452,6 @@ export class AdminCategoriesComponent implements OnInit {
     const name = this.catName.trim();
     if (!name) return;
 
-    // Only non-empty optional fields are sent for icon/colour, and only when they differ from what
-    // the row already holds: `null`/absent means "unchanged" and `""` means "clear", so sending a
-    // defaulted value on every edit would silently overwrite the row's own icon and colour.
     const optional: { icon?: string; color?: string } = {};
     if (this.catIcon.trim()) optional.icon = this.catIcon.trim();
     if (this.catColor.trim()) optional.color = this.catColor.trim();
@@ -468,8 +462,7 @@ export class AdminCategoriesComponent implements OnInit {
           name,
           type: this.catType,
           ...optional,
-          // The editor shows an empty description as an empty box; `""` is how the contract clears
-          // a nullable column, so an emptied field is sent rather than dropped.
+
           description: this.catDescription.trim()
         })
       : this.adminService.createDefaultCategory({
@@ -487,7 +480,7 @@ export class AdminCategoriesComponent implements OnInit {
         this.reloadCategories();
       },
       error: (err) => {
-        // 409 carries a specific errorCode; the server's message names the field that clashed.
+
         this.toast.error(err.error?.message || (editing
           ? 'Failed to update default category'
           : 'Failed to create default category'));
@@ -571,9 +564,7 @@ export class AdminCategoriesComponent implements OnInit {
           this.cdr.markForCheck();
         });
       },
-      // `TIP_TEMPLATE_CODE_TAKEN` (409) is the interesting one: the client let the user pick a code
-      // that is already in use. The server's message names that, so it is shown rather than a
-      // generic failure.
+
       error: (err) => {
         this.toast.error(err.error?.message || 'Failed to create tip template');
       }

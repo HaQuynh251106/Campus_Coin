@@ -10,34 +10,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * One recurring rule as the client sees it (UC-09).
- *
- * <p><b>The category is flattened, exactly as it is on a transaction.</b> {@code categoryId},
- * {@code categoryName}, {@code categoryIcon} and {@code categoryColor} are siblings rather than a
- * nested object, because that is the shape the Angular transaction model already uses and because
- * a list row renders them without needing anything else about the category. {@code type} is lifted
- * out of the category for the same reason it is on a transaction: it is the category's value
- * (BR-05), and reading it from one place is what keeps the two from disagreeing.
- *
- * <p><b>{@code nextRunDate} is the field a client schedules by, and {@code startDate} is
- * context.</b> {@code nextRunDate} is what {@code sp_post_recurring_transactions} actually reads and
- * what {@code PATCH} can move; {@code startDate} says when the rule began and never changes. Both
- * are published because a UI that showed only one of them could not explain a rule whose next run
- * has already been advanced past its start.
- *
- * <p><b>{@code lastRunDate} is published even though it is written only by the scheduler.</b> It is
- * how a client tells a rule that has been running from one that was set up and never fired -
- * without it, "next run 1 October" says nothing about whether September's occurrence exists.
- *
- * <p><b>{@code userId} is absent, along with the row's timestamps.</b> The owner is absent for the
- * usual reason - the client has no use for it and must never be tempted to send one back - and
- * {@code createdAt}/{@code updatedAt} are absent because no use case shows them, matching every
- * other response in the API.
- *
- * <p>{@code description} is omitted when unset rather than serialised as null, following the
- * convention the earlier modules set for nullable fields.
- */
 @Schema(description = "A recurring rule (UC-09).")
 public record RecurringRuleResponse(
 

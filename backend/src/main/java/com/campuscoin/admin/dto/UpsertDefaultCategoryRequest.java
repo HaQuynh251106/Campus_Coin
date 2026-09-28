@@ -8,28 +8,6 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
-/**
- * Body of {@code POST /api/v1/admin/categories} (UC-20): add a shared default category.
- *
- * <p><b>{@code name} and {@code type} are required, and both are required for a reason the procedure
- * makes concrete.</b> {@code sp_admin_upsert_default_category} refuses an insert whose name is null
- * or whose type is not {@code INCOME}/{@code EXPENSE}, because there is no sensible default for
- * either: a category with no name cannot be picked from a list, and a category with no type has no
- * meaning at all - {@code categories.type} is what decides whether a record filed under it is income
- * or expense (BR-05). Validating here turns a database refusal into a field error naming the
- * offending input.
- *
- * <p>The optional fields mirror {@code CreateCategoryRequest} exactly - same patterns, same trimmed
- * lengths, same treatment of an empty string - because a default category and a student's own
- * category are rows of one table with one set of constraints. A second, looser convention here would
- * let the administration screen store a value the student screen rejects.
- *
- * <p><b>There is deliberately no {@code isDefault} field.</b> Whether a row is a default category is
- * decided by {@code user_id IS NULL} and by nothing else; this endpoint only ever writes that kind,
- * and a client-settable flag would be a second definition of scope. There is no {@code userId} and
- * no {@code createdBy} either: the actor is the caller's token, and BR-06's whole point is that a
- * default category belongs to nobody.
- */
 @Schema(description = "A shared default category to create (UC-20).")
 public record UpsertDefaultCategoryRequest(
 

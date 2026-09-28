@@ -16,43 +16,7 @@ import org.springframework.http.ResponseEntity;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-/**
- * UC-24 end to end: the scan decides, the database stores, and the list reports - against a real
- * MySQL, the real {@code sp_flag_transaction} and the real trigger on {@code transactions}.
- *
- * <p><b>The acceptance scenarios are the tests named for them.</b> "A duplicate is found and cleared"
- * and "an unusual amount is found and cleared" walk the whole path the use case describes - records
- * entered, the check run, the mark applied, the student correcting the record, the check run again and
- * the mark gone - and are the reason the suite goes through the API rather than calling the detector.
- *
- * <p><b>{@code examined = flagged + cleared + unchanged} is asserted in every scan.</b> It is the one
- * invariant that ties the counts to the work, and it is the assertion that fails if the service ever
- * counts records it did not examine or examines records it does not count.
- *
- * <p><b>The idempotence test is the one that would hurt in production.</b> A client that scans on every
- * screen visit must not accumulate history rows, and the guard is not a boolean elsewhere - it is that
- * a repeated scan reaches the same verdict and therefore writes nothing. That is only observable in the
- * database, so the test reads {@code transaction_history} around a second scan.
- *
- * <p><b>Envelope comparisons, not shape checks.</b> An AES-256-GCM envelope is Base64 by construction,
- * so "does this string look like an envelope" is not a question worth asking - a hand-written plaintext
- * in this fixture would look like one too. Where the suite needs to know whether a column was rewritten
- * it compares two stored values, which differ whenever the ciphertext was regenerated; where it needs
- * to know the words are recoverable it decrypts. It never has to decide what a string <em>is</em>.
- *
- * <p><b>What this class does not do.</b> It does not test the arithmetic - see
- * {@code AnomalyDetectorTest}, which can express the boundaries a seeded fixture cannot - and it does
- * not call {@code sp_flag_transaction} directly, because everything the endpoint does through it is
- * observable in the table. A procedure-level test would pin the procedure's three {@code SIGNAL}s, and
- * the API cannot reach any of them: it passes an enum member for a type that exists, on a record it
- * just read. Their guarantee - that the database refuses a hand-run {@code CALL} against another
- * student's record - is a property of the SQL, not of this module.
- */
 class AnomalyApiIT extends AbstractAnomalyApiIT {
-
-    // ==================================================================
-    //  The acceptance scenarios
-    // ==================================================================
 
     @Test
     @DisplayName("UC-24: two records of the same amount a day apart are found, and the mark clears")
@@ -69,15 +33,12 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
         assertThat(scan.get("cleared").asInt()).isZero();
         assertThatCountsAreConsistent(scan);
 
-        // The later record is the one marked, and the note names the earlier one's date so the student
-        // can find it.
         StoredFlag stored = storedFlagOf(second);
         assertThat(stored.isFlagged()).isTrue();
         assertThat(stored.flagType()).isEqualTo("DUPLICATE");
         assertThat(stored.flagNote()).contains(today().minusDays(1).toString());
         assertThat(storedFlagOf(first).isFlagged()).isFalse();
 
-        // The list agrees with the scan, and carries the record's own details beside the mark.
         JsonNode flagged = flagged(token);
         assertThat(entryTransactionIdsOf(flagged)).containsExactly(second);
         JsonNode entry = entryFor(flagged, second);
@@ -86,7 +47,6 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
         assertThat(entry.get("description").asText()).isEqualTo("Coffee");
         assertThat(entry.get("amount").decimalValue()).isEqualByComparingTo(new BigDecimal("25.00"));
 
-        // The student removes the record they entered twice, and the mark goes with it.
         trash(token, second);
 
         JsonNode rescan = scanExpectingOk(token);
@@ -102,9 +62,7 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: trashing one of a pair clears the other, with no separate step")
     void trashingOneOfAPairClearsTheOther() throws Exception {
-        // The other remedy, and the one that shows the rule is about the live records rather than about
-        // what the student did: removing the record they entered first is just as valid a fix, and the
-        // mark on the second has to follow.
+
         String token = loginNewStudent();
 
         Long first = aRecordDaysAgo(token, "40.00", 1, null);
@@ -132,8 +90,6 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
         String token = loginNewStudent();
         Long categoryId = defaultCategoryId(FOOD);
 
-        // Three ordinary records, spaced beyond the three-day window so the duplicate rule cannot
-        // reach them, and one of ninety against a usual ten.
         createTransaction(token, categoryId, "10.00", today().minusDays(30), "Lunch");
         createTransaction(token, categoryId, "10.00", today().minusDays(20), "Lunch");
         createTransaction(token, categoryId, "10.00", today().minusDays(10), "Lunch");
@@ -148,11 +104,9 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
         StoredFlag stored = storedFlagOf(large);
         assertThat(stored.isFlagged()).isTrue();
         assertThat(stored.flagType()).isEqualTo("UNUSUAL_AMOUNT");
-        // The note states the figures the student is being compared against, because the finding is a
-        // comparison and only they can judge whether it is right.
+
         assertThat(stored.flagNote()).contains("90.00").contains("10.00");
 
-        // Correcting the amount to something ordinary removes the mark on the next scan.
         Map<String, Object> correction = new LinkedHashMap<>();
         correction.put("amount", "10.00");
         assertThat(patchTransaction(token, large, correction).getStatusCode())
@@ -170,9 +124,7 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: correcting the amount of one of a pair clears the mark on the other")
     void correctingOneOfAPairClearsTheOther() throws Exception {
-        // The duplicate's fix is to make the two records differ. Editing rather than trashing is the
-        // other way a student expresses that - the second record was real, the first was the mistake -
-        // and the rule has to see the corrected data, not remember the old pair.
+
         String token = loginNewStudent();
 
         Long first = aRecordDaysAgo(token, "25.00", 1, null);
@@ -197,12 +149,7 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: the same price a month apart is not a duplicate")
     void theSamePriceAMonthApartIsNotADuplicate() throws Exception {
-        // Two real purchases, and the case the window exists to allow. The dates are 40 days apart, so
-        // the duplicate rule does not reach them. Each is then measured against the other as its whole
-        // baseline: an average of 50.00, and a threshold of three times that - 150.00 - which the
-        // record's own 50.00 is nowhere near. So neither is unusual, and the second is not merely
-        // "small relative to a large average". The check is worth making explicit: a rule that flagged
-        // a monthly subscription would be unusable.
+
         String token = loginNewStudent();
 
         Long first = aRecordDaysAgo(token, "50.00", 40, null);
@@ -221,9 +168,7 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: a record at exactly three times the student's average is unusual")
     void aRecordAtExactlyTheMultipleIsUnusual() throws Exception {
-        // The boundary, through the whole stack. The service reads the multiplier from
-        // system_settings, so a comparison written with the wrong operator would show up here as a
-        // finding that never arrives rather than as a wrong number in a response.
+
         String token = loginNewStudent();
         Long categoryId = defaultCategoryId(FOOD);
 
@@ -243,8 +188,7 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: a record just under three times the student's average is not unusual")
     void aRecordJustUnderTheMultipleIsNotUnusual() throws Exception {
-        // One cent below the boundary, which is the case a "greater than or equal" written as "greater
-        // than" would get wrong. The two tests together pin the operator rather than the magnitude.
+
         String token = loginNewStudent();
         Long categoryId = defaultCategoryId(FOOD);
 
@@ -264,9 +208,7 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: a baseline is built from the student's records, not from the new one")
     void theNewRecordDoesNotRaiseItsOwnBaseline() throws Exception {
-        // The exclusion, end to end: two records where one is ten times the other. If the new record
-        // were counted in its own average the average would be 55.00 and the threshold 165.00, so the
-        // large record would pass unremarked - which is the failure the rule exists to avoid.
+
         String token = loginNewStudent();
 
         Long ordinary = aRecordDaysAgo(token, "10.00", 40, null);
@@ -281,9 +223,7 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: the same amount and category within the window is a duplicate before it is unusual")
     void aDuplicateWinsOverUnusuallyLarge() throws Exception {
-        // `flag_type` holds one value, so the two findings cannot both be recorded. The duplicate claim
-        // is the more specific one and the one with the clearer remedy, so it is what the student is
-        // shown.
+
         String token = loginNewStudent();
 
         Long first = aRecordDaysAgo(token, "900.00", 1, null);
@@ -297,18 +237,10 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
         assertThat(storedFlagOf(first).isFlagged()).isFalse();
     }
 
-    // ==================================================================
-    //  Repeating a scan
-    // ==================================================================
-
     @Test
     @DisplayName("UC-24: a second scan over unchanged records writes nothing at all")
     void aSecondScanWritesNothing() throws Exception {
-        // The guarantee a client that refreshes on every screen visit depends on. `trg_transactions_
-        // after_update` would suppress a history row for a write that changed nothing, so counting
-        // history rows alone would not distinguish "wrote and changed nothing" from "did not write";
-        // the `unchanged` count is what distinguishes them, and the history count is what shows the
-        // database was not touched.
+
         String token = loginNewStudent();
         Long categoryId = defaultCategoryId(FOOD);
 
@@ -342,8 +274,7 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: a scan that changes a mark leaves a history row for it (BR-09)")
     void aScanThatChangesAMarkLeavesAHistoryRow() throws Exception {
-        // The other side of the same coin: BR-09 is not satisfied by never writing. A record that goes
-        // from unflagged to flagged is a change to the student's data and is recorded as one.
+
         String token = loginNewStudent();
 
         Long first = aRecordDaysAgo(token, "25.00", 1, null);
@@ -377,15 +308,10 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
         assertThat(storedFlagOf(one).flagType()).isEqualTo("NONE");
     }
 
-    // ==================================================================
-    //  What the list reports, and what it withholds
-    // ==================================================================
-
     @Test
     @DisplayName("UC-24: a student with nothing flagged gets an empty list, not a 404")
     void nothingFlaggedIsAnEmptyList() throws Exception {
-        // Most students have nothing flagged, and "nothing of yours looks wrong" is a fact about their
-        // own data rather than a missing resource.
+
         String token = loginNewStudent();
 
         ResponseEntity<String> response = send(HttpMethod.GET, ANOMALIES_URL, token, null);
@@ -400,9 +326,7 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: reading the list does not run the check")
     void readingTheListDoesNotRunTheCheck() throws Exception {
-        // The reason the scan is a separate request. A read that recomputed the marks would make every
-        // screen visit, retry and prefetch a potential write against the student's history - so the
-        // records sit unmarked until the client sends the scan, however many times the list is read.
+
         String token = loginNewStudent();
 
         Long first = aRecordDaysAgo(token, "25.00", 1, null);
@@ -431,17 +355,13 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
 
         JsonNode entry = flagged(token).get("entries").get(0);
 
-        // A literal set, so a field added to the response fails a test instead of quietly widening the
-        // published contract.
         assertThat(fieldNamesOf(entry)).containsExactlyElementsOf(DOCUMENTED_ENTRY_FIELDS);
     }
 
     @Test
     @DisplayName("UC-24: a record with no description omits the field rather than carrying a null")
     void aRecordWithNoDescriptionOmitsTheField() throws Exception {
-        // The description is the one optional column here, and an absent one is absent in the response
-        // too - so a client can tell "the student wrote nothing" from "the student wrote something the
-        // server would not show".
+
         String token = loginNewStudent();
         aRecordDaysAgo(token, "25.00", 1, null);
         aRecord(token, "25.00", null);
@@ -456,8 +376,7 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: the stored description is an envelope, and the response holds the words")
     void theStoredDescriptionIsEncryptedAtRest() throws Exception {
-        // Read straight from the column: asserting through the response would prove only that the round
-        // trip works, not that the database never held the words.
+
         String token = loginNewStudent();
         aRecordDaysAgo(token, "25.00", 1, "Lunch with the study group");
         Long second = aRecord(token, "25.00", "Lunch with the study group");
@@ -480,10 +399,6 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
         Long food = defaultCategoryId(FOOD);
         Long transport = defaultCategoryId("Transport");
 
-        // Two marks in two categories, so the order being asserted is the order of the list rather
-        // than the order two comparisons happened to run in. Food's three ordinary records build a
-        // baseline of 10.00, against which 900.00 is unusual; Transport's pair one day apart is a
-        // duplicate, and its mark falls on the later of the two.
         createTransaction(token, food, "10.00", today().minusDays(60), null);
         createTransaction(token, food, "10.00", today().minusDays(40), null);
         Long foodBaseline = createTransaction(token, food, "10.00", today().minusDays(20), null);
@@ -503,21 +418,17 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: the flagged list is bounded, and an out-of-range limit is refused")
     void theLimitIsBoundedAndRefusedRatherThanClamped() throws Exception {
-        // Refused rather than reduced, because the response reports the limit it applied and a silently
-        // reduced answer would make that field untrue.
+
         String token = loginNewStudent();
         Long food = defaultCategoryId(FOOD);
         Long transport = defaultCategoryId("Transport");
 
-        // A baseline of three ordinary records, then two records far enough above it to be unusual and
-        // distinct in amount so neither duplicates the other.
         createTransaction(token, food, "10.00", today().minusDays(60), null);
         createTransaction(token, food, "10.00", today().minusDays(40), null);
         createTransaction(token, food, "10.00", today().minusDays(20), null);
         Long olderUnusual = createTransaction(token, food, "900.00", today().minusDays(9), null);
         Long newerUnusual = createTransaction(token, food, "700.00", today().minusDays(5), null);
 
-        // And one duplicate pair, in another category, whose mark falls on the later of the two.
         createTransaction(token, transport, "50.00", today().minusDays(2), null);
         Long duplicate = createTransaction(token, transport, "50.00", today().minusDays(1), null);
 
@@ -532,8 +443,6 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
         assertThat(body.get("limit").asInt()).isEqualTo(2);
         assertThat(entryTransactionIdsOf(body)).containsExactly(duplicate, newerUnusual);
 
-        // Before a scan, the same list is empty however large the limit - so the records below are marks
-        // the scan applied rather than rows the query would have found anyway.
         for (String refused : List.of("0", "-1", "101", "abc")) {
             ResponseEntity<String> response = flaggedWithLimit(token, refused);
             assertThat(response.getStatusCode())
@@ -544,19 +453,12 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
         assertThat(fieldNamesIn(body(flaggedWithLimit(token, "101")))).containsExactly("limit");
     }
 
-    // ==================================================================
-    //  Ownership
-    // ==================================================================
-
     @Test
     @DisplayName("UC-24: one student's records are invisible to another, and the check never sees them")
     void anotherStudentsRecordsAreInvisible() throws Exception {
         String firstToken = loginNewStudent();
         String secondToken = loginNewStudent();
 
-        // The same amount, the same category, the same day - so if the query were not narrowed by owner
-        // this would be a duplicate of a record the other student entered. It is not, and neither
-        // student is told anything about the other's record.
         Long mine = aRecord(firstToken, "25.00", "Mine");
         Long theirs = aRecord(secondToken, "25.00", "Theirs");
 
@@ -578,10 +480,7 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: the seeded student's own records are examined, and the check leaves them alone")
     void theSeededStudentsRecordsAreExamined() throws Exception {
-        // A fixture of one's own records only proves the check works on data a test built to suit it.
-        // The seeded account carries a month of transactions entered by hand, and running the check
-        // over them is the closest thing available to asking whether it behaves on data nobody
-        // arranged.
+
         String token = seededStudentLogin();
         Long userId = userIdOf(token);
 
@@ -596,10 +495,6 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
                 .isLessThanOrEqualTo(liveRecords);
     }
 
-    // ==================================================================
-    //  Authentication
-    // ==================================================================
-
     @Test
     @DisplayName("UC-24: neither endpoint is reachable without a token")
     void neitherEndpointIsReachableAnonymously() {
@@ -612,9 +507,7 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: an administrator's token is refused, because the check writes")
     void anAdministratorIsRefused() throws Exception {
-        // A student's own records examined for mistakes, and one of the two endpoints writes. UC-23's
-        // statistics are aggregates over many students; this is one student's spending, so the role has
-        // no use case here and the rule admits only STUDENT.
+
         String adminToken = adminLogin();
 
         assertThat(send(HttpMethod.GET, ANOMALIES_URL, adminToken, null).getStatusCode())
@@ -626,8 +519,7 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: the scan reads the caller, not a body, so there is nothing to forge")
     void theScanTakesNoBodyThatCouldNameAnotherStudent() throws Exception {
-        // The client's whole contribution is asking for the check. There is no field for a record, a
-        // flag type or an owner, and a body is therefore ignored rather than honoured.
+
         String token = loginNewStudent();
         Long mine = aRecordDaysAgo(token, "25.00", 1, null);
         Long second = aRecord(token, "25.00", null);
@@ -639,10 +531,6 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
         assertThat(body(response).get("flagged").asInt()).isEqualTo(1);
         assertThat(storedFlagOf(second).flagType()).isEqualTo("DUPLICATE");
     }
-
-    // ==================================================================
-    //  Empty and trivial histories
-    // ==================================================================
 
     @Test
     @DisplayName("UC-24: a student with no records gets a scan of nothing rather than an error")
@@ -663,8 +551,7 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: a student's only record in a category is never unusual")
     void aSingleRecordIsNeverUnusual() throws Exception {
-        // One record is a figure, not a habit. The first thing a new student enters must not come back
-        // pre-marked, whatever it cost.
+
         String token = loginNewStudent();
 
         Long only = aRecord(token, "9999.99", "Laptop");
@@ -678,10 +565,7 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
     @Test
     @DisplayName("UC-24: the check runs in the student's own time zone")
     void datesAreInterpretedInTheApplicationZone() throws Exception {
-        // The window is counted in whole days on txn_date, and the date the API stored is the one the
-        // student sent - so a record dated last week is a week away from one dated today whenever the
-        // suite happens to run. This pins that the two dates are the ones on the rows rather than the
-        // times the rows were written, which is the difference the fixture would otherwise hide.
+
         String token = loginNewStudent();
 
         LocalDate yesterday = today().minusDays(1);
@@ -695,17 +579,6 @@ class AnomalyApiIT extends AbstractAnomalyApiIT {
         assertThat(storedFlagOf(first).flagType()).isEqualTo("NONE");
     }
 
-    // ==================================================================
-    //  Assertions
-    // ==================================================================
-
-    /**
-     * {@code examined = flagged + cleared + unchanged}.
-     *
-     * <p>Asserted after every scan in this class rather than once, because it is the only thing tying
-     * the counts to the work: a service that counted a record it did not examine, or examined one it
-     * did not count, would still return a plausible-looking body.
-     */
     private static void assertThatCountsAreConsistent(JsonNode scan) {
         assertThat(scan.get("examined").asInt())
                 .as("examined = flagged + cleared + unchanged, in %s", scan)

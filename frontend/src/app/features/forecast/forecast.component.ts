@@ -6,17 +6,6 @@ import { ForecastService } from '../../core/services/forecast.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ForecastResponse } from '../../core/models/forecast.model';
 
-/**
- * Module 12 (UC-25) — the next-month projection.
- *
- * The projection is the average of the student's recent complete months, and the response carries
- * those months as `recentMonths`. That is shown beside the projection rather than hidden, because
- * an average of three figures and an average of one are very different claims, and `basedOnMonths`
- * is what says which one the student is looking at.
- *
- * There is no projection when there is no complete month to average, and the screen says exactly
- * that instead of showing zeros.
- */
 @Component({
   selector: 'app-forecast',
   standalone: true,
@@ -222,7 +211,6 @@ export class ForecastComponent implements OnInit {
     return Math.abs(value);
   }
 
-  /** `2026-10` → `October 2026`. The API sends `yyyy-MM` and no human label. */
   monthLabel(month: string): string {
     const [y, m] = (month || '').split('-');
     const names = [

@@ -18,22 +18,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * A student's projected next month: UC-25.
- *
- * <p><b>One read and no parameters.</b> The forecast is about the caller and the current month, both
- * of which the server already knows - the caller from the token, the month from the clock - so there
- * is nothing for a request to name. That is deliberate: a parameterised month would let a caller probe
- * months the feature was not meant to project, and a limit or a window would put the shape of the
- * estimate under client control when it is a documented judgement rather than a client choice.
- *
- * <p><b>Why this is not under {@code /reports} or {@code /dashboard}.</b> It reads the same
- * {@code v_monthly_income_expense} those screens read, but its answer is a projection, not a figure
- * the database holds - a different kind of statement, from a different module with its own method (a
- * trailing average, in {@code Forecaster}). A route under {@code /api/v1/reports/**} would tell a
- * reader the response is recorded data; it is the module-12 capability the brief locks, and it lives
- * on its own path for the same reason {@code /recent-activity} does.
- */
 @RestController
 @RequestMapping("/api/v1/forecast")
 @Tag(name = "Forecast",

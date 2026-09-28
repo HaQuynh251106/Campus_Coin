@@ -7,30 +7,6 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/**
- * Body of {@code PATCH /api/v1/admin/tip-templates/{id}} (UC-21 B4): edit a saving-tip template.
- *
- * <p>Absent and {@code null} both mean "leave this field as it is", so a client sends only what it
- * edited. As on the default-category update, no field can be <em>cleared</em>:
- * {@code sp_admin_upsert_tip_template} writes each column as {@code IFNULL(p_value, column)}, so a
- * parameter either replaces a value or leaves it, and the four text columns are {@code NOT NULL}
- * anyway - there is no absent state for them to be moved into. The patterns below therefore require
- * at least one non-space character rather than accepting an empty string that would be stored as one.
- *
- * <p><b>{@code code} is accepted but immutable, and this is the field to be careful with.</b>
- * {@code sp_admin_upsert_tip_template}'s update branch does not mention {@code code} at all, so a
- * request carrying a different one would <em>succeed</em> while the stored code stayed as it was - a
- * client told "saved" with nothing changed, which is the worst kind of refusal to get wrong because
- * nothing signals it. The service therefore compares this field with the stored code and answers
- * {@code 409 TIP_TEMPLATE_CODE_IMMUTABLE} when they differ. Sending the code unchanged is accepted,
- * so a client may round-trip a full representation through this endpoint without special-casing the
- * field. Omitting it entirely is also accepted and means the same thing.
- *
- * <p>Immutability is a decision rather than a limitation: {@code code} identifies which rule a
- * template belongs to and appears in the audit trail, so renaming one would make every earlier
- * {@code TIP_TEMPLATE_SAVED} row refer to something that no longer exists under that name. A
- * template that genuinely needs a different code is a new template.
- */
 @Schema(description = "The tip template fields to change. Omit a field to leave it as it is "
         + "(UC-21 B4).")
 public record UpdateTipTemplateRequest(

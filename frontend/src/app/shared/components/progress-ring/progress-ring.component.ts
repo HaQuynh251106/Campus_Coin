@@ -93,9 +93,9 @@ export class ProgressRingComponent {
 
   getColor(): string {
     if (this.colorOverride) return this.colorOverride;
-    if (this.percentage >= 100) return '#EF4444'; // Danger
-    if (this.percentage >= 80) return '#F59E0B'; // Warning
-    return '#EAB308'; // Signature Gold Accent
+    if (this.percentage >= 100) return '#EF4444';
+    if (this.percentage >= 80) return '#F59E0B';
+    return '#EAB308';
   }
 
   getTextColorClass(): string {

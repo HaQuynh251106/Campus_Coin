@@ -24,23 +24,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * The student's own profile and display preferences: UC-04 and UC-27.
- *
- * <p>Three endpoints, no more. There is no {@code /users/{id}} route: UC-04 is the student
- * managing <em>their own</em> profile, and an endpoint addressed by identifier would need an
- * ownership check that the token-based design makes unnecessary. An administrator acting on
- * another account is UC-22, which is module 11 and has its own contract.
- *
- * <p>There is no separate {@code PUT} for the whole profile either. Only the two endpoints the
- * use cases describe exist, and both are {@code PATCH} because a client sends just the fields it
- * changed.
- *
- * <p>Each method reads the caller with {@code @AuthenticationPrincipal}, so the identity comes
- * from the verified bearer token. No endpoint here accepts a user id, a role or an account
- * status, which is what keeps BR-02 and section 7.5 structural rather than a check that could be
- * forgotten.
- */
 @RestController
 @RequestMapping("/api/v1/profile")
 @Tag(name = "Profile & Preferences",

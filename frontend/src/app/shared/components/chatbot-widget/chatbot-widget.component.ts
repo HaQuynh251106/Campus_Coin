@@ -363,33 +363,16 @@ export class ChatbotWidgetComponent implements OnInit, AfterViewChecked {
   greetingText = this.chatbotService.greetingText;
   isTyping = this.chatbotService.isTyping;
 
-  /** The assistant's availability, once the backend has reported it. */
   availability = this.chatbotService.availability;
 
-  /** True only once the backend has positively said the assistant cannot answer. */
   isUnavailable = computed(() => this.availability()?.available === false);
 
-  /**
-   * Why, in the backend's own words when it gave a reason.
-   *
-   * A generic sentence stands in when it did not, so the panel never renders an empty amber bar.
-   */
   unavailableReason = computed(
     () => this.availability()?.reason || 'The assistant is unavailable right now.'
   );
 
-  /**
-   * Whether the panel may send a question: something typed, no turn in flight, and a provider behind
-   * the endpoint.
-   *
-   * The third term is the one that was missing. `isUnavailable()` is only true once the backend has
-   * *positively* said the assistant cannot answer, so this can never lock the panel out on a status
-   * check that merely failed - a `null` availability leaves every control live and lets a real send
-   * report the real problem, which is the behaviour the availability signal was built for.
-   */
   canSend = computed(() => !!this.userInput().trim() && !this.isTyping() && !this.isUnavailable());
 
-  /** The send button's tooltip, which has to explain a fourth reason the button can be inert. */
   sendTitle = computed(() => {
     if (this.isUnavailable()) return 'The assistant is unavailable';
     if (this.isTyping()) return 'Assistant is responding…';
@@ -397,22 +380,9 @@ export class ChatbotWidgetComponent implements OnInit, AfterViewChecked {
   });
 
   ngOnInit(): void {
-    // Asks the provider nothing - the endpoint reports configuration - so this costs no quota and is
-    // safe to fire once the panel exists rather than lazily on open.
-    //
-    // Only when a student is signed in, though. The endpoint requires the STUDENT role, and a guest
-    // panel on the landing page is mounted before anyone logs in: asking there would get a 401, and
-    // the error interceptor answers a 401 by clearing the session and redirecting to the login page.
-    // A guest who merely loaded the landing page would be bounced to /auth/login by a status check
-    // the gated panel never needed - it offers that link itself. The guest panel reports
-    // "sign in to ask" from its own copy and asks the backend nothing.
-    //
-    // This is `ngOnInit` and not the constructor specifically because `isGuestMode` is an `@Input()`:
-    // Angular binds inputs after the constructor runs, so a check made there would always read the
-    // default `false` and would fire the request for guests anyway.
+
     if (!this.isGuestMode) {
-      // Drop a transcript left by a different account before the panel renders it, so a previous
-      // student's replies are never shown to the next one even for a frame.
+
       this.chatbotService.syncToSignedInUser();
       this.chatbotService.checkAvailability();
     }
@@ -437,7 +407,6 @@ export class ChatbotWidgetComponent implements OnInit, AfterViewChecked {
     this.chatbotService.sendMessage(prompt);
   }
 
-  /** Sends the same question again after a failed turn. */
   retry(prompt: string): void {
     if (this.isTyping()) return;
     this.chatbotService.sendMessage(prompt);
@@ -447,7 +416,6 @@ export class ChatbotWidgetComponent implements OnInit, AfterViewChecked {
     const text = (this.inputField?.nativeElement?.value ?? this.userInput()).trim();
     if (!text || this.isTyping() || this.isUnavailable()) return;
 
-    // Immediately clear both the reactive signal and the DOM textarea value
     this.userInput.set('');
     if (this.inputField?.nativeElement) {
       this.inputField.nativeElement.value = '';
@@ -458,13 +426,6 @@ export class ChatbotWidgetComponent implements OnInit, AfterViewChecked {
     this.chatbotService.sendMessage(text);
   }
 
-  /**
-   * Enter sends; Shift+Enter adds a newline.
-   *
-   * The textarea is the widget's only multiline input, so the modifier is what separates "I have
-   * finished typing" from "I am still typing". Without this, Enter would either always send — making
-   * a multi-line question impossible — or never send, which is not what a chat box does.
-   */
   onKeydown(event: KeyboardEvent): void {
     if (event.isComposing || event.keyCode === 229) {
       return;
@@ -477,7 +438,6 @@ export class ChatbotWidgetComponent implements OnInit, AfterViewChecked {
     }
   }
 
-  /** Grows the input to fit what has been typed, up to the CSS `max-h-24` cap. */
   autoGrow(event: Event): void {
     const el = event.target as HTMLTextAreaElement;
     el.style.height = 'auto';

@@ -23,40 +23,6 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
-/**
- * The conversational assistant.
- *
- * <p><b>No use-case identifier is claimed for this, because the SRS has none.</b> The use case and
- * business-flow specification runs UC-01..UC-27, and its twenty-seventh is the display preferences on
- * {@code /api/v1/profile/me}; there is no conversational assistant anywhere in it. This feature was
- * requested separately after module 12 and is therefore documented as an addition of its own rather
- * than as the implementation of a numbered requirement - inventing a use-case number would make it
- * look like an approved requirement that a reviewer could go and check, and there is nothing to find.
- *
- * <p>Two endpoints. The POST is the conversation; the GET reports whether one is possible, so the chat
- * panel can say the assistant is unavailable instead of accepting a question it cannot answer.
- *
- * <p><b>The caller is read from the token and the request has no field that could say otherwise.</b> Both
- * methods take {@code @AuthenticationPrincipal}, so identity comes from the verified bearer token and
- * nowhere else. {@link ChatRequest} has no user id, which is stronger than validating one - a body
- * carrying an unexpected {@code userId} is simply not read, because Jackson ignores an unknown property
- * and no code path consults one. So the id is inert rather than refused, and the turn is answered for the
- * token's owner; {@code ChatApiIT} asserts that outcome by sending another student's id and checking the
- * caller is still read their own figures. That is section 9 of the brief, and it is enforced here plus in
- * {@code ChatService}, which binds the same principal into the only callback the provider can call.
- *
- * <p><b>The endpoint is under its own prefix because the feature is its own thing.</b> It is not
- * {@code /ai/**}: that prefix is UC-08's categorisation, a single-purpose call that writes a suggestion
- * onto a transaction, and this is a conversation that writes nothing at all. Sharing the prefix would also
- * mean a future administrator-facing AI route could not be told apart from it. {@code /api/v1/chat` is
- * what the frontend already calls the feature, so the path says what it is.
- *
- * <p><b>What a client cannot do here.</b> It cannot write the assistant's instruction - the request
- * carries only a user role and an assistant role, and the instruction is the server's constant. It cannot
- * name a read outside the ten the application publishes. It cannot ask the assistant to change anything:
- * the tools are all reads, and there is no endpoint here that mutates. These are properties of the code
- * rather than rules in a prompt, which is what makes them hold when a student phrases something cleverly.
- */
 @RestController
 @RequestMapping("/api/v1/chat")
 @Tag(name = "Chat assistant",

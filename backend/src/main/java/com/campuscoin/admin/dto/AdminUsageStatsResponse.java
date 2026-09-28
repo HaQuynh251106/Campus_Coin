@@ -4,27 +4,6 @@ import java.math.BigDecimal;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * System-wide usage figures (UC-23).
- *
- * <p><b>Every field is an aggregate and none of them is about an identifiable student.</b> The
- * counts are totals over the whole user base and the two money figures are sums across every
- * student's transactions. That distinction is the reason this endpoint can publish money at all: no
- * route in this module returns one student's amounts, so the most a reader learns from
- * {@code totalExpenseLogged} is what the whole system recorded. See
- * {@code docs/OVERNIGHT_BLOCKERS.md} OB-013 for the recorded position on amounts remaining plaintext
- * in the database.
- *
- * <p>{@code activeUsers30d} is "distinct accounts with a session seen in the last 30 days", which is
- * the view's definition and is deliberately not the same as {@code activeStudents}: an account is
- * active by status until an administrator disables it, whereas this figure is about use. Both are
- * published because UC-23 asks how many students there are and how many are actually using the
- * system, and those are different questions.
- *
- * <p>{@code totalInsightsGenerated} is carried although this build never generates an insight - the
- * table is empty and the figure is a true zero. Reporting the view's own column keeps this response
- * the view's numbers rather than a selection of them.
- */
 @Schema(description = "System-wide usage statistics (UC-23).")
 public record AdminUsageStatsResponse(
 

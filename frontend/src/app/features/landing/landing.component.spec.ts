@@ -72,7 +72,7 @@ describe('LandingComponent', () => {
   });
 
   it('should reliably open and reopen chatbot multiple times without disappearing (Item 5)', () => {
-    // 1st cycle: open and close
+
     expect(mascotService.isChatOpen()).toBe(false);
     mascotService.openChat();
     expect(mascotService.isChatOpen()).toBe(true);
@@ -80,14 +80,12 @@ describe('LandingComponent', () => {
     mascotService.closeChat();
     expect(mascotService.isChatOpen()).toBe(false);
 
-    // 2nd cycle: open and close
     mascotService.toggleChat();
     expect(mascotService.isChatOpen()).toBe(true);
 
     mascotService.closeChat();
     expect(mascotService.isChatOpen()).toBe(false);
 
-    // 3rd cycle: open and close
     mascotService.toggleChat();
     expect(mascotService.isChatOpen()).toBe(true);
 

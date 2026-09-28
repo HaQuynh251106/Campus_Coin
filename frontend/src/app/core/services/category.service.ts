@@ -36,8 +36,7 @@ export class CategoryService {
           next: (cats) => this.categories.set(cats),
           error: () => this.invalidateCache()
         }),
-        // refCount: true ensures the cache is torn down when no subscribers remain,
-        // preventing a stale empty/error state from being replayed to the next tab.
+
         shareReplay({ bufferSize: 1, refCount: true })
       );
     }

@@ -284,16 +284,13 @@ export class SquirrelMascotComponent implements OnInit, OnDestroy {
   bubbleText = this.mascotService.bubbleText;
   isChatOpen = this.mascotService.isChatOpen;
 
-  // B.5 First-Use Extended State
   isExtended = signal(false);
 
-  // Dragging State
   isDragging = signal(false);
   private dragStartX = 0;
   private dragStartY = 0;
   private hasMoved = false;
 
-  // Anchor points definitions (Part A.3 Snap-to-Anchor & B.7 24px Spacing)
   private anchors: AnchorCoord[] = [
     {
       id: 'bottom-right',
@@ -347,7 +344,7 @@ export class SquirrelMascotComponent implements OnInit, OnDestroy {
     const isMobileNav = this.isBrowser && window.innerWidth < 1024;
     let bottomVal = matched.cssStyle.bottom || 'auto';
     if (isMobileNav && bottomVal === '24px') {
-      // Keep clear of mobile bottom navbar
+
       bottomVal = '5.5rem';
     }
 
@@ -362,7 +359,6 @@ export class SquirrelMascotComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.currentAnchor.set(this.initialAnchor);
 
-    // B.5 First-Use Extended Form Check
     if (this.isBrowser) {
       try {
         const count = parseInt(localStorage.getItem('cc_mascot_launch_count') || '0', 10);
@@ -375,13 +371,12 @@ export class SquirrelMascotComponent implements OnInit, OnDestroy {
 
   onMascotClick(event: MouseEvent): void {
     if (this.hasMoved) {
-      // Was dragging, do not open chat
+
       this.hasMoved = false;
       return;
     }
     event.stopPropagation();
 
-    // Collapse extended form upon interaction
     if (this.isExtended()) {
       this.isExtended.set(false);
       if (this.isBrowser) {
@@ -404,8 +399,6 @@ export class SquirrelMascotComponent implements OnInit, OnDestroy {
     event.stopPropagation();
     this.mascotService.bubbleText.set(null);
   }
-
-  // --- Drag and Drop with Snap to Anchor ---
 
   onDragStart(event: MouseEvent): void {
     if (!this.isBrowser) return;
@@ -498,7 +491,6 @@ export class SquirrelMascotComponent implements OnInit, OnDestroy {
     const currentXPercent = pos.x / vw;
     const currentYPercent = pos.y / vh;
 
-    // Find closest anchor based on Euclidean distance
     let minDistance = Infinity;
     let closestAnchor = this.anchors[0].id;
 
@@ -511,7 +503,7 @@ export class SquirrelMascotComponent implements OnInit, OnDestroy {
     }
 
     this.currentAnchor.set(closestAnchor);
-    this.customPosition.set(null); // Return to CSS anchor positioning with smooth transition
+    this.customPosition.set(null);
   }
 
   ngOnDestroy(): void {}

@@ -6,26 +6,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * The current month's totals for the signed-in student (UC-12 B1).
- *
- * <p><b>Every figure is the database's answer, read from {@code v_dashboard_summary}.</b> The
- * income/expense split comes from the category's type (BR-05), the totals count only records that are
- * not in the trash (BR-09), and {@code netAmount} is the view's own subtraction rather than one made
- * here. The dashboard is the first thing a student sees, so a figure computed twice is a figure that
- * will eventually disagree with the reports screen.
- *
- * <p><b>{@code savingsGoalPct} is omitted when there is no goal, not sent as zero.</b> The view
- * computes it only when {@code monthly_savings_goal > 0}, and the two states mean different things: a
- * goal of zero has no progress to report, whereas a student who set a goal and has spent their income
- * down has genuinely made negative progress. A substituted zero would collapse those and tell a
- * student with no goal that they had achieved nothing. It is nullable, so it is omitted rather than
- * serialised as null - the convention the earlier modules set.
- *
- * <p>{@code periodMonth} is not repeated here. It is the month the whole response describes and it is
- * published once, on {@link DashboardResponse} - a second copy would be a second value to keep in
- * step.
- */
 @Schema(description = "The current month's totals and saving-goal progress (UC-12 B1).")
 public record DashboardSummaryResponse(
 

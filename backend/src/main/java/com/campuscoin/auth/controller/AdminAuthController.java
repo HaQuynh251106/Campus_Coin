@@ -21,23 +21,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * The administrator sign-in endpoint (UC-05).
- *
- * <p>Separate from {@link AuthController} because UC-05 requires a separate portal with its own
- * URL, and because everything under {@code /api/v1/admin/**} is restricted to the ADMIN role by
- * {@code SecurityConfig} - which is the server-side half of UC-05 E1.
- *
- * <p>It is a distinct endpoint, not a distinct implementation. The same {@link AuthService.login}
- * serves both portals, with {@link UserRole#ADMIN} passed as the expected role, so the credential
- * check, the throttle, the disabled-account rule, the session record and the token issuance exist
- * once. Only the URL, the expected role and the resulting policy differ - which is what UC-05
- * asks for and what keeps the two portals from drifting apart.
- *
- * <p>This one path is permitted anonymously by {@code SecurityConfig}: nobody holds a token
- * before signing in. The role check therefore happens in the service, and a student who posts
- * here is rejected with 403 rather than being allowed through by the route rule (UC-05 A1).
- */
 @RestController
 @RequestMapping("/api/v1/admin/auth")
 @Tag(name = "Administrator Authentication", description = "Dedicated administrator sign-in (UC-05).")

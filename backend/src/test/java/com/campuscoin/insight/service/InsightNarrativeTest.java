@@ -40,23 +40,6 @@ import com.campuscoin.insight.mapper.InsightMapper;
 import com.campuscoin.insight.repository.InsightViewDao;
 import com.campuscoin.insight.repository.InsightWriteDao;
 
-/**
- * UC-17's AI overlay and its month handling, tested directly rather than through the API.
- *
- * <p><b>Why this is a unit test while the rest of the module is not.</b> No AI credential is configured
- * for the integration suite, so {@code AiSuggestionPort} there is the no-op implementation and the
- * provider path is unreachable through HTTP. Its behaviour is nevertheless the part of UC-17 that most
- * needs pinning - what leaves the server, what happens when nothing comes back, and what happens when
- * something unusable comes back - and every one of those is one line here with a stub port and a
- * fixture of dated transactions otherwise. {@code InsightApiIT} proves the wiring and the rule-based
- * path end to end; this file proves the overlay's decisions.
- *
- * <p><b>The port is stubbed, the currency reader is real.</b> {@link RecordingPort} records what it was
- * asked and answers whatever the test told it to, which is what makes the two assertions that matter
- * possible: that a provider is <em>not</em> consulted when no narrative is to be stored, and that the
- * request it receives carries no identifier. {@link SettingReader} runs over a stubbed repository, so
- * the currency the request names is read the way the service reads it rather than passed in.
- */
 class InsightNarrativeTest {
 
     private static final Long USER_ID = 7L;
@@ -74,10 +57,6 @@ class InsightNarrativeTest {
     private final InsightService service = new InsightService(
             viewDao, writeDao, new InsightMapper(), port, currencyReader());
 
-    // ==================================================================
-    //  The provider's answer is stored, and only the two sentences are
-    // ==================================================================
-
     @Test
     @DisplayName("UC-17: a provider's narrative is stored and the response says a provider wrote it")
     void aProvidersNarrativeIsStoredAndReported() {
@@ -88,9 +67,6 @@ class InsightNarrativeTest {
 
         MonthlyInsightResponse response = service.generate(PRINCIPAL, "2026-08");
 
-        // The overlay writes the two sentences, the model that produced them, and the marker that makes
-        // the text survive a later run - all in one statement, because the procedure preserves
-        // summary_text only for a row it can see is a provider's.
         verify(writeDao).writeAiNarrative(USER_ID, MONTH, "Written by a model.", "Advised by a model.",
                 "gemini-3.5-flash");
 
@@ -99,7 +75,6 @@ class InsightNarrativeTest {
         assertThat(response.summary()).isEqualTo("Written by a model.");
         assertThat(response.advice()).isEqualTo("Advised by a model.");
 
-        // The figures are the procedure's and are not rewritten from the provider's prose.
         assertThat(response.totalExpense()).isEqualByComparingTo("95.00");
     }
 
@@ -115,8 +90,6 @@ class InsightNarrativeTest {
 
         service.generate(PRINCIPAL, "2026-08");
 
-        // Compared field for field against the value it must be, rather than inspected for absent keys:
-        // the type has six components and none of them can name a student, a category or a record.
         assertThat(port.requests).containsExactly(new MonthlyNarrativeRequest(
                 "2026-08",
                 "USD",
@@ -126,22 +99,15 @@ class InsightNarrativeTest {
                 List.of(new MonthlyNarrativeRequest.CategoryTotal("Food", new BigDecimal("95.00")),
                         new MonthlyNarrativeRequest.CategoryTotal("Transport", new BigDecimal("30.00")))));
 
-        // And the request's own shape cannot carry an identifier: six components, asserted literally so
-        // a seventh added to the record fails a test instead of quietly widening what is disclosed.
         assertThat(MonthlyNarrativeRequest.class.getRecordComponents()).hasSize(6);
     }
-
-    // ==================================================================
-    //  Nothing useful came back: the rule-based text stands
-    // ==================================================================
 
     @Test
     @DisplayName("UC-17: no provider, no overlay - the rule-based text is what the student gets")
     void anAbsentProviderLeavesTheRuleBasedText() {
         givenStoredRows(ruleBasedRow());
         givenCategoryTotals(new MonthlyCategoryTotal("Food", new BigDecimal("95.00")));
-        // The ordinary case in a deployment with no credential: the port answers empty rather than
-        // throwing, and the request still succeeds.
+
         port.answersNothing();
 
         MonthlyInsightResponse response = service.generate(PRINCIPAL, "2026-08");
@@ -157,9 +123,7 @@ class InsightNarrativeTest {
     void anEmptyNarrativeIsDiscarded() {
         givenStoredRows(ruleBasedRow());
         givenCategoryTotals();
-        // Two blank strings are what a provider returns when it declined to answer in words. Storing
-        // them would replace readable rule-based prose with an empty string and mark the row as a
-        // provider's work, which is worse than keeping what the procedure wrote.
+
         port.answers(new MonthlyNarrative("  ", "", "gemini-3.5-flash"));
 
         MonthlyInsightResponse response = service.generate(PRINCIPAL, "2026-08");
@@ -182,8 +146,7 @@ class InsightNarrativeTest {
         verify(writeDao).writeAiNarrative(USER_ID, MONTH, "Only a summary.", null, null);
         assertThat(response.summary()).isEqualTo("Only a summary.");
         assertThat(response.advice()).isNull();
-        // No model was reported, and none is invented: the column is what lets an operator tell which
-        // model produced a stored insight.
+
         assertThat(response.model()).isNull();
     }
 
@@ -195,17 +158,10 @@ class InsightNarrativeTest {
         port.answers(new MonthlyNarrative("s", "a", "gemini-3.5-flash"));
         when(writeDao.writeAiNarrative(any(), any(), any(), any(), any())).thenReturn(0);
 
-        // Nothing deletes an insight except the student's own account, so an update affecting zero rows
-        // means the row moved underneath the request. Reporting success would answer with text the table
-        // does not hold.
         assertThatThrownBy(() -> service.generate(PRINCIPAL, "2026-08"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("which should be exactly one");
     }
-
-    // ==================================================================
-    //  Reading and the month
-    // ==================================================================
 
     @Test
     @DisplayName("UC-17: a month with no insight is a 404, not a month of zeroes")
@@ -254,8 +210,6 @@ class InsightNarrativeTest {
                                     .satisfies(error -> assertThat(error.field()).isEqualTo("month")));
         }
 
-        // Nothing reached the database: the refusal happens before any query, so a malformed month
-        // cannot even be attempted against a table.
         verify(viewDao, never()).find(any(), any());
     }
 
@@ -269,11 +223,6 @@ class InsightNarrativeTest {
         verify(viewDao).findMonths(USER_ID);
     }
 
-    // ==================================================================
-    //  Fixtures
-    // ==================================================================
-
-    /** The row the procedure would have just written: rule-based, with the month's figures. */
     private static InsightRow ruleBasedRow() {
         return ruleBasedRowAt(MONTH);
     }
@@ -286,18 +235,10 @@ class InsightNarrativeTest {
                 InsightGeneratedBy.RULE_BASED, null, month.atStartOfDay().plusHours(20));
     }
 
-    /** The same month as the row reads after the overlay wrote over it. */
     private static InsightRow aiRow(String summary, String advice) {
         return aiRow(summary, advice, "gemini-3.5-flash");
     }
 
-    /**
-     * The row as it reads when the provider reported no model.
-     *
-     * <p>{@code model_name} is what the provider said, not a constant this build supplies, so a row
-     * written from an answer that named no model stores null - which is the case the assertion using
-     * this overload pins.
-     */
     private static InsightRow aiRow(String summary, String advice, String model) {
         return new InsightRow(MONTH, summary, advice, List.of(), new BigDecimal("260.00"),
                 new BigDecimal("95.00"), new BigDecimal("165.00"), InsightGeneratedBy.AI,
@@ -308,7 +249,6 @@ class InsightNarrativeTest {
         givenStoredRowsFor(MONTH, rows);
     }
 
-    /** The row the read returns, in order: the one after the procedure, then the one after the overlay. */
     private void givenStoredRowsFor(LocalDate month, InsightRow... rows) {
         when(viewDao.find(USER_ID, month))
                 .thenReturn(Optional.of(rows[0]))
@@ -319,7 +259,6 @@ class InsightNarrativeTest {
         when(viewDao.findExpenseTotalsByCategory(USER_ID, MONTH)).thenReturn(List.of(totals));
     }
 
-    /** A reader over the seeded currency row, so the request's currency is read as the service reads it. */
     private static SettingReader currencyReader() {
         SystemSettingRepository repository = mock(SystemSettingRepository.class);
         SystemSetting currency = mock(SystemSetting.class);
@@ -328,7 +267,6 @@ class InsightNarrativeTest {
         return new SettingReader(repository);
     }
 
-    /** A port that answers whatever it is told and remembers every request it was given. */
     private static final class RecordingPort implements AiSuggestionPort {
 
         private Optional<MonthlyNarrative> answer = Optional.empty();

@@ -6,23 +6,6 @@ import com.campuscoin.imports.entity.ImportBatchStatus;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * One entry in the list of a student's imports (UC-11).
- *
- * <p><b>No rows, and that is the whole difference from {@link ImportBatchResponse}.</b> The list is
- * "my imports", and a student with ten of them should not receive ten files' worth of rows to render
- * ten summary lines. The preview screen asks for one batch and gets its rows; this screen asks which
- * imports exist and gets counters.
- *
- * <p>Every field here is one {@link ImportBatchResponse} also carries, and the shape is deliberately a
- * subset rather than a variant: a client that has rendered a batch already knows what each field
- * means, and nothing in the list is computed differently from the same field on the detail. There is
- * no {@code rows} field to be null or empty - its absence is the statement that this is the summary.
- *
- * <p>{@code modifiable} is carried here too, because the list is where a student sees the import they
- * were part way through: without it, resuming a preview would mean opening each one to find out which
- * could still be committed.
- */
 @Schema(description = "One CSV import in the student's list (UC-11).")
 public record ImportSummaryResponse(
 

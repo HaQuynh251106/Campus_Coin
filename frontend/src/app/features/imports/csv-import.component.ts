@@ -8,19 +8,6 @@ import { ToastService } from '../../core/services/toast.service';
 import { Category } from '../../core/models/category.model';
 import { ImportBatch, ImportRow, ImportSummary } from '../../core/models/import.model';
 
-/**
- * Module 12 (UC-11) — importing a spending file.
- *
- * The screen walks the four steps the backend defines and no others: choose a file, read the
- * preview, correct what it could not read, then commit. Two things are deliberately absent.
- *
- * There is no "write the transactions anyway" path — a committed batch is what creates
- * transactions, inside the database procedure, so a row the importer rejected is corrected here or
- * not at all.
- *
- * There is no delete. A preview is left either by committing it or by abandoning it, and the
- * abandon button says which of those the student is choosing.
- */
 @Component({
   selector: 'app-csv-import',
   standalone: true,
@@ -457,9 +444,7 @@ export class CsvImportComponent implements OnInit {
       },
       error: () => {
         this.isLoadingHistory = false;
-        // A history that could not be read is not the same as a history with nothing in it. Showing
-        // the empty-state sentence here would tell the student they have never imported a file, which
-        // is a claim we cannot make when the request failed.
+
         this.historyFailed = true;
         this.cdr.markForCheck();
       }
@@ -473,14 +458,12 @@ export class CsvImportComponent implements OnInit {
         this.cdr.markForCheck();
       },
       error: () => {
-        // Without categories a row cannot be re-filed, so the picker falls back to whatever the
-        // file itself said and the commit still works.
+
         this.cdr.markForCheck();
       }
     });
   }
 
-  /** Reads the chosen file as text. There is no multipart endpoint, so the bytes go as JSON. */
   onFileChosen(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -513,8 +496,7 @@ export class CsvImportComponent implements OnInit {
           },
           error: err => {
             this.isUploading = false;
-            // The importer refuses a whole file over a missing column, and its message names the
-            // column. Passing it through is more useful than a generic failure line.
+
             this.errorMessage =
               err.error?.message || 'That file could not be read. Check the columns and try again.';
             this.cdr.markForCheck();
@@ -527,11 +509,9 @@ export class CsvImportComponent implements OnInit {
         this.cdr.markForCheck();
       });
 
-    // Allows choosing the same file again after a correction outside the app.
     input.value = '';
   }
 
-  /** Files one row under the chosen category. The server re-verdicts the row and returns it. */
   onRowCategoryChange(row: ImportRow, categoryId: number | null): void {
     if (!this.batch || categoryId === null || !this.batch.modifiable) return;
 
@@ -539,7 +519,7 @@ export class CsvImportComponent implements OnInit {
     this.importService.setRowCategory(this.batch.id, row.id, Number(categoryId)).subscribe({
       next: updated => {
         this.patchingRowId = null;
-        // The verdict rests on the category, so a changed row can change from duplicate to valid.
+
         this.batch = {
           ...this.batch!,
           rows: this.batch!.rows.map(r => (r.id === updated.id ? updated : r)),
@@ -557,7 +537,6 @@ export class CsvImportComponent implements OnInit {
     });
   }
 
-  /** Applies the importer's own suggestion. Advisory: the student's click is what files the row. */
   applySuggestion(row: ImportRow): void {
     const name = this.rowCategoryName(row);
     const match = name ? this.categories.find(c => c.name === name) : undefined;
@@ -639,17 +618,11 @@ export class CsvImportComponent implements OnInit {
     URL.revokeObjectURL(url);
   }
 
-  /**
-   * The categories a row may be filed under. A parsed type narrows the list, because a category's
-   * type is the record's type (BR-05) and offering an income category for an expense row would be
-   * offering a choice the importer would refuse.
-   */
   categoriesFor(row: ImportRow): Category[] {
     if (!row.parsedType) return this.categories;
     return this.categories.filter(c => c.type === row.parsedType);
   }
 
-  /** The suggested category's name, resolved from the id the row carries. */
   rowCategoryName(row: ImportRow): string {
     if (row.aiSuggestedCategoryId === null) return '';
     return this.categories.find(c => Number(c.id) === row.aiSuggestedCategoryId)?.name || '';

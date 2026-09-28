@@ -18,46 +18,9 @@ import com.campuscoin.dashboard.entity.DashboardTip;
 import com.campuscoin.dashboard.entity.DashboardTopCategory;
 import com.campuscoin.dashboard.entity.TipState;
 
-/**
- * Reads the four UC-12 views (UC-12).
- *
- * <p><b>Why the database answers this, not Java.</b> Each of the four views is the definition of one
- * figure on the dashboard, and each definition is shared with something else that must agree with
- * it. {@code v_dashboard_summary} computes the month's totals the same way
- * {@code v_monthly_income_expense_6m} computes six months of them; {@code v_top_category_current_month}
- * wraps {@code v_category_month_totals}, which is also the reports module's pie-chart source;
- * {@code v_dashboard_tips} applies BR-14's pinned-first ordering that UC-18 will be judged against.
- * Re-deriving any of them here would create a second answer to a question the schema has already
- * answered once - and the two would eventually disagree about a month boundary or a deleted
- * transaction (BR-09), which is precisely the kind of drift a dashboard must not have.
-
- * <p><b>Four queries, one per view, rather than a single statement joining them.</b> The views are
- * not all keyed the same way: the summary is one row per student, the top category at most one, the
- * tips many, and the announcements not per-student at all. A join would multiply the summary's row by
- * the number of tips and require the totals to be {@code DISTINCT}-ed or re-aggregated - undoing the
- * guarantee that the figure comes from the view unaltered. Four reads of four indexed views is the
- * cheaper and clearer arrangement, and it is why this class is a DAO with several methods rather than
- * one query.
-
- * <p><b>Projected by alias rather than mapped as entities.</b> {@code createNativeQuery(..., Tuple)}
- * lets each column be read by the name the query gave it, so a column added to or reordered in a view
- * cannot break this class, and the records only carry what this module publishes - the same reason
- * {@code BudgetConsumptionDao} is written this way.
- *
- * <p>A DAO rather than a Spring Data repository because every query is native and every result is a
- * projection rather than a managed entity.
- */
 @Repository
 public class DashboardViewDao {
 
-    /**
-     * UC-12 B1: the caller's current-month totals, their goal progress and their currency.
-     *
-     * <p>The view carries every student in one row each, so the caller's id is what narrows it to one.
-     * {@code period_month} is read back out rather than assumed: it is {@code CURDATE()} as the
-     * <em>database session</em> sees it, and it is the value the other three queries are scoped to, so
-     * reading it is what keeps the four parts of the response describing one month.
-     */
     private static final String SELECT_SUMMARY = """
             SELECT v.period_month              AS periodMonth,
                    v.currency                  AS currency,
@@ -71,13 +34,6 @@ public class DashboardViewDao {
              WHERE v.user_id = :userId
             """;
 
-    /**
-     * UC-12 B2: the caller's highest-spending expense category this month, or nothing.
-     *
-     * <p>The view already restricts itself to the current month and to {@code rn = 1}, so this only
-     * narrows to the caller. The join to {@code categories} adds the two presentation columns the view
-     * does not publish; it is on the row's own {@code category_id}, so one row in, one row out.
-     */
     private static final String SELECT_TOP_CATEGORY = """
             SELECT v.category_id   AS categoryId,
                    v.category_name AS categoryName,
@@ -89,22 +45,6 @@ public class DashboardViewDao {
              WHERE v.user_id = :userId
             """;
 
-    /**
-     * UC-12 B3: the caller's tips for one month, in the order the view ranked them.
-     *
-     * <p><b>The month is filtered here, and it must be.</b> {@code v_dashboard_tips} has no time
-     * filter at all - it partitions by {@code period_month} for its {@code ROW_NUMBER} but returns
-     * every month a student has tips for. That is harmless for the view, which is also UC-18's source
-     * for the tips screen, but it would be wrong here: a dashboard shows one month's tips, and
-     * without this predicate a student would see January's tip under September's heading. The
-     * predicate is what makes the view's per-month partition mean what the dashboard reads it to mean.
-     *
-     * <p>The order is restated rather than relied upon. SQL makes no promise that a view's
-     * {@code ROW_NUMBER} ordering survives into the selecting statement's result order, so the same
-     * two keys the view ranks by are named here - pinned first, then the score - with the tip id as a
-     * final tie-break so two equally-scored tips cannot swap places between two calls. This is not a
-     * second definition of the ranking: it asks for the order the view already computes.
-     */
     private static final String SELECT_TIPS = """
             SELECT v.tip_id           AS tipId,
                    v.category_id      AS categoryId,
@@ -118,34 +58,6 @@ public class DashboardViewDao {
              ORDER BY (v.state = 'PINNED') DESC, v.display_order ASC, v.tip_id ASC
             """;
 
-    /**
-     * UC-12 B3, BR-14: the same tips as {@link #SELECT_TIPS}, cut off at the configured maximum.
-     *
-     * <p><b>Why the dashboard needs its own bounded query rather than reusing the list one.</b>
-     * BR-14 is a rule about how many tips a dashboard <em>shows</em>, and the stored rows do not carry
-     * that bound. {@code sp_generate_tips} applies {@code tips.max_dashboard} to one generation run,
-     * but the rows accumulate for a month: the dedupe key is per rule and per category, so a later run
-     * on a month shifts within the same top-N and stores rows the earlier runs did not, each one
-     * surviving because it is not a duplicate of an existing row. What the student reads is what the
-     * dashboard selects, so the bound has to be applied where the reading happens. Bounding the
-     * generator alone would let a student see five tips under a configured three.
-     *
-     * <p><b>History is untouched.</b> This narrows a read; it deletes nothing. A tip cut off here still
-     * exists, is still the student's, is still reachable at {@code GET /api/v1/tips} (which answers
-     * "what advice does this month hold", not "what fits on the dashboard"), and comes back if the
-     * administrator raises the limit. Removing rows to make the count match would destroy exactly the
-     * history the setting exists to summarise.
-     *
-     * <p><b>Why the cut is applied after the ordering, not before.</b> The subquery orders by the same
-     * keys the view ranks by and then takes the first {@code :maxTips}; cutting before ordering would
-     * keep an arbitrary N rather than the top N, and pinned tips - which the order puts first - could
-     * be dropped in favour of lower-scored ones. A pinned tip is a choice the student made, so the
-     * bound must not be what discards it.
-     *
-     * <p>The limit is a bound parameter rather than a literal: the value is the administrator's
-     * {@code tips.max_dashboard}, read from {@code system_settings} at request time, which is what
-     * makes changing the setting change this screen without a redeploy (VĐ-05).
-     */
     private static final String SELECT_TIPS_LIMITED = """
             SELECT t.tipId           AS tipId,
                    t.categoryId      AS categoryId,
@@ -170,23 +82,6 @@ public class DashboardViewDao {
              ORDER BY (t.state = 'PINNED') DESC, t.displayOrder ASC, t.tipId ASC
             """;
 
-    /**
-     * UC-12 B3: the announcements currently live and meant for a student.
-     *
-     * <p><b>The audience filter is applied here because the view does not apply it.</b>
-     * {@code v_active_announcements} answers "is this notice within its window", not "is this notice
-     * for this reader", and {@code announcements.audience} has three values -
-     * {@code ALL}, {@code STUDENTS} and {@code ADMINS}. A student's dashboard admits the first two and
-     * refuses the third. Leaving the filter out would show a notice written for administrators on
-     * every student's dashboard, which is a disclosure rather than a cosmetic slip. An administrator
-     * is refused this whole endpoint by {@code SecurityConfig}, so there is no mirror-image case to
-     * handle here.
-     *
-     * <p>Ordered newest first, because the view has no {@code ORDER BY} of its own and a dashboard
-     * shows the most recent notice where it is looked at; the id breaks ties between two notices
-     * posted in the same second. {@code created_by} is not selected - the API does not publish an
-     * author's identity.
-     */
     private static final String SELECT_ANNOUNCEMENTS = """
             SELECT a.id         AS id,
                    a.title      AS title,
@@ -202,20 +97,9 @@ public class DashboardViewDao {
     @PersistenceContext
     private EntityManager entityManager;
 
-    /**
-     * UC-12 B1: the caller's dashboard summary, or empty for an account the view does not cover.
-     *
-     * <p>The view restricts itself to {@code role = 'STUDENT'}, so an administrator id simply matches
-     * no row. That is not reachable through the API - the endpoint requires the student role - but the
-     * DAO does not assume it, and returning empty lets the caller answer honestly rather than
-     * fabricate a month.
-     */
     @Transactional(readOnly = true)
     public Optional<DashboardSummary> findSummary(Long userId) {
-        // The cast is a stated limitation of the JPA signature rather than a guess: the
-        // `createNativeQuery(String, Class)` overload is declared to return a raw `Query`, so the
-        // element type is known here and nowhere else. It is confined to this one local declaration -
-        // the result is immediately mapped through toSummary, so no Tuple escapes this method.
+
         @SuppressWarnings("unchecked")
         List<Tuple> rows = entityManager.createNativeQuery(SELECT_SUMMARY, Tuple.class)
                 .setParameter("userId", userId)
@@ -224,13 +108,6 @@ public class DashboardViewDao {
         return rows.stream().map(DashboardViewDao::toSummary).findFirst();
     }
 
-    /**
-     * UC-12 B2: the caller's top expense category this month, absent when they have spent nothing.
-     *
-     * <p>Empty is the ordinary answer for a new student, not a failure: the view selects a row only
-     * from months with expense transactions, and a dashboard with no spending has no top category to
-     * name.
-     */
     @Transactional(readOnly = true)
     public Optional<DashboardTopCategory> findTopCategory(Long userId) {
         @SuppressWarnings("unchecked")
@@ -241,7 +118,6 @@ public class DashboardViewDao {
         return rows.stream().map(DashboardViewDao::toTopCategory).findFirst();
     }
 
-    /** UC-12 B3: the caller's tips for one month, already filtered of dismissed ones. */
     @Transactional(readOnly = true)
     public List<DashboardTip> findTips(Long userId, LocalDate periodMonth) {
         @SuppressWarnings("unchecked")
@@ -253,19 +129,6 @@ public class DashboardViewDao {
         return rows.stream().map(DashboardViewDao::toTip).toList();
     }
 
-    /**
-     * UC-12 B3, BR-14: the caller's tips for one month, at most {@code maxTips} of them.
-     *
-     * <p>The dashboard's read. {@code maxTips} is the effective {@code tips.max_dashboard}, resolved
-     * by the caller so this class holds no opinion about where a threshold comes from - the same split
-     * {@code BudgetConsumptionDao} keeps, where the view decides the status and the caller only reads
-     * it. The bound is applied by the database rather than by discarding rows after they arrive, so
-     * the query returns what the screen shows and no more.
-     *
-     * @param maxTips the most tips to return; the caller passes a positive value, because
-     *                {@code SettingReader.getInt} already substitutes the documented default for an
-     *                absent or unusable setting
-     */
     @Transactional(readOnly = true)
     public List<DashboardTip> findTipsLimited(Long userId, LocalDate periodMonth, int maxTips) {
         @SuppressWarnings("unchecked")
@@ -278,7 +141,6 @@ public class DashboardViewDao {
         return rows.stream().map(DashboardViewDao::toTip).toList();
     }
 
-    /** UC-12 B3: the live announcements a student may see, newest first. */
     @Transactional(readOnly = true)
     public List<DashboardAnnouncement> findAnnouncementsForStudent() {
         @SuppressWarnings("unchecked")
@@ -288,18 +150,6 @@ public class DashboardViewDao {
         return rows.stream().map(DashboardViewDao::toAnnouncement).toList();
     }
 
-    // ------------------------------------------------------------------
-    //  Row mapping
-    // ------------------------------------------------------------------
-
-    /**
-     * Reads one summary row.
-     *
-     * <p>{@code savingsGoalPct} is read as a nullable column because it is one: the view emits NULL
-     * when the student's goal is zero, and a substituted zero would report "made no progress" for a
-     * student who never set a goal. {@code periodMonth} is a {@code DATE}, which the driver reports as
-     * {@link java.sql.Date}, so it is converted here rather than left as a driver type.
-     */
     private static DashboardSummary toSummary(Tuple row) {
         return new DashboardSummary(
                 row.get("periodMonth", java.sql.Date.class) == null
@@ -323,18 +173,6 @@ public class DashboardViewDao {
                 row.get("totalAmount", java.math.BigDecimal.class));
     }
 
-    /**
-     * Reads one tip row.
-     *
-     * <p>{@code state} is parsed rather than cast, so a value outside the enum fails loudly here
-     * instead of reaching a client that would render nothing. The view already excludes
-     * {@code DISMISSED}, so the two members of {@link TipState} are the only values that can arrive -
-     * and if the schema ever grew a third, this is where it would be noticed.
-     *
-     * <p>{@code categoryId} is nullable on this table: a tip about the savings goal or about too
-     * little data belongs to no category, which is why the record's field is the only one here read
-     * through the nullable path.
-     */
     private static DashboardTip toTip(Tuple row) {
         return new DashboardTip(
                 row.get("tipId", Long.class),
@@ -345,13 +183,6 @@ public class DashboardViewDao {
                 TipState.valueOf(row.get("state", String.class)));
     }
 
-    /**
-     * Reads one announcement row.
-     *
-     * <p>{@code severity} is parsed for the same reason {@code state} is, and {@code endsAt} is
-     * nullable because an announcement may be open-ended - {@code ck_ann_window} permits
-     * {@code ends_at IS NULL}, and the view treats it as "still running".
-     */
     private static DashboardAnnouncement toAnnouncement(Tuple row) {
         return new DashboardAnnouncement(
                 row.get("id", Long.class),

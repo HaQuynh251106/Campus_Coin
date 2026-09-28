@@ -116,7 +116,7 @@ export class LoginComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    // Explicitly guarantee form inputs are completely blank on initialization
+
     this.loginForm.reset({
       email: '',
       password: ''
@@ -126,10 +126,6 @@ export class LoginComponent implements OnInit {
   onSubmit(): void {
     if (this.loginForm.invalid) return;
 
-    // Signing in is a claim to be a particular account, so whatever the browser was still holding
-    // is dropped first. Without this, a failed attempt left the previous token on disk and a
-    // refresh brought the old student back — the app looks signed in as somebody the visitor did
-    // not just authenticate as.
     localStorage.removeItem('campus_coin_token');
     localStorage.removeItem('campus_coin_user');
 
@@ -140,7 +136,7 @@ export class LoginComponent implements OnInit {
     this.auth.login(email!, password!).subscribe({
       next: (res) => {
         this.isLoading = false;
-        // Role-based routing: Admin -> Admin Dashboard, Student -> Student Home Feed
+
         if (res.user?.role === 'ADMIN' || this.auth.isAdmin()) {
           this.router.navigate(['/admin/dashboard']);
         } else {
@@ -151,11 +147,7 @@ export class LoginComponent implements OnInit {
       error: (err) => {
         this.isLoading = false;
         this.errorMessage = err.error?.message || err.message || 'Login failed. Please check credentials.';
-        // This app runs zoneless, so state written here is not reflected on its own. A successful
-        // sign-in navigates and the navigation re-renders the view; a failed one does not, which
-        // left isLoading stuck true: no error message and a submit button that stayed disabled
-        // until a manual refresh. This also covers the two-step admin re-login, whose interceptor
-        // retries an admin address against /admin/auth/login.
+
         this.cdr.markForCheck();
       }
     });

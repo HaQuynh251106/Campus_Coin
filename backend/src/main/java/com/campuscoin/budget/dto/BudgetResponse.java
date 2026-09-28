@@ -7,30 +7,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * One monthly budget as the client sees it (UC-13), with how much of it has been used.
- *
- * <p><b>The limit and the consumption are published together, and the consumption is the
- * database's answer rather than this module's.</b> {@code spentAmount}, {@code remainingAmount},
- * {@code consumedPct} and {@code consumptionStatus} all come from {@code v_budget_consumption},
- * which is also what {@code sp_check_budget_alerts} compares against. Recomputing any of them in
- * Java would create a second definition of "80% of the limit" that could drift from the one that
- * decides when an alert fires - and a screen that showed a student on track while the alert log said
- * they had been warned is exactly the sort of disagreement this avoids.
- *
- * <p><b>The category is flattened, exactly as on a transaction and a recurring rule.</b> That is the
- * shape the Angular budget model already expects and the shape a list row renders, so a budget row
- * needs nothing else about the category.
- *
- * <p><b>{@code periodMonth} is a {@code yyyy-MM} string.</b> The column is a {@code DATE} pinned to
- * the first of the month ({@code ck_budget_month}), but the unit the student chose is a month, and
- * the day is an implementation detail of how a month is stored rather than something to show. The
- * conversion happens in {@code BudgetMapper} in both directions.
- *
- * <p><b>{@code userId} is absent, along with the row's timestamps</b>, for the reasons every other
- * response in the API gives: the owner is the account in the token and the client must never send
- * one back, and no use case shows creation metadata.
- */
 @Schema(description = "A monthly spending limit for one category, with the month's consumption "
         + "(UC-13).")
 public record BudgetResponse(

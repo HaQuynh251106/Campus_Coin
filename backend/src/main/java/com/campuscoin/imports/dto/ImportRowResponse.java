@@ -8,39 +8,6 @@ import com.campuscoin.imports.entity.ImportRowStatus;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * One row of a previewed or committed batch (UC-11 B5).
- *
- * <p><b>Both the parsed values and the stored raw line are published, and the pair is the point.</b>
- * The preview's job is to show the student what the importer understood beside what the file actually
- * said, so they can tell "the importer read my amount wrong" apart from "my file has a wrong amount".
- * {@code rawData} is the line as a JSON object and the {@code parsed*} fields are its interpretation;
- * neither is derived from the other at read time, so the two cannot agree by construction and the
- * student is genuinely seeing two things.
- *
- * <p><b>{@code aiSuggestedCategoryId} is published and {@code resolvedCategoryId} is published
- * separately, and they are different questions.</b> The suggestion is UC-08's advisory note about
- * where this row would go (BR-13: advisory, never authoritative). The resolution is what the row will
- * actually be filed under - the student's own choice when they made one, and otherwise left for the
- * commit procedure to decide from the file's category name. So a row can carry a suggestion the
- * student overrode, and a client showing only one of the two would either hide the override or imply
- * the import had chosen a category it has not chosen yet.
- *
- * <p><b>{@code resolvedCategoryId} is null on a row the student has not overridden, even when the file
- * named a category that exists.</b> That is not the preview being unhelpful: the name is resolved at
- * the commit, by {@code sp_apply_csv_batch}, and resolving it here as well would be a second answer to
- * a question the procedure owns. What the student is shown is {@code parsedCategoryName} - what the
- * file said - and the resolution appears only once it is a real decision.
- *
- * <p><b>{@code errorMessage} carries the explanation for a {@code DUPLICATE} row as well as for an
- * {@code ERROR} one.</b> A duplicate is not an error in the row, but it is a row that will not be
- * imported, and UC-11 requires the student to be able to identify why. The two are told apart by
- * {@code rowStatus}, so a client can render them differently - a fixable row versus one they may
- * simply already have.
- *
- * <p>{@code transactionId} is null until the batch is committed, and then carries the record the row
- * became, so a client can link a preview line to the transaction it produced.
- */
 @Schema(description = "One row of a CSV import, as the preview reached it (UC-11).")
 public record ImportRowResponse(
 

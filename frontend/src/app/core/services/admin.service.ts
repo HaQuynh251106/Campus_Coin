@@ -30,14 +30,6 @@ export interface TipTemplate {
   lastUpdated?: string;
 }
 
-/**
- * Every value `tip_templates.condition_type` accepts, in the order the database declares them.
- *
- * This is the field that decides *which rule* a template belongs to — the procedure
- * `sp_generate_tips` evaluates the template's condition before it renders the advice — so a
- * template created with the wrong condition never fires. The list is the backend enum
- * `com.campuscoin.admin.entity.TipConditionType` verbatim.
- */
 export const TIP_CONDITION_TYPES = [
   'OVER_BUDGET',
   'NEAR_BUDGET',
@@ -56,8 +48,6 @@ export type TipConditionType = (typeof TIP_CONDITION_TYPES)[number];
 export class AdminService {
   private http = inject(HttpClient);
   private baseUrl = `${environment.apiUrl}/v1/admin`;
-
-  // --- Statistics & KPIs (UC-23) ---
 
   getStats(): Observable<AdminUsageStats> {
     return this.http.get<AdminUsageStats>(`${this.baseUrl}/stats`);
@@ -84,8 +74,6 @@ export class AdminService {
     return this.http.get<AdminTopCategory[]>(`${this.baseUrl}/stats/top-categories`);
   }
 
-  // --- User Management (UC-22) ---
-
   getUsers(): Observable<AdminUser[]> {
     return this.http.get<AdminUser[]>(`${this.baseUrl}/users`);
   }
@@ -97,8 +85,6 @@ export class AdminService {
   sendPasswordReset(id: number | string): Observable<{ message: string }> {
     return this.http.post<{ message: string }>(`${this.baseUrl}/users/${id}/password-reset`, {});
   }
-
-  // --- Default Categories (UC-20) ---
 
   getDefaultCategories(): Observable<Category[]> {
     return this.http.get<any[]>(`${this.baseUrl}/categories`).pipe(
@@ -129,15 +115,6 @@ export class AdminService {
     );
   }
 
-  /**
-   * A default category's own fields, matching `UpdateDefaultCategoryRequest`
-   * (`docs/api/administration.md` §51). `icon`, `color` and `description` accept `''` to clear a
-   * nullable column; omitting a key leaves it unchanged.
-   *
-   * `id`, `isDefault` and `isActive` were removed from this signature: none of the three is a field
-   * of the request record, so sending them was a silent no-op rather than an edit. Retirement goes
-   * through `setDefaultCategoryStatus` below, which has a route of its own.
-   */
   updateDefaultCategory(id: number | string, updates: {
     name?: string;
     type?: 'INCOME' | 'EXPENSE';
@@ -151,7 +128,6 @@ export class AdminService {
     );
   }
 
-  /** Retires or restores a default category (BR-07). `isActive` is the only writer here. */
   setDefaultCategoryStatus(id: number | string, isActive: boolean): Observable<Category> {
     return this.http.patch<any>(`${this.baseUrl}/categories/${id}`, { isActive }).pipe(
       map(c => this.toCategory(c))
@@ -171,8 +147,6 @@ export class AdminService {
     };
   }
 
-  // --- Tip Templates (UC-21) ---
-
   getTipTemplates(): Observable<TipTemplate[]> {
     return this.http.get<AdminTipTemplate[]>(`${this.baseUrl}/tip-templates`).pipe(
       map(list => list.map(t => ({
@@ -187,14 +161,6 @@ export class AdminService {
     );
   }
 
-  /**
-   * Creates a tip template (`docs/api/administration.md` §53).
-   *
-   * `code` is required by the contract, is immutable afterwards, and is stored upper case — so the
-   * caller supplies it rather than a timestamp being smuggled in, which is what this method used to
-   * do. `conditionType` is the field that decides which rule the template fires on; it used to be
-   * hard-coded to `GENERIC`, which made the form's other choices unable to affect behaviour.
-   */
   addTipTemplate(tip: {
     code: string;
     title: string;
@@ -227,8 +193,6 @@ export class AdminService {
     return this.http.patch(`${this.baseUrl}/tip-templates/${id}`, payload);
   }
 
-  // --- Announcements (UC-21) ---
-
   getAnnouncements(): Observable<AdminAnnouncement[]> {
     return this.http.get<AdminAnnouncement[]>(`${this.baseUrl}/announcements`);
   }
@@ -237,8 +201,7 @@ export class AdminService {
     title: string;
     body: string;
     audience?: 'ALL' | 'STUDENTS' | 'ADMINS';
-    // `announcements.severity` is a three-value ENUM. `CRITICAL` is not a member and was never
-    // accepted by the database, so it is not offered here.
+
     severity?: 'INFO' | 'WARNING' | 'SUCCESS';
     startsAt?: string;
     endsAt?: string;
@@ -249,8 +212,6 @@ export class AdminService {
   updateAnnouncement(id: number | string, isActive: boolean): Observable<AdminAnnouncement> {
     return this.http.patch<AdminAnnouncement>(`${this.baseUrl}/announcements/${id}`, { isActive });
   }
-
-  // --- System Settings (UC-23) ---
 
   getSettings(): Observable<SystemSetting[]> {
     return this.http.get<SystemSetting[]>(`${this.baseUrl}/settings`);

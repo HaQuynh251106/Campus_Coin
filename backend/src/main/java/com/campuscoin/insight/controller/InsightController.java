@@ -21,34 +21,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * A student's monthly insight: UC-17.
- *
- * <p>Three endpoints: read one month, list the months that have one, and generate one. There is no
- * create, no edit and no delete, because an insight is not authored by anybody - the figures come from
- * the student's own records and the prose is either composed by {@code sp_generate_monthly_insight}
- * from those figures or written by the configured provider from the same ones. Offering an edit would
- * let a client put words in a stored insight that neither the rules nor a provider produced, and
- * offering a delete would destroy the stored month the student can compare later weeks against.
- *
- * <p><b>Generating is its own endpoint rather than a side effect of reading.</b> Reading a month is a
- * read and generates nothing, so opening the screen cannot change what is on it - and cannot spend a
- * call to an external provider. It is also what makes the month current on demand rather than only
- * after some later request happens to touch it.
- *
- * <p><b>Every method reads the caller with {@code @AuthenticationPrincipal}, so identity comes from the
- * verified bearer token.</b> No endpoint accepts a user id, so there is no way to reach another
- * student's insight - which matters more here than anywhere else in module 12, because an insight is
- * a summary of a whole month: the totals, the net balance and the categories where the student is
- * spending more than usual.
- *
- * <p><b>The prose these endpoints return is advisory, and the response says so.</b> BR-13 requires an
- * AI result to be presented as a suggestion the student may ignore and to be labelled as a suggestion
- * rather than as financial advice; {@code generatedBy} is what a client switches on to do that, and
- * {@link MonthlyInsightResponse} records why the wording itself lives in the client rather than in this
- * API. Nothing here is a decision about the student's money - generating writes a description of a
- * month, and moves nothing.
- */
 @RestController
 @RequestMapping("/api/v1/insights")
 @Tag(name = "Monthly Insights",

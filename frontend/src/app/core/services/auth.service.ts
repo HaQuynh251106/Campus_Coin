@@ -35,8 +35,7 @@ export class AuthService {
     if (token && !this.isTokenExpired(token)) {
       this.accessToken.set(token);
     } else if (token) {
-      // Token exists but is expired — clear stale session to prevent
-      // guard pass followed by immediate 401 redirect on first API call.
+
       localStorage.removeItem('campus_coin_token');
       localStorage.removeItem('campus_coin_user');
       return;
@@ -52,24 +51,16 @@ export class AuthService {
     }
   }
 
-  /**
-   * Decode a JWT without verifying the signature (client-side only).
-   * Returns true if the token's `exp` claim is in the past (or missing).
-   * The backend is the authority on revocation; this check only prevents
-   * presenting an obviously-expired token to the route guard, which would
-   * let the guard pass but then cause a 401 on the first API call.
-   */
   private isTokenExpired(token: string): boolean {
     try {
       const parts = token.split('.');
       if (parts.length !== 3) return true;
       const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-      if (!payload.exp) return false; // No expiry claim — let the backend decide
-      // exp is Unix timestamp in seconds; add 10-second grace to avoid
-      // clock-skew false positives on navigation between protected pages.
+      if (!payload.exp) return false;
+
       return payload.exp < (Date.now() / 1000) - 10;
     } catch {
-      return true; // Malformed token — treat as expired
+      return true;
     }
   }
 
@@ -93,7 +84,7 @@ export class AuthService {
   login(email: string, password: string): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.baseUrl}/auth/login`, { email, password }).pipe(
       catchError((err: HttpErrorResponse) => {
-        // If backend responds with 403 because it's an administrator account, transparently authenticate via admin endpoint
+
         const isForbiddenAdmin = err.status === 403 &&
           (err.error?.message?.toLowerCase().includes('administrator') ||
            err.message?.toLowerCase().includes('administrator') ||
@@ -158,14 +149,6 @@ export class AuthService {
     });
   }
 
-  /**
-   * Reads the profile and adopts the account's own display preferences.
-   *
-   * Applying them here rather than only on the settings screen is what makes the preference belong
-   * to the account: any screen that reads the profile restores the student's theme and text size,
-   * and the local copy in `localStorage` — which is per-browser, not per-account — is overwritten
-   * with the server's values instead of being allowed to disagree with them.
-   */
   getProfile(): Observable<ProfileResponse> {
     return this.http.get<ProfileResponse>(`${this.baseUrl}/profile/me`).pipe(
       tap(p => {
@@ -188,10 +171,6 @@ export class AuthService {
     );
   }
 
-  /**
-   * `PATCH /profile/me`. The body is the profile contract's four writable fields and nothing else —
-   * there is no `major` to send, because the contract has no such field.
-   */
   updateProfile(updates: {
     fullName?: string;
     name?: string;

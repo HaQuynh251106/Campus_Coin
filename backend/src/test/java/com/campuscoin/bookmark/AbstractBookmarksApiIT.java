@@ -25,28 +25,6 @@ import com.campuscoin.support.AbstractMySqlIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-/**
- * The fixtures module 10's suite needs: identity, a real tip to save, and the two database reads an
- * encryption assertion needs.
- *
- * <p><b>Why the fixtures generate a real tip rather than inserting a {@code user_tips} row.</b> A
- * bookmark points at a tip, and a hand-inserted row would be a tip the generator would never produce -
- * a title naming a category the student never spent in, or a {@code rank_score} violating BR-14's
- * ordering. The bookmark's whole content is the advice it saves, so the fixture builds the
- * <em>spending</em> and lets {@code sp_generate_tips} produce the row, exactly as module 9's fixtures
- * do. The one difference is that this suite does not care which rule fired: it needs a tip that exists
- * and belongs to the caller, so a fresh student's "too little data" tip (UC-18 A1) is enough, and no
- * transaction needs recording at all.
- *
- * <p><b>The note is read straight from the column, not through the API.</b>
- * {@link #storedNoteOf} reads {@code bookmarks.note} as the database holds it, which is the only way to
- * show that what is stored is an envelope and not the student's words. Asserting through the response
- * would prove only that the round trip works.
- *
- * <p>Each test registers a fresh student with a random address, so no test depends on another's rows,
- * and the seeded accounts are read but never modified. The seeded student is left alone deliberately:
- * other suites read their tips and dashboard.
- */
 abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
 
     protected static final String BOOKMARKS_URL = "/api/v1/bookmarks";
@@ -60,17 +38,8 @@ abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
 
     protected static final String PASSWORD = "Student@123";
 
-    /** The zone the application and the database session both run in (VĐ-10). */
     protected static final ZoneId APPLICATION_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
-    /**
-     * The complete set of properties a bookmark response may carry.
-     *
-     * <p>A literal rather than a reflected set, so a field added to the record fails a test instead of
-     * quietly widening the published contract. There is no {@code userId}: the query already applied
-     * ownership and a client has no use for the owner. There is no {@code insightId} either, because the
-     * insight branch is UC-17 and this build cannot create one.
-     */
     protected static final List<String> DOCUMENTED_BOOKMARK_FIELDS = List.of(
             "id", "itemType", "tipId", "tipTitle", "tipBody", "tipPotentialSaving",
             "tipState", "tipMonth", "note", "createdAt");
@@ -81,10 +50,6 @@ abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
     @Autowired
     protected ObjectMapper objectMapper;
 
-    // ==================================================================
-    //  HTTP
-    // ==================================================================
-
     protected ResponseEntity<String> send(HttpMethod method, String url, String token, Object body) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -94,7 +59,6 @@ abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
         return restTemplate.exchange(url, method, new HttpEntity<>(body, headers), String.class);
     }
 
-    /** The caller's saved items, asserting the call succeeded first. */
     protected JsonNode bookmarks(String token) throws Exception {
         ResponseEntity<String> response = send(HttpMethod.GET, BOOKMARKS_URL, token, null);
         assertThat(response.getStatusCode())
@@ -103,7 +67,6 @@ abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
         return objectMapper.readTree(response.getBody());
     }
 
-    /** Saves a tip through the endpoint a client uses. */
     protected ResponseEntity<String> saveTip(String token, Long tipId) {
         return saveTip(token, tipId, null);
     }
@@ -122,13 +85,6 @@ abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
         return send(HttpMethod.PATCH, BOOKMARKS_URL + "/" + bookmarkId, token, Map.of("note", note));
     }
 
-    /**
-     * The same call with {@code note} written as an explicit JSON {@code null}.
-     *
-     * <p>Separate from {@link #setNote} because {@code Map.of} refuses a null value - which is
-     * itself the reason the distinction needs its own test: "absent" and "present but null" are two
-     * spellings of the same instruction, and both have to reach the service as "leave it alone".
-     */
     protected ResponseEntity<String> setNoteToNull(String token, Long bookmarkId) {
         Map<String, Object> body = new java.util.LinkedHashMap<>();
         body.put("note", null);
@@ -147,7 +103,6 @@ abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
         return body(response).get("errorCode").asText();
     }
 
-    /** The {@code fieldErrors[].field} names of a validation response, in the order returned. */
     protected static List<String> fieldNamesIn(JsonNode error) {
         JsonNode fieldErrors = error.get("fieldErrors");
         if (fieldErrors == null || fieldErrors.isNull()) {
@@ -175,10 +130,6 @@ abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
         object.fieldNames().forEachRemaining(names::add);
         return names;
     }
-
-    // ==================================================================
-    //  Identity
-    // ==================================================================
 
     protected String register(String email) {
         ResponseEntity<String> response = send(HttpMethod.POST, REGISTER_URL, null, Map.of(
@@ -224,22 +175,6 @@ abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
         return "bookmarks.test." + UUID.randomUUID() + "@student.campuscoin.edu";
     }
 
-    // ==================================================================
-    //  A real tip to save
-    // ==================================================================
-
-    /**
-     * Generates the caller's tips for the current month and returns the first one.
-     *
-     * <p>The endpoint, not the procedure, because this suite has no reason to reach a month the
-     * endpoint cannot: a student with no records this month gets the "too little data" tip (UC-18 A1)
-     * when the generator runs, and that tip is a perfectly good thing to save. It keeps the fixture
-     * honest - the row under test is the row a real caller would bookmark - and it keeps this suite from
-     * duplicating module 9's spending fixtures to produce a tip nobody here inspects.
-     *
-     * <p>The whole node rather than the id, so a test can hold the bookmark to the tip's own words
-     * without asking the tips endpoint a second time.
-     */
     protected JsonNode generatedTip(String token) throws Exception {
         ResponseEntity<String> response = send(HttpMethod.POST, TIPS_GENERATE_URL, token, null);
         assertThat(response.getStatusCode())
@@ -252,22 +187,18 @@ abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
         return tips.get(0);
     }
 
-    /** Generates the caller's tips for the current month and returns the first one's id. */
     protected Long generateATip(String token) throws Exception {
         return generatedTip(token).get("id").asLong();
     }
 
-    /** Generates the caller's tips and saves the first one, returning the created entry. */
     protected JsonNode saveATip(String token) throws Exception {
         return saveTipExpectingCreated(token, generateATip(token));
     }
 
-    /** Saves a tip and asserts the call succeeded, returning the created entry. */
     protected JsonNode saveTipExpectingCreated(String token, Long tipId) throws Exception {
         return saveTipExpectingCreated(token, tipId, null);
     }
 
-    /** The same, with a note. */
     protected JsonNode saveTipExpectingCreated(String token, Long tipId, String note)
             throws Exception {
         ResponseEntity<String> response = saveTip(token, tipId, note);
@@ -277,37 +208,19 @@ abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
         return body(response);
     }
 
-    /** Saves a tip and returns the new bookmark's id. */
     protected Long saveATipId(String token) throws Exception {
         return saveATip(token).get("id").asLong();
     }
 
-    /**
-     * Pins or dismisses one of the caller's tips, through the endpoint the tips screen uses.
-     *
-     * <p>Used to show that a bookmark is independent of the tip's display state (VĐ-03): the same row
-     * is reachable through two different acts, and neither changes the other's column.
-     */
     protected ResponseEntity<String> changeTipState(String token, Long tipId, String state) {
         return send(HttpMethod.POST, TIPS_URL + "/" + tipId + "/state", token,
                 Map.of("state", state));
     }
 
-    /** The state of a bookmark's tip, read from {@code user_tips} rather than through the API. */
     protected String tipStateOf(Long tipId) throws Exception {
         return columnInDatabase(tipId, "user_tips", "state");
     }
 
-    /**
-     * A second, distinct tip for the same student, produced for a month the generate endpoint cannot
-     * reach.
-     *
-     * <p>A test that needs two bookmarks needs two tips, because {@code uk_bookmark_dedupe} refuses
-     * the same item twice. {@code POST /api/v1/tips/generate} only ever runs for the current month,
-     * so a student with no records has exactly one tip available through the API; the second comes
-     * from the same procedure with the month named, which is the route module 9's own fixtures
-     * document.
-     */
     protected Long generateATipFor(Long userId, LocalDate periodMonth) throws Exception {
         generateTipsFor(userId, periodMonth, 3);
 
@@ -320,7 +233,6 @@ abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
         return tipIds.get(0);
     }
 
-    /** Generates tips the way the scheduled run does, for a month the generate endpoint cannot reach. */
     protected void generateTipsFor(Long userId, LocalDate periodMonth, int maxTips) throws Exception {
         runInDatabase("CALL sp_generate_tips(?, ?, ?)", userId, periodMonth, maxTips);
     }
@@ -329,7 +241,6 @@ abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
         return LocalDate.now(APPLICATION_ZONE);
     }
 
-    /** The first of the current month, the value the views derive from {@code CURDATE()}. */
     protected static LocalDate thisMonth() {
         return today().withDayOfMonth(1);
     }
@@ -338,28 +249,16 @@ abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
         return month.minusMonths(1);
     }
 
-    /** A month as the API names it: {@code yyyy-MM}. */
     protected static String asMonth(LocalDate month) {
         return String.format("%04d-%02d", month.getYear(), month.getMonthValue());
     }
 
-    // ==================================================================
-    //  Database assertions
-    // ==================================================================
-
-    /**
-     * {@code bookmarks.note} exactly as MySQL holds it.
-     *
-     * <p>The one read that can show the column is ciphertext rather than the student's words. Null when
-     * the row has no note, which is a state the API produces on purpose.
-     */
     protected String storedNoteOf(Long bookmarkId) throws Exception {
         return columnInDatabase(bookmarkId, "bookmarks", "note");
     }
 
     protected String columnInDatabase(Long id, String table, String column) throws Exception {
-        // The table and column names come from test literals only, never from a request, so
-        // interpolating them is safe; the id is bound.
+
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(
                      "SELECT " + column + " FROM " + table + " WHERE id = ?")) {
@@ -372,12 +271,6 @@ abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
         }
     }
 
-    /**
-     * A {@code bookmarks} row's owner as the database holds it.
-     *
-     * <p>Used to prove a fabricated row really belongs to the other student, so an assertion about the
-     * trigger's refusal is testing the trigger rather than the fixture.
-     */
     protected Long bookmarksOwner(Long bookmarkId) throws Exception {
         return longValueFrom("SELECT user_id FROM bookmarks WHERE id = ?", bookmarkId);
     }
@@ -440,15 +333,6 @@ abstract class AbstractBookmarksApiIT extends AbstractMySqlIntegrationTest {
         }
     }
 
-    /**
-     * Binds the parameters of a fixture statement.
-     *
-     * <p>{@link LocalDate} is bound as a {@link java.sql.Date} on purpose. The driver sends a
-     * {@code LocalDate} as a character value and lets the server cast it, which works for a {@code DATE}
-     * column but silently coerces anything else - including the temporal argument
-     * {@code sp_generate_tips} declares as {@code DATE}. Binding the declared type means a procedure is
-     * called the way a real caller calls it.
-     */
     private static void bind(PreparedStatement statement, Object... parameters) throws Exception {
         for (int index = 0; index < parameters.length; index++) {
             Object value = parameters[index];

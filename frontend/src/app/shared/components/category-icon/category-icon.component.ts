@@ -10,7 +10,6 @@ export interface CategoryHue {
   borderLight: string;
 }
 
-// 8 curated non-gold category hues
 const CURATED_CATEGORY_HUES: Record<string, CategoryHue> = {
   orange: {
     text: '#EA580C',
@@ -126,7 +125,7 @@ const HEX_TO_HUE: Record<string, string> = {
   '#10b981': 'emerald',
   '#34d399': 'emerald',
   '#22c55e': 'emerald',
-  // Redirect accidental gold/yellow away from brand accent
+
   '#ffe600': 'orange',
   '#eab308': 'orange',
   '#f59e0b': 'orange'
@@ -200,7 +199,6 @@ export class CategoryIconComponent {
       }
     }
 
-    // Dynamic fallback if hex provided
     if (this.color && /^#[0-9A-Fa-f]{6}$/.test(this.color)) {
       const r = parseInt(this.color.slice(1, 3), 16);
       const g = parseInt(this.color.slice(3, 5), 16);

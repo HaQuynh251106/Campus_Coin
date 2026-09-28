@@ -1,27 +1,9 @@
--- ============================================================================
---  CAMPUS COIN — 03_procedures.sql
---  1 utility function + 25 business procedures.
---
---  Why stored procedures instead of putting all the logic in the Java layer:
---    - BR-05, BR-06, BR-07 and BR-08 span several tables, so a CHECK constraint
---      cannot express them; enforcing them in the data layer leaves no path
---      around them.
---    - BR-12 and BR-16 need an atomic "insert if not already there" — UNIQUE +
---      INSERT IGNORE inside a procedure guarantees that even when several
---      processes run at the same time.
---
---  All messages returned by SIGNAL are plain English: they are surfaced by the
---  API and shown to the user, so they are user-facing text.
--- ============================================================================
+
 
 USE campuscoin;
 
 DELIMITER $$
 
--- ---------------------------------------------------------------------------
--- fn_render_template — substitutes the {..} placeholders in a tip template or
--- an announcement template (UC-21 B3)
--- ---------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS fn_render_template $$
 CREATE FUNCTION fn_render_template(
   p_template TEXT,
@@ -48,27 +30,6 @@ BEGIN
   RETURN v;
 END $$
 
-
--- ============================================================================
---  GROUP A — VALIDATION
--- ============================================================================
-
--- ---------------------------------------------------------------------------
--- sp_validate_transaction — BR-02, BR-07, BR-08, BR-13, UC-07
--- Called automatically from the BEFORE INSERT / BEFORE UPDATE triggers of
--- `transactions`.
---
--- There is NO p_type parameter and NO BR-05 comparison: `transactions` has no
--- `type` column, the transaction type IS `categories.type`, so the two values
--- cannot drift apart.
---
--- p_recurring_rule_id / p_import_batch_id exist because `transactions` carries
--- indexes on those two columns but no foreign key, and both point at rows that
--- are owned per student. Without an explicit check a student could write a
--- transaction that references another student's recurring rule or CSV batch,
--- which would leak that row's existence and corrupt the "my data only" rule of
--- BR-02.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_validate_transaction $$
 CREATE PROCEDURE sp_validate_transaction(
   IN p_user_id           BIGINT UNSIGNED,
@@ -95,7 +56,7 @@ BEGIN
   IF v_cat_type IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'BR-05: category does not exist';
   END IF;
-  -- BR-02: isolation between students, enforced at the data layer
+
   IF v_cat_user IS NOT NULL AND v_cat_user <> p_user_id THEN
     SIGNAL SQLSTATE '45000'
       SET MESSAGE_TEXT = 'BR-02: category belongs to another student';
@@ -104,19 +65,14 @@ BEGIN
     SIGNAL SQLSTATE '45000'
       SET MESSAGE_TEXT = 'BR-07: category has been disabled';
   END IF;
-  -- Recurring transactions are allowed a future date because the scheduler
-  -- creates them ahead of time.
+
   IF p_txn_date > CURDATE() AND IFNULL(p_source, 'MANUAL') <> 'RECURRING' THEN
     SIGNAL SQLSTATE '45000'
       SET MESSAGE_TEXT = 'BR-08: transaction date cannot be in the future';
   END IF;
 
-  -- BR-13: a category suggested by AI must be a default category (user_id IS
-  -- NULL) or a category of THIS student. The foreign key only proves the
-  -- category exists, not who owns it, so it is checked explicitly.
   IF p_ai_category_id IS NOT NULL THEN
-    -- No row found leaves v_ai_owner NULL and the foreign key raises 1452;
-    -- only the "exists but owned by somebody else" case is handled here.
+
     SELECT user_id INTO v_ai_owner FROM categories WHERE id = p_ai_category_id;
     IF v_ai_owner IS NOT NULL AND v_ai_owner <> p_user_id THEN
       SIGNAL SQLSTATE '45000'
@@ -124,7 +80,6 @@ BEGIN
     END IF;
   END IF;
 
-  -- BR-02: recurring_rule_id must point at one of THIS student's own rules.
   IF p_recurring_rule_id IS NOT NULL THEN
     SELECT user_id INTO v_rule_owner FROM recurring_rules WHERE id = p_recurring_rule_id;
     IF v_rule_owner IS NULL THEN
@@ -137,7 +92,6 @@ BEGIN
     END IF;
   END IF;
 
-  -- BR-02: import_batch_id must point at one of THIS student's own batches.
   IF p_import_batch_id IS NOT NULL THEN
     SELECT user_id INTO v_batch_owner FROM import_batches WHERE id = p_import_batch_id;
     IF v_batch_owner IS NULL THEN
@@ -151,11 +105,6 @@ BEGIN
   END IF;
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_validate_budget — BR-11, UC-13: a limit may only be set on an EXPENSE
--- category of one's own.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_validate_budget $$
 CREATE PROCEDURE sp_validate_budget(
   IN p_user_id     BIGINT UNSIGNED,
@@ -186,26 +135,6 @@ BEGIN
   END IF;
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_require_admin — BR-06, BR-03: the shared administrator authorisation gate.
---
--- This is the ONLY authorisation check for every administrative operation. It
--- takes the id of the person performing the operation and looks the account up
--- in `users` in the same statement that follows, so authorisation is always
--- re-derived from the database and never carried in from the caller.
---
--- Two conditions must hold (BR-03 adds the second one):
---   role   = 'ADMIN'    — the account really is an administrator
---   status = 'ACTIVE'   — a disabled administrator immediately loses the right
---                         to act, exactly like a disabled student loses the
---                         right to sign in.
---
--- There is deliberately NO session-variable shortcut such as the former
--- @cc_is_admin flag: a MySQL user variable belongs to a CONNECTION, and a
--- connection pool hands the same connection to whichever request comes next, so
--- a flag left behind by one call could authorise the following one.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_require_admin $$
 CREATE PROCEDURE sp_require_admin(IN p_actor_id BIGINT UNSIGNED)
 BEGIN
@@ -220,19 +149,6 @@ BEGIN
   END IF;
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_validate_recurring_rule — UC-09, BR-02, BR-05, BR-07
---
--- Validates at the moment the rule is created or edited rather than when the
--- scheduler posts it: otherwise a broken rule would only surface days later,
--- and worse, from inside the loop of sp_post_recurring_transactions.
---
--- Why `recurring_rules` KEEPS a `type` column while `transactions` dropped it:
--- a rule is a configuration template that can be set up before any transaction
--- exists, so there has to be something to compare against `categories.type` at
--- the moment the rule is written.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_validate_recurring_rule $$
 CREATE PROCEDURE sp_validate_recurring_rule(
   IN p_user_id     BIGINT UNSIGNED,
@@ -251,37 +167,23 @@ BEGIN
   IF v_type IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'BR-05: category does not exist';
   END IF;
-  -- BR-05: the type of the rule must match the type of the category
+
   IF v_type <> p_type THEN
     SIGNAL SQLSTATE '45000'
       SET MESSAGE_TEXT = 'BR-05: recurring rule type must match the category type';
   END IF;
-  -- BR-02: default categories are shared, personal categories belong to one owner
+
   IF v_owner IS NOT NULL AND v_owner <> p_user_id THEN
     SIGNAL SQLSTATE '45000'
       SET MESSAGE_TEXT = 'BR-02: category belongs to another student';
   END IF;
-  -- BR-07: no new rule on a category that has been disabled
+
   IF v_active = 0 THEN
     SIGNAL SQLSTATE '45000'
       SET MESSAGE_TEXT = 'BR-07: category has been disabled';
   END IF;
 END $$
 
-
--- ============================================================================
---  GROUP B — BUDGET ALERTS (BR-11, BR-12, UC-14)
--- ============================================================================
-
--- ---------------------------------------------------------------------------
--- sp_check_budget_alerts — called automatically after every insert or update of
--- an expense transaction.
---
--- ELSEIF is deliberate: if one transaction jumps straight past 100%, only the
--- "exceeded" notification is raised, so the student never receives two messages
--- at once. UAT-07 still passes because 24 then +7 are two separate writes: the
--- first reaches 80% -> NEAR, the second passes 100% -> EXCEEDED.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_check_budget_alerts $$
 CREATE PROCEDURE sp_check_budget_alerts(
   IN p_user_id      BIGINT UNSIGNED,
@@ -312,9 +214,6 @@ BEGIN
 
   IF v_budget_id IS NOT NULL AND IFNULL(v_limit, 0) > 0 THEN
 
-    -- BR-09: only transactions that are not soft-deleted count.
-    -- No type filter is needed: a budget can only exist on an expense category
-    -- (BR-11, blocked by sp_validate_budget when the budget is created).
     SELECT IFNULL(SUM(amount), 0) INTO v_spent
       FROM transactions
      WHERE user_id = p_user_id
@@ -327,7 +226,7 @@ BEGIN
     SELECT name INTO v_cat_name FROM categories WHERE id = p_category_id;
 
     IF v_pct >= v_exceed THEN
-      -- BR-12: INSERT IGNORE + UNIQUE(budget_id, threshold_type) blocks repeats
+
       INSERT IGNORE INTO budget_alert_log
         (budget_id, user_id, category_id, threshold_type, threshold_pct,
          consumed_pct, spent_amount, limit_amount, triggered_at)
@@ -376,17 +275,6 @@ BEGIN
   END IF;
 END $$
 
-
--- ============================================================================
---  GROUP C — SAVING TIPS & INSIGHTS (BR-13, BR-14, BR-15, UC-17, UC-18)
--- ============================================================================
-
--- ---------------------------------------------------------------------------
--- sp_generate_tips — generates tips from the student's own data, ranks them by
--- potential saving and keeps only the top N (BR-14, 3 by default).
--- INSERT IGNORE + dedupe_key guarantee that a pinned or dismissed tip is never
--- generated a second time.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_generate_tips $$
 CREATE PROCEDURE sp_generate_tips(
   IN p_user_id      BIGINT UNSIGNED,
@@ -417,17 +305,12 @@ BEGIN
 
   SELECT IFNULL(MAX(CAST(setting_value AS DECIMAL(6,2))), 30) INTO v_spike_pct
     FROM system_settings WHERE setting_key = 'insight.spike_threshold_pct';
-  -- VĐ-05: the budget thresholds are configuration, never constants. These read
-  -- the same keys, with the same defaults, as v_budget_consumption and
-  -- sp_check_budget_alerts (near = 80, exceeded = 100), so all three agree on
-  -- where NEAR ends and EXCEEDED begins.
+
   SELECT IFNULL(MAX(CAST(setting_value AS DECIMAL(6,2))), 80) INTO v_near_pct
     FROM system_settings WHERE setting_key = 'budget.near_threshold_pct';
   SELECT IFNULL(MAX(CAST(setting_value AS DECIMAL(6,2))), 100) INTO v_exceed_pct
     FROM system_settings WHERE setting_key = 'budget.exceeded_threshold_pct';
-  -- A missing key already keeps the default above. A value that is present but
-  -- unusable (non-numeric casts to 0, negative stays negative) would otherwise
-  -- make every budget look "near", so fall back to the default as well.
+
   IF v_near_pct IS NULL OR v_near_pct <= 0 THEN
     SET v_near_pct = 80;
   END IF;
@@ -459,7 +342,6 @@ BEGIN
     rank_score       DECIMAL(18,4)   NOT NULL DEFAULT 0
   ) ENGINE=InnoDB;
 
-  -- Rule 1 — category already over the configured "exceeded" threshold (BR-12)
   INSERT INTO tmp_tips (tip_template_id, category_id, title, body,
                         potential_saving, rank_score)
   SELECT tt.id, v.category_id,
@@ -475,8 +357,6 @@ BEGIN
     AND v.period_month = p_period_month
     AND v.consumed_pct >= v_exceed_pct;
 
-  -- Rule 2 — approaching the limit. The band is [near, exceeded): the same split
-  -- sp_check_budget_alerts uses, so a tip and an alert always agree.
   INSERT INTO tmp_tips (tip_template_id, category_id, title, body,
                         potential_saving, rank_score)
   SELECT tt.id, v.category_id,
@@ -493,7 +373,6 @@ BEGIN
     AND v.consumed_pct >= v_near_pct
     AND v.consumed_pct <  v_exceed_pct;
 
-  -- Rule 3 — category rising abnormally against this student's own habits (BR-15)
   INSERT INTO tmp_tips (tip_template_id, category_id, title, body,
                         potential_saving, rank_score)
   SELECT tt.id, s.category_id,
@@ -511,7 +390,6 @@ BEGIN
     AND s.baseline_avg_spend > 0
     AND s.pct_change >= v_spike_pct;
 
-  -- Rule 4 — a category with heavy spending but no budget set
   INSERT INTO tmp_tips (tip_template_id, category_id, title, body,
                         potential_saving, rank_score)
   SELECT tt.id, t.category_id,
@@ -533,7 +411,6 @@ BEGIN
   ORDER BY t.total_amount DESC
   LIMIT 2;
 
-  -- Rule 5 — the savings goal is at risk of being missed (VĐ-04)
   IF v_goal > 0 AND v_net < v_goal THEN
     INSERT INTO tmp_tips (tip_template_id, category_id, title, body,
                           potential_saving, rank_score)
@@ -548,7 +425,6 @@ BEGIN
     WHERE tt.code = 'SAVINGS_GOAL_AT_RISK' AND tt.is_active = 1;
   END IF;
 
-  -- Rule 6 — a new student with too little data to analyse (UC-18 A1)
   SELECT COUNT(*) INTO v_rows
     FROM v_category_month_totals
    WHERE user_id = p_user_id AND period_month = p_period_month;
@@ -563,7 +439,6 @@ BEGIN
     WHERE tt.code = 'GENERIC' AND tt.is_active = 1;
   END IF;
 
-  -- BR-14: keep only the top N tips by potential saving
   INSERT IGNORE INTO user_tips
     (user_id, tip_template_id, period_month, category_id, title, body,
      potential_saving, rank_score, state, generated_at)
@@ -582,20 +457,6 @@ BEGIN
   DROP TEMPORARY TABLE IF EXISTS tmp_tips;
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_generate_monthly_insight — UC-17, BR-13, BR-15
---
--- The data layer aggregates the figures, flags unusual categories and produces a
--- rule-based fallback summary. The application layer then calls the AI service,
--- updates summary_text / advice_text and switches generated_by to 'AI'.
--- VĐ-12: only aggregates leave the system — never an email address or a name.
---
--- If the insight was generated by AI, a re-run does NOT overwrite the text.
---
--- summary_text / advice_text are stored user-visible content, so they are
--- written in English.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_generate_monthly_insight $$
 CREATE PROCEDURE sp_generate_monthly_insight(
   IN p_user_id      BIGINT UNSIGNED,
@@ -687,19 +548,6 @@ BEGIN
     generated_at       = NOW();
 END $$
 
-
--- ============================================================================
---  GROUP D — RECURRING TRANSACTIONS (BR-16, UC-09)
--- ============================================================================
-
--- ---------------------------------------------------------------------------
--- sp_post_recurring_transactions — the scheduler calls this once a day.
---
--- A1 (catch-up after downtime): the WHILE loop walks over EVERY missing period.
--- INSERT IGNORE into recurring_occurrences relies on
--- UNIQUE(rule_id, period_key), so no matter how often it runs, each period
--- produces exactly one transaction — that is BR-16.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_post_recurring_transactions $$
 CREATE PROCEDURE sp_post_recurring_transactions(IN p_as_of DATE)
 BEGIN
@@ -708,11 +556,7 @@ BEGIN
   DECLARE v_user_id     BIGINT UNSIGNED;
   DECLARE v_category_id BIGINT UNSIGNED;
   DECLARE v_amount      DECIMAL(15,2);
-  -- Sized to the COLUMN, not to the plaintext. Since recurring_rules.description holds a Base64
-  -- AES-256-GCM envelope (up to 2048 characters for a 255-character note), the old VARCHAR(255)
-  -- truncated on the first fetch and every run failed with "Data too long for column 'v_desc'".
-  -- The envelope is copied through unchanged: a procedure cannot decrypt, and must not, because
-  -- that would require the key inside MySQL.
+
   DECLARE v_desc        VARCHAR(2048);
   DECLARE v_freq        VARCHAR(12);
   DECLARE v_interval    INT;
@@ -723,10 +567,6 @@ BEGIN
   DECLARE v_guard       INT DEFAULT 0;
   DECLARE v_as_of       DATE;
 
-  -- The c.is_active = 1 condition is a design decision (not found in the SRS or
-  -- the Use Case document): it stops the scheduler from dying mid-loop when a
-  -- category is disabled after the rule was created. The rule stays ACTIVE but
-  -- posts nothing until the category is enabled again.
   DECLARE cur CURSOR FOR
     SELECT r.id, r.user_id, r.category_id, r.amount, r.description,
            r.frequency, r.interval_count, r.next_run_date, r.end_date
@@ -747,8 +587,7 @@ BEGIN
     IF v_done = 1 THEN LEAVE read_loop; END IF;
 
     SET v_guard = 0;
-    -- Safety stop after 500 periods so a misconfigured template cannot hang the
-    -- whole system.
+
     WHILE v_next <= v_as_of
           AND (v_end IS NULL OR v_next <= v_end)
           AND v_guard < 500 DO
@@ -767,10 +606,8 @@ BEGIN
         (rule_id, period_key, scheduled_date, status)
       VALUES (v_rule_id, v_period_key, v_next, 'POSTED');
 
-      -- ROW_COUNT() = 0 means this period was already posted: skip it and only
-      -- advance the date.
       IF ROW_COUNT() > 0 THEN
-        -- No `type` is passed: the transaction type is the category type (BR-05).
+
         INSERT INTO transactions
           (user_id, category_id, amount, description, txn_date,
            source, recurring_rule_id)
@@ -806,34 +643,6 @@ BEGIN
   CLOSE cur;
 END $$
 
-
--- ============================================================================
---  GROUP E — CSV IMPORT (UC-11)
--- ============================================================================
-
--- ---------------------------------------------------------------------------
--- sp_apply_csv_batch — UC-11 B9: imports only the rows currently in state VALID.
--- Error rows stay in import_rows so the report can still show them.
---
--- Every row has its own block with an EXIT HANDLER, so one bad row cannot break
--- the whole batch.
---
--- Two design points that matter:
---
---  * The owner of a row is ALWAYS read from import_batches.user_id. import_rows
---    has no user_id column of its own — a second copy of the owner could
---    disagree with the batch and nothing would keep the two in step.
---
---  * The category the student chose (or overrode) during the preview step is
---    stored in import_rows.resolved_category_id and is used AS-IS. The name from
---    the CSV file is only resolved when resolved_category_id IS NULL. Without
---    this, confirming the import would silently throw away the student's
---    correction and re-apply the machine's first guess.
---
---    The two cases are therefore deliberately asymmetric: a NULL choice is
---    resolved from the name, while a choice that has since become unusable is
---    reported as an ERROR row rather than quietly replaced.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_apply_csv_batch $$
 CREATE PROCEDURE sp_apply_csv_batch(IN p_batch_id BIGINT UNSIGNED)
 BEGIN
@@ -884,32 +693,6 @@ BEGIN
     SET v_cat_ok = NULL;
     SET v_choice_bad = 0;
 
-    -- Case A — the student made a final choice during the preview
-    -- (resolved_category_id IS NOT NULL). That choice is authoritative and is
-    -- never re-derived from the file's category name.
-    --
-    -- It must still be usable at commit time: it has to exist, be active, and be
-    -- a default category or one owned by this student. The foreign key is
-    -- ON DELETE SET NULL, so a category deleted since the preview has already
-    -- become NULL and lands in case B; this check also covers a category disabled
-    -- between preview and commit, or a tampered preview payload.
-    --
-    -- If the choice no longer qualifies the row becomes an ERROR. Silently
-    -- resolving the name instead would import the row under a category the
-    -- student explicitly did not pick — the failure this guards against.
-    --
-    -- Note that the type from the file is deliberately NOT compared here. The
-    -- student overrode the category on the preview screen, and correcting the
-    -- category is exactly how they correct a wrong type: the transaction's type
-    -- is whatever their chosen category says (BR-05). Requiring a match would
-    -- silently undo their correction.
-    -- These lookups use scalar subqueries assigned with SET rather than
-    -- SELECT ... INTO. A SELECT ... INTO that matches no row raises the same
-    -- NOT FOUND condition as an exhausted cursor, which this procedure's
-    -- handler translates into "cursor finished" — that would end the loop at
-    -- the first row whose category could not be resolved, silently skipping
-    -- every row after it. A scalar subquery yields NULL instead and leaves the
-    -- handler untouched.
     IF v_r_cat_id IS NOT NULL THEN
       SET v_cat_ok = (SELECT id FROM categories
                        WHERE id = v_r_cat_id
@@ -921,9 +704,6 @@ BEGIN
       END IF;
     END IF;
 
-    -- Case B — no preview choice: resolve from the file's category name,
-    -- preferring a personal category, then a default one (UC-11 B6). This whole
-    -- chain is skipped when the student's choice turned out to be unusable.
     IF v_r_cat_id IS NULL AND v_choice_bad = 0 AND v_r_cat_name IS NOT NULL THEN
       SET v_r_cat_id = (SELECT id FROM categories
                          WHERE type = v_r_type
@@ -934,8 +714,6 @@ BEGIN
                          LIMIT 1);
     END IF;
 
-    -- Still nothing: fall back to the default category for the type.
-    -- BR-13: the system only suggests; the student can correct it after import.
     IF v_r_cat_id IS NULL AND v_choice_bad = 0 THEN
       SET v_r_cat_id = (SELECT id FROM categories
                          WHERE user_id IS NULL
@@ -967,8 +745,6 @@ BEGIN
           SET v_errors = v_errors + 1;
         END;
 
-        -- No `type` is passed: the transaction type is the category type (BR-05).
-        -- The row owner comes from the batch, never from the row.
         INSERT INTO transactions
           (user_id, category_id, amount, description, txn_date,
            source, import_batch_id)
@@ -991,14 +767,6 @@ BEGIN
 
   SELECT COUNT(*) INTO v_total FROM import_rows WHERE batch_id = p_batch_id;
 
-  -- The three counters below are read from the rows rather than derived from the walk
-  -- above, and that is a correction rather than a style choice. The cursor only ever
-  -- visits rows that were already 'VALID', so a row the preview had refused (a typo in
-  -- the amount, an unreadable date) is never seen by this procedure at all - and
-  -- deriving the duplicate count by subtraction reported every such row as "you already
-  -- recorded this". Counting each state directly also makes the preview's own counter
-  -- refresh and this commit agree by construction: there is one definition per counter
-  -- and both paths use it.
   SELECT COUNT(*) INTO v_imported FROM import_rows
    WHERE batch_id = p_batch_id AND row_status = 'IMPORTED';
   SELECT COUNT(*) INTO v_errors FROM import_rows
@@ -1017,15 +785,6 @@ BEGIN
    WHERE id = p_batch_id;
 END $$
 
-
--- ============================================================================
---  GROUP F — ACCOUNTS, PASSWORDS, ADMINISTRATION (BR-01..BR-04, UC-03, UC-22)
--- ============================================================================
-
--- ---------------------------------------------------------------------------
--- sp_create_password_reset_token — BR-04: single-use token, TTL from settings.
--- A new request invalidates every older unused token of the same account.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_create_password_reset_token $$
 CREATE PROCEDURE sp_create_password_reset_token(
   IN p_user_id    BIGINT UNSIGNED,
@@ -1045,15 +804,6 @@ BEGIN
   VALUES (p_user_id, p_token_hash, p_ip, DATE_ADD(NOW(), INTERVAL v_ttl MINUTE));
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_verify_password_reset_token — UC-03 B5: the token must exist, be unused and
--- not expired. Returns NULL when it is not valid.
---
--- This is a read-only pre-check used to decide whether the "choose a new
--- password" screen may open. It does NOT consume the token: consumption happens
--- atomically in sp_complete_password_reset.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_verify_password_reset_token $$
 CREATE PROCEDURE sp_verify_password_reset_token(
   IN  p_token_hash CHAR(64),
@@ -1069,22 +819,6 @@ BEGIN
    LIMIT 1;
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_complete_password_reset — BR-04 + the BA note on UC-03: once the password
--- has been reset, EVERY open session of that account is revoked.
---
--- Atomicity: validation and consumption are ONE statement. The UPDATE both
--- proves the token is usable and marks it used, so two requests arriving at the
--- same moment cannot both pass. InnoDB takes a row lock on the matching row: the
--- second caller blocks until the first commits, then re-evaluates its WHERE
--- against the new row version, sees used_at IS NOT NULL, matches nothing, and
--- ROW_COUNT() = 0 gets it refused.
---
--- The caller (the service layer) should run the whole password-reset flow inside
--- a single transaction: if a later step fails, the rollback also restores the
--- token, so a token is never burned by a reset that did not happen.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_complete_password_reset $$
 CREATE PROCEDURE sp_complete_password_reset(
   IN  p_token_hash        CHAR(64),
@@ -1094,7 +828,6 @@ CREATE PROCEDURE sp_complete_password_reset(
 BEGIN
   DECLARE v_uid BIGINT UNSIGNED DEFAULT NULL;
 
-  -- Consume and validate in one atomic step.
   UPDATE password_reset_tokens
      SET used_at = NOW()
    WHERE token_hash = p_token_hash
@@ -1106,7 +839,6 @@ BEGIN
       SET MESSAGE_TEXT = 'BR-04: reset token is invalid, already used, or expired';
   END IF;
 
-  -- token_hash is UNIQUE, so this reads back exactly the row just consumed.
   SELECT user_id INTO v_uid FROM password_reset_tokens WHERE token_hash = p_token_hash;
 
   UPDATE users
@@ -1121,11 +853,6 @@ BEGIN
   SET p_user_id = v_uid;
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_set_user_status — UC-22 B3/B5 + A1, BR-03. Administrators only.
--- Disabling an account revokes every open session and invalidates old JWTs.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_set_user_status $$
 CREATE PROCEDURE sp_set_user_status(
   IN p_target_user_id BIGINT UNSIGNED,
@@ -1170,11 +897,6 @@ BEGIN
      p_ip);
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_admin_send_password_reset — UC-22 B4.
--- VĐ-06: an administrator only SENDS a reset link; user data is never deleted.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_admin_send_password_reset $$
 CREATE PROCEDURE sp_admin_send_password_reset(
   IN p_target_user_id BIGINT UNSIGNED,
@@ -1194,32 +916,10 @@ BEGIN
      JSON_OBJECT('channel', 'email'), p_ip);
 END $$
 
-
--- ---------------------------------------------------------------------------
---  ADMINISTRATOR PROCEDURES — DEFAULT CATEGORIES, ANNOUNCEMENTS, TIP TEMPLATES,
---  SYSTEM SETTINGS
---
---  These cover the administration operations the SRS / Use Case documents ask
---  for: UC-20 (default categories), UC-21 (system announcements and tip
---  templates) and VĐ-05 (adjustable business thresholds). Every procedure takes
---  `p_actor_id`, calls sp_require_admin() to look the account up in `users`, and
---  only then writes data and appends a row to admin_audit_log.
---
---  sp_require_admin() is the SINGLE authorisation gate (see its definition
---  above). There is deliberately no session-variable shortcut: a MySQL user
---  variable lives on a CONNECTION, and a connection pool reuses connections
---  across requests, so a flag left behind by one call could authorise the next.
--- ---------------------------------------------------------------------------
-
--- ---------------------------------------------------------------------------
--- sp_admin_upsert_default_category — UC-20, BR-06: create or edit a default
--- category. Pass p_category_id = NULL to INSERT; pass an id to UPDATE.
--- A default category is one with user_id IS NULL.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_admin_upsert_default_category $$
 CREATE PROCEDURE sp_admin_upsert_default_category(
   IN p_actor_id      BIGINT UNSIGNED,
-  IN p_category_id   BIGINT UNSIGNED,   -- NULL = insert
+  IN p_category_id   BIGINT UNSIGNED,
   IN p_name          VARCHAR(80),
   IN p_type          VARCHAR(10),
   IN p_icon          VARCHAR(50),
@@ -1234,8 +934,6 @@ BEGIN
   DECLARE v_old_name    VARCHAR(80) DEFAULT NULL;
   DECLARE v_old_active  TINYINT     DEFAULT NULL;
 
-  -- BR-06: the only way in. No default category belongs to an individual, so
-  -- the account making the change must be an active administrator.
   CALL sp_require_admin(p_actor_id);
 
   IF p_category_id IS NULL THEN
@@ -1280,10 +978,6 @@ BEGIN
      p_ip);
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_admin_create_announcement — UC-21 B1/B2: publish a system-wide announcement.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_admin_create_announcement $$
 CREATE PROCEDURE sp_admin_create_announcement(
   IN p_actor_id  BIGINT UNSIGNED,
@@ -1321,10 +1015,6 @@ BEGIN
      p_ip);
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_admin_set_announcement_active — UC-21: enable or disable an announcement.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_admin_set_announcement_active $$
 CREATE PROCEDURE sp_admin_set_announcement_active(
   IN p_actor_id    BIGINT UNSIGNED,
@@ -1356,17 +1046,10 @@ BEGIN
      JSON_OBJECT('title', v_title, 'isActive', p_is_active), p_ip);
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_admin_upsert_tip_template — UC-21 B3/B4: create or edit a saving-tip
--- template. This is the administrator "edit template content" action — it is not
--- part of the automatic tip generation flow of sp_generate_tips, so it is a
--- separate procedure with its own permission check.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_admin_upsert_tip_template $$
 CREATE PROCEDURE sp_admin_upsert_tip_template(
   IN p_actor_id         BIGINT UNSIGNED,
-  IN p_template_id      BIGINT UNSIGNED,   -- NULL = insert
+  IN p_template_id      BIGINT UNSIGNED,
   IN p_code             VARCHAR(50),
   IN p_condition_type   VARCHAR(20),
   IN p_title_template   VARCHAR(200),
@@ -1416,12 +1099,6 @@ BEGIN
      JSON_OBJECT('code', p_code, 'isActive', p_is_active), p_ip);
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_admin_set_threshold — VĐ-05, BR-12, BR-15: adjust a business threshold.
--- Only known threshold keys may be changed, so the settings table cannot be used
--- as a free-form write target. Values must be positive numbers in a sane range.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_admin_set_threshold $$
 CREATE PROCEDURE sp_admin_set_threshold(
   IN p_actor_id  BIGINT UNSIGNED,
@@ -1450,8 +1127,7 @@ BEGIN
   END IF;
 
   IF p_key = 'insight.spike_baseline_months' THEN
-    -- The three-month window is BR-15's convention; 1..12 is allowed so that
-    -- VĐ-05 still holds.
+
     SET v_num = CAST(p_value AS DECIMAL(10,4));
     IF v_num IS NULL OR v_num < 1 OR v_num > 12 OR v_num <> FLOOR(v_num) THEN
       SIGNAL SQLSTATE '45000'
@@ -1480,15 +1156,6 @@ BEGIN
      JSON_OBJECT('key', p_key, 'oldValue', v_old, 'newValue', p_value), p_ip);
 END $$
 
-
--- ============================================================================
---  GROUP G — TRANSACTIONS: SOFT DELETE, RECENT ACTIVITY, NOTIFICATIONS
--- ============================================================================
-
--- ---------------------------------------------------------------------------
--- sp_soft_delete_transaction — BR-09 + BR-02: only one's own transaction can be
--- deleted. The row is NOT removed; it is only flagged so every report skips it.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_soft_delete_transaction $$
 CREATE PROCEDURE sp_soft_delete_transaction(
   IN p_txn_id  BIGINT UNSIGNED,
@@ -1515,11 +1182,6 @@ BEGIN
   UPDATE transactions SET is_deleted = 1, deleted_at = NOW() WHERE id = p_txn_id;
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_restore_transaction — UC-10 A1: restore a soft-deleted transaction.
--- BR-09: the earlier history is kept as it is; a RESTORE row is appended.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_restore_transaction $$
 CREATE PROCEDURE sp_restore_transaction(
   IN p_txn_id  BIGINT UNSIGNED,
@@ -1540,17 +1202,6 @@ BEGIN
   UPDATE transactions SET is_deleted = 0, deleted_at = NULL WHERE id = p_txn_id;
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_touch_recent_activity — UC-26: record or refresh the "recently viewed /
--- recently edited" marker. Each (student, transaction, action) triple keeps one
--- row; a later call only moves the timestamp.
---
--- The transaction must belong to the student. The foreign key on transaction_id
--- only proves the row exists, not who owns it, so without this check a student
--- could create recent-activity rows that point at somebody else's transaction —
--- and the recent-activity list would then expose that transaction.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_touch_recent_activity $$
 CREATE PROCEDURE sp_touch_recent_activity(
   IN p_user_id BIGINT UNSIGNED,
@@ -1578,32 +1229,6 @@ BEGIN
   ON DUPLICATE KEY UPDATE occurred_at = NOW();
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_flag_transaction — UC-24: set or clear the anomaly flag on one of the
--- student's OWN transactions.
---
--- The three flag columns (is_flagged, flag_type, flag_note) have existed since
--- the schema was written, together with ix_txn_flagged and the two
--- `anomaly.*` settings, but no procedure or view read or wrote them: UC-24 is
--- module 12 and until now it was not built. This procedure is that write path,
--- and it is a procedure rather than an UPDATE issued by the application for the
--- same reason sp_touch_recent_activity is: the ownership check belongs in the
--- database. `fk_txn_user` proves the row exists, not whose it is, so without the
--- check below one student could flag another student's record.
---
--- It is NOT reachable from the API as a client-supplied flag. The API only ever
--- passes a value its own detector computed - see the note on the endpoint.
---
--- `p_flag_type = 'NONE'` is the clearing form: it sets is_flagged = 0 and the
--- note to NULL, so "not flagged" has exactly one representation and a stale note
--- cannot survive an unflag.
---
--- The UPDATE fires trg_transactions_after_update, which appends a history row
--- when - and only when - one of the three columns actually changed (BR-09). A
--- rescan that reaches the same conclusion therefore writes nothing at all, and
--- one that flips a flag leaves a record of the system's own decision.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_flag_transaction $$
 CREATE PROCEDURE sp_flag_transaction(
   IN p_txn_id    BIGINT UNSIGNED,
@@ -1634,9 +1259,6 @@ BEGIN
    WHERE id = p_txn_id;
 END $$
 
--- ---------------------------------------------------------------------------
--- sp_mark_notification_read — UC-14 B4: only one's own notification can be marked
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_mark_notification_read $$
 CREATE PROCEDURE sp_mark_notification_read(
   IN p_notification_id BIGINT UNSIGNED,
@@ -1650,12 +1272,6 @@ BEGIN
      AND is_read = 0;
 END $$
 
-
--- ---------------------------------------------------------------------------
--- sp_seed_dim_month — fills the month dimension over [p_from, p_to].
--- Required so BR-17 always returns six rows, even for months with no
--- transactions at all.
--- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_seed_dim_month $$
 CREATE PROCEDURE sp_seed_dim_month(IN p_from DATE, IN p_to DATE)
 BEGIN

@@ -20,9 +20,8 @@ import { ToastContainerComponent } from './shared/components/toast/toast-contain
   `]
 })
 export class AppComponent {
-  // Inject ThemeService on bootstrap to initialize dark mode and font preferences
+
   private theme = inject(ThemeService);
 }
 
-// Alias export for backward compatibility with Angular CLI main.ts
 export { AppComponent as App };

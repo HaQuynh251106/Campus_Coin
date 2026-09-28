@@ -12,34 +12,7 @@ import org.springframework.http.ResponseEntity;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-/**
- * UC-25 — a student's projected next month, end to end over HTTP.
- *
- * <p>Everything here runs against a real MySQL with the project's own views loaded, because the figures
- * under test are not computed in the Java alone: the month totals are
- * {@code v_monthly_income_expense}'s, its live-only filter is what a trashed record tests, and the
- * month the baseline stops at is the application's clock in the configured zone (VĐ-10). A mocked
- * view would let every arithmetic assertion here pass while the query said something else.
- *
- * <p>What this class is trying to break:
- *
- * <ul>
- *   <li>that the projection includes the month in progress, which would make it depend on the day it
- *       was asked and fall as the month went on;</li>
- *   <li>that the window is unbounded, so a student with years of history is projected from all of it
- *       rather than from their recent months;</li>
- *   <li>that a month with no record is read as a month of zeroes, which would drag every projection
- *       down;</li>
- *   <li>that "no history" is reported as "0.00 projected" instead of as the absence it is;</li>
- *   <li>that a student can see, or be projected from, another student's months;</li>
- *   <li>that the path is behind the student role rule and not the authenticated catch-all.</li>
- * </ul>
- */
 class ForecastApiIT extends AbstractForecastApiIT {
-
-    // ==================================================================
-    //  The projection
-    // ==================================================================
 
     @Test
     @DisplayName("Three complete months project their average, and the months are the evidence")
@@ -57,8 +30,7 @@ class ForecastApiIT extends AbstractForecastApiIT {
                 .isEqualByComparingTo("300.00");
         assertThat(response.get("projected").get("expense").decimalValue())
                 .isEqualByComparingTo("200.00");
-        // Savings is the net of the projections, not the average of the monthly nets: 300 - 200. The
-        // two differ whenever the months are uneven, so this pins which one is published.
+
         assertThat(response.get("projected").get("savings").decimalValue())
                 .isEqualByComparingTo("100.00");
 
@@ -75,8 +47,7 @@ class ForecastApiIT extends AbstractForecastApiIT {
 
         buildMonth(token, completeMonth(2), "300.00", "100.00");
         buildMonth(token, completeMonth(1), "300.00", "100.00");
-        // A large expense this month. If it entered the baseline it would move the projection, so the
-        // assertion below is what proves the exclusion rather than merely restating it.
+
         expenseIn(token, currentMonth(), "900.00");
         incomeIn(token, currentMonth(), "50.00");
 
@@ -90,7 +61,6 @@ class ForecastApiIT extends AbstractForecastApiIT {
         assertThat(response.get("projected").get("income").decimalValue())
                 .isEqualByComparingTo("300.00");
 
-        // And the same figures are reported as the fact they are, under their own block.
         assertThat(response.get("currentMonthTotals").get("income").decimalValue())
                 .isEqualByComparingTo("50.00");
         assertThat(response.get("currentMonthTotals").get("expense").decimalValue())
@@ -120,9 +90,6 @@ class ForecastApiIT extends AbstractForecastApiIT {
     void theWindowIsCappedAtThreeMonths() throws Exception {
         String token = loginNewStudent();
 
-        // Four complete months, with expenses 10, 20, 30, 40 from oldest to newest. The three most
-        // recent average 30.00; all four would average 25.00. So the figure below distinguishes a
-        // bounded window that keeps the recent months from one that keeps the oldest or keeps all.
         buildMonth(token, completeMonth(4), "100.00", "10.00");
         buildMonth(token, completeMonth(3), "100.00", "20.00");
         buildMonth(token, completeMonth(2), "100.00", "30.00");
@@ -179,14 +146,9 @@ class ForecastApiIT extends AbstractForecastApiIT {
 
         JsonNode response = forecast(token);
 
-        // Floored at zero this would read as "you will break even", which is the opposite of the answer.
         assertThat(response.get("projected").get("savings").decimalValue())
                 .isEqualByComparingTo("-200.00");
     }
-
-    // ==================================================================
-    //  Absence is meaningful
-    // ==================================================================
 
     @Test
     @DisplayName("A student with no history has no projection at all, and no current month either")
@@ -195,16 +157,12 @@ class ForecastApiIT extends AbstractForecastApiIT {
 
         JsonNode response = forecast(token);
 
-        // The field set is asserted literally, so the two absent blocks are provably absent rather than
-        // present-and-null: `currentMonthTotals` and `projected` are not in the response at all.
         assertThat(fieldNamesOf(response)).containsExactlyElementsOf(List.of(
                 "nextMonth", "currentMonth", "basedOnMonths", "recentMonths"));
 
         assertThat(response.get("basedOnMonths").asInt()).isZero();
         assertThat(response.get("recentMonths")).isEmpty();
-        // `get` answers Java null for a field the response does not carry at all, which is exactly the
-        // shape being asserted: not `"projected": null` and not `"projected": {income: 0.00, ...}`, but
-        // no `projected` key. A block of zeroes would read as a confident prediction of no spending.
+
         assertThat(response.get("projected"))
                 .as("'no projection' must not be reported as '0.00 projected'")
                 .isNull();
@@ -217,9 +175,6 @@ class ForecastApiIT extends AbstractForecastApiIT {
         expenseIn(token, currentMonth(), "42.00");
         incomeIn(token, currentMonth(), "100.00");
 
-        // A record dated today lands in the month in progress, which is not a complete month - so this
-        // student has figures to report and nothing to project from. The two absences are independent,
-        // and this is the case that shows it.
         JsonNode response = forecast(token);
 
         assertThat(response.get("currentMonthTotals").get("expense").decimalValue())
@@ -234,9 +189,6 @@ class ForecastApiIT extends AbstractForecastApiIT {
     void aGapMonthIsAbsentRatherThanZero() throws Exception {
         String token = loginNewStudent();
 
-        // Months 3 and 1 hold records; month 2 holds none. The view emits no row for month 2, so the
-        // projection averages the two months that exist. Treating the gap as a zero month would halve
-        // the expense to 100.00, so the figure below is what pins the reading.
         buildMonth(token, completeMonth(3), "300.00", "100.00");
         buildMonth(token, completeMonth(1), "300.00", "300.00");
 
@@ -249,10 +201,6 @@ class ForecastApiIT extends AbstractForecastApiIT {
                 .containsExactly(MONTH.format(completeMonth(3)), MONTH.format(completeMonth(1)));
     }
 
-    // ==================================================================
-    //  The month labels
-    // ==================================================================
-
     @Test
     @DisplayName("The months come from the server's clock, and nextMonth follows currentMonth")
     void monthLabelsComeFromTheServer() throws Exception {
@@ -263,7 +211,7 @@ class ForecastApiIT extends AbstractForecastApiIT {
         assertThat(response.get("currentMonth").asText()).isEqualTo(MONTH.format(currentMonth()));
         assertThat(response.get("nextMonth").asText())
                 .isEqualTo(MONTH.format(currentMonth().plusMonths(1)));
-        // End to end that the two are consecutive, which a hard-coded pair could not be.
+
         assertThat(LocalDate.parse(response.get("nextMonth").asText() + "-01"))
                 .isEqualTo(LocalDate.parse(response.get("currentMonth").asText() + "-01").plusMonths(1));
     }
@@ -274,9 +222,6 @@ class ForecastApiIT extends AbstractForecastApiIT {
         String token = loginNewStudent();
         buildMonth(token, completeMonth(1), "300.00", "100.00");
 
-        // A `month` query parameter is not part of the contract: it is ignored rather than honoured, so
-        // the response still describes the server's own current month. This is the assertion that fails
-        // if the endpoint ever grows a parameter the feature was not meant to expose.
         ResponseEntity<String> response = send(org.springframework.http.HttpMethod.GET,
                 FORECAST_URL + "?month=2020-01&months=99", token, null);
 
@@ -286,10 +231,6 @@ class ForecastApiIT extends AbstractForecastApiIT {
         assertThat(body.get("nextMonth").asText()).isEqualTo(MONTH.format(currentMonth().plusMonths(1)));
         assertThat(body.get("basedOnMonths").asInt()).isEqualTo(1);
     }
-
-    // ==================================================================
-    //  Ownership: BR-02
-    // ==================================================================
 
     @Test
     @DisplayName("The forecast is built from the caller's own months and nobody else's")
@@ -308,7 +249,6 @@ class ForecastApiIT extends AbstractForecastApiIT {
         assertThat(recentMonthLabelsOf(a)).containsExactly(MONTH.format(completeMonth(1)));
         assertThat(recentMonthLabelsOf(b)).containsExactly(MONTH.format(completeMonth(1)));
 
-        // Neither response names its owner, and neither can be made to describe the other student.
         assertThat(a.has("userId")).isFalse();
         assertThat(fieldNamesOf(a)).doesNotContain("email", "userId", "owner");
     }
@@ -325,8 +265,6 @@ class ForecastApiIT extends AbstractForecastApiIT {
         assertThat(forecast(token).get("projected").get("expense").decimalValue())
                 .isEqualByComparingTo("600.00");
 
-        // The view sums live records only (is_deleted = 0), which is why this needs no repair step: the
-        // trashed expense simply stops being part of the month.
         assertThat(send(org.springframework.http.HttpMethod.DELETE,
                 TRANSACTIONS_URL + "/" + extra, token, null).getStatusCode())
                 .isEqualTo(HttpStatus.NO_CONTENT);
@@ -353,19 +291,12 @@ class ForecastApiIT extends AbstractForecastApiIT {
                     .isEqualTo(HttpStatus.NO_CONTENT);
         }
 
-        // With both records trashed the view has no row for that month, so the window is one month and
-        // the projection follows the month that is left. A zero-filled month would keep the count at 2
-        // and halve the expense.
         JsonNode response = forecast(token);
         assertThat(response.get("basedOnMonths").asInt()).isEqualTo(1);
         assertThat(recentMonthLabelsOf(response)).containsExactly(MONTH.format(completeMonth(1)));
         assertThat(response.get("projected").get("expense").decimalValue())
                 .isEqualByComparingTo("300.00");
     }
-
-    // ==================================================================
-    //  The contract
-    // ==================================================================
 
     @Test
     @DisplayName("Every present block carries exactly its documented fields, and no owner")
@@ -396,9 +327,6 @@ class ForecastApiIT extends AbstractForecastApiIT {
 
         JsonNode response = forecast(token);
 
-        // The two are carried separately rather than derived, so this is the assertion that stops them
-        // disagreeing: a client showing "based on 3 months" beside a two-month list would be a lie, and
-        // a thin estimate is supposed to be visible rather than hidden.
         assertThat(response.get("basedOnMonths").asInt())
                 .isEqualTo(response.get("recentMonths").size());
     }
@@ -411,17 +339,10 @@ class ForecastApiIT extends AbstractForecastApiIT {
 
         JsonNode response = forecast(token);
 
-        // A student with seeded history: whatever the seed contains, the response must be built from it
-        // and only from it. Reading the count from the view rather than hard-coding it keeps this test
-        // from breaking when the seed changes, while still proving the response was built from the rows.
         int monthsUpToWindow = Math.min(monthCountOf(userId), WINDOW_MONTHS);
         assertThat(response.get("basedOnMonths").asInt()).isEqualTo(monthsUpToWindow);
         assertThat(response.get("recentMonths")).hasSize(monthsUpToWindow);
     }
-
-    // ==================================================================
-    //  Security (section 7.5)
-    // ==================================================================
 
     @Test
     @DisplayName("Section 7.5: no token is 401, and an administrator token is 403")
@@ -432,9 +353,6 @@ class ForecastApiIT extends AbstractForecastApiIT {
         assertThat(anonymous.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(errorCodeOf(anonymous)).isEqualTo("UNAUTHENTICATED");
 
-        // The path matches none of the student prefixes, so without its own rule it would fall to
-        // /api/** - which admits any authenticated account. This is the assertion that fails if that
-        // rule is ever dropped, and it is why the rule exists.
         ResponseEntity<String> asAdmin = forecastResponse(adminToken);
         assertThat(asAdmin.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(errorCodeOf(asAdmin)).isEqualTo("ACCESS_DENIED");

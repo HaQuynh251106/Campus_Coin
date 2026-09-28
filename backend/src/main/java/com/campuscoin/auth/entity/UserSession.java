@@ -11,21 +11,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-/**
- * A row of {@code user_sessions}.
- *
- * <p>This is the "secure session" of UC-02 B3. The database does not create or revoke sessions
- * for this flow - no stored procedure writes to this table - so issuing a session on sign-in and
- * revoking it on sign-out is the application's job.
- *
- * <p>Only the SHA-256 hash of the JWT is stored, never the token itself, and the table's
- * {@code uk_sessions_token} unique key makes the hash the lookup key. A stolen database
- * therefore yields no usable token.
- *
- * <p>{@code refresh_token_hash} is deliberately NOT mapped. UC-02 and UC-03 define no token
- * refresh flow, and the agreed endpoint list excludes one, so the column stays NULL. Mapping a
- * field nothing reads or writes would imply a feature that does not exist.
- */
 @Entity
 @Table(name = "user_sessions")
 public class UserSession {
@@ -38,7 +23,6 @@ public class UserSession {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    /** {@code CHAR(64) ascii_bin}: the column definition mirrors the schema for validation. */
     @Column(name = "session_token_hash", nullable = false,
             columnDefinition = "char(64) character set ascii collate ascii_bin")
     private String sessionTokenHash;
@@ -67,19 +51,9 @@ public class UserSession {
     private RevokedReason revokedReason;
 
     protected UserSession() {
-        // Required by JPA.
+
     }
 
-    /**
-     * Opens a session for a successful sign-in.
-     *
-     * @param userId           the account the session belongs to
-     * @param sessionTokenHash SHA-256 hex of the JWT that was just issued
-     * @param ipAddress        client address, truncated to the column's 45 characters
-     * @param userAgent        client user agent, truncated to the column's 255 characters
-     * @param issuedAt         session start, on the database clock
-     * @param expiresAt        session end, derived from {@code auth.session_ttl_minutes}
-     */
     public static UserSession open(Long userId, String sessionTokenHash, String ipAddress,
                                    String userAgent, LocalDateTime issuedAt, LocalDateTime expiresAt) {
         UserSession session = new UserSession();
@@ -93,7 +67,6 @@ public class UserSession {
         return session;
     }
 
-    /** True when the session is still usable: not revoked and not past its expiry. */
     public boolean isLive(LocalDateTime now) {
         return revokedAt == null && expiresAt != null && expiresAt.isAfter(now);
     }
@@ -103,7 +76,6 @@ public class UserSession {
         this.revokedReason = reason;
     }
 
-    /** The columns are VARCHAR with a fixed width; an over-long header would fail the insert. */
     private static String truncate(String value, int maxLength) {
         if (value == null) {
             return null;

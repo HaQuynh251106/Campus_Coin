@@ -164,7 +164,7 @@ export class RegisterComponent implements OnInit {
   }, { validators: passwordMatchValidator });
 
   ngOnInit(): void {
-    // Explicitly guarantee all fields in registration form start completely blank
+
     this.registerForm.reset({
       name: '',
       email: '',
@@ -180,8 +180,6 @@ export class RegisterComponent implements OnInit {
       return;
     }
 
-    // Same reasoning as the sign-in form: registering creates a different account, so a token the
-    // browser was still holding must not survive to be re-adopted on the next refresh.
     localStorage.removeItem('campus_coin_token');
     localStorage.removeItem('campus_coin_user');
 
@@ -196,13 +194,10 @@ export class RegisterComponent implements OnInit {
       confirmPassword: val.confirmPassword!
     }).subscribe({
       next: () => {
-        // Auto sign-in after successful registration
+
         this.auth.login(val.email!, val.password!).subscribe({
           next: () => {
-            // The year was chosen on this form but signup has no field for it, so it is written to
-            // the profile now that there is an account and a token to write it with. A failure here
-            // is not a failed signup — the student is signed in either way, and the year can be set
-            // on the profile screen.
+
             this.auth.updateProfile({ academicYear: val.academicYear! }).subscribe({
               next: () => this.finishSignup(),
               error: () => this.finishSignup()
@@ -218,8 +213,7 @@ export class RegisterComponent implements OnInit {
       error: (err) => {
         this.isLoading = false;
         this.errorMessage = err.error?.message || err.message || 'Registration failed. Check requirements (password min 8 chars with uppercase, lowercase and digit).';
-        // Zoneless: without this the duplicate-email / weak-password response leaves the form
-        // showing nothing — no message and a submit button stuck disabled.
+
         this.cdr.markForCheck();
       }
     });

@@ -6,17 +6,16 @@ import { AdminLayoutComponent } from './layouts/admin-layout/admin-layout.compon
 import { AuthLayoutComponent } from './layouts/auth-layout/auth-layout.component';
 
 export const routes: Routes = [
-  // 0. Public Guest Landing Page (Root Route for Unauthenticated Visitors)
+
   {
     path: '',
     pathMatch: 'full',
-    title: 'Campus Coin — Smart Spending, Student Style',
+    title: 'Campus Coin',
     canActivate: [guestGuard],
     loadComponent: () =>
       import('./features/landing/landing.component').then(m => m.LandingComponent)
   },
 
-  // Dedicated Public Sitemap Route (SRS Deliverable - Accessible to all)
   {
     path: 'sitemap',
     title: 'Sitemap — Campus Coin',
@@ -24,7 +23,6 @@ export const routes: Routes = [
       import('./features/sitemap/sitemap.component').then(m => m.SitemapComponent)
   },
 
-  // 1. Authentication Module
   {
     path: 'auth',
     component: AuthLayoutComponent,
@@ -65,7 +63,6 @@ export const routes: Routes = [
     redirectTo: 'auth/forgot-password'
   },
 
-  // 2. Student Portal Module (Responsive Nav Layout)
   {
     path: 'app',
     component: StudentLayoutComponent,
@@ -131,9 +128,6 @@ export const routes: Routes = [
           import('./features/profile/profile.component').then(m => m.ProfileComponent)
       },
 
-      // Module 12 (UC-08, UC-11, UC-17, UC-24, UC-25, UC-26). Each is its own lazy feature, so none
-      // of it is downloaded until the student opens it. They sit under `app`, so `authGuard` and the
-      // student layout apply exactly as they do to the existing screens.
       {
         path: 'imports',
         title: 'Import CSV — Campus Coin',
@@ -169,7 +163,6 @@ export const routes: Routes = [
     ]
   },
 
-  // 3. Admin Portal Module (Sidebar-Only Classic Dashboard Layout)
   {
     path: 'admin',
     component: AdminLayoutComponent,
@@ -201,7 +194,6 @@ export const routes: Routes = [
     ]
   },
 
-  // Fallback Wildcard
   {
     path: '**',
     redirectTo: ''

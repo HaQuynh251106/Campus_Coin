@@ -5,31 +5,12 @@ import { ChatbotService } from './chatbot.service';
 import { AuthService } from './auth.service';
 import { ChatResponse } from '../models/chat.model';
 
-/**
- * The assistant's client contract.
- *
- * Three properties are held here because each is easy to lose and expensive to lose:
- *
- * 1. **A reply is whatever the backend returned.** The service formats nothing and invents nothing.
- * 2. **A failure is a failure.** A failed request produces a flagged turn with a retry, never a
- *    sentence that could be read as the model's answer. The implementation this replaced answered
- *    from keyword matching with invented figures, and this is the test that would have caught it.
- * 3. **Ownership is not the client's to set.** No request carries a user id.
- */
 describe('ChatbotService', () => {
   let service: ChatbotService;
   let httpMock: HttpTestingController;
 
   const apiUrl = '/api/v1/chat';
 
-  /**
-   * A stand-in for the signed-in session.
-   *
-   * It answers the two things the service asks of `AuthService` — the bearer token and the account —
-   * and the tests can move it, so "the same student reopened the panel" and "a different student signed
-   * in on the same tab" are distinguishable. The service is root-scoped, so the second case is the one
-   * that matters: nothing is rebuilt between accounts except the panel.
-   */
   let session: { token: string | null; user: { id: string | number; name: string; role: string } | null };
 
   const signIn = (id: string | number, name: string): void => {
@@ -58,8 +39,7 @@ describe('ChatbotService', () => {
   afterEach(() => httpMock.verify());
 
   it('starts with an empty transcript and a greeting that is not a turn in it', () => {
-    // The greeting is the panel's empty state, not an assistant turn: nothing the application wrote
-    // may enter the transcript, because the transcript is what gets replayed to the model.
+
     expect(service.messages().length).toBe(0);
     expect(service.greetingText()).toContain('Alex');
   });
@@ -109,7 +89,6 @@ describe('ChatbotService', () => {
     const req = httpMock.expectOne(apiUrl);
     const body = req.request.body as { history: { role: string; text: string }[] };
 
-    // The first question and its reply — every turn from before this one, and no greeting.
     expect(body.history.length).toBe(2);
     expect(body.history[0].role).toBe('USER');
     expect(body.history[1].text).toBe('You spent 271.50.');
@@ -143,7 +122,7 @@ describe('ChatbotService', () => {
     expect(last.sender).toBe('assistant');
     expect(last.failed).toBe(true);
     expect(last.retryText).toBe('What is my balance?');
-    // The backend's own sentence, and nothing resembling a figure.
+
     expect(last.text).toBe("I couldn't reach the assistant just now.");
     expect(last.text).not.toMatch(/\d/);
     expect(service.isTyping()).toBe(false);
@@ -160,7 +139,6 @@ describe('ChatbotService', () => {
     const req = httpMock.expectOne(apiUrl);
     const body = req.request.body as { history: { text: string }[] };
 
-    // The error text is not replayed to the model as if it were a previous reply.
     expect(body.history.some(turn => turn.text === 'unavailable')).toBe(false);
     req.flush({ reply: 'ok', model: 'm', toolsUsed: [] } as ChatResponse);
   });
@@ -199,14 +177,8 @@ describe('ChatbotService', () => {
       { status: 500, statusText: 'Server Error' }
     );
 
-    // null, not false: one failed status call is not evidence that the assistant is unavailable.
     expect(service.availability()).toBeNull();
   });
-
-  // --- Identity of the transcript -----------------------------------------------------------------
-  //
-  // The service is root-scoped, so it outlives the panel. These four hold the property that matters
-  // after a sign-out: one account's conversation is never shown to, or replayed by, another.
 
   it('drops the transcript when a different account signs in on the same tab', () => {
     service.sendMessage('How much did I spend?');
@@ -222,7 +194,6 @@ describe('ChatbotService', () => {
     signIn(9, 'Bella Tran');
     service.syncToSignedInUser();
 
-    // The previous student's question and reply are gone, and the greeting is the new student's.
     expect(service.messages().length).toBe(0);
     expect(service.greetingText()).toContain('Bella');
   });
@@ -235,7 +206,6 @@ describe('ChatbotService', () => {
       toolsUsed: ['getFinancialSummary']
     } as ChatResponse);
 
-    // A different student signs in, and the panel is shown again.
     signOut();
     signIn(9, 'Bella Tran');
     service.syncToSignedInUser();
@@ -243,7 +213,6 @@ describe('ChatbotService', () => {
     service.sendMessage('What is my balance?');
     const body = httpMock.expectOne(apiUrl).request.body as { history: { text: string }[] };
 
-    // The first student's figures are not in the request the second student's question travels in.
     expect(body.history.some(turn => turn.text.includes('120.00'))).toBe(false);
     expect(body.history.length).toBe(0);
   });
@@ -256,7 +225,6 @@ describe('ChatbotService', () => {
       toolsUsed: []
     } as ChatResponse);
 
-    // A route change destroys and rebuilds the panel; the account has not changed.
     service.syncToSignedInUser();
 
     expect(service.messages().length).toBe(2);
@@ -276,8 +244,6 @@ describe('ChatbotService', () => {
     expect(service.messages().length).toBe(0);
   });
 
-  // --- Failure branches ---------------------------------------------------------------------------
-
   it('reports a 403 as a failed turn rather than an answer', () => {
     service.sendMessage('What is my balance?');
     httpMock.expectOne(apiUrl).flush(
@@ -289,7 +255,7 @@ describe('ChatbotService', () => {
     const last = messages[messages.length - 1];
     expect(last.failed).toBe(true);
     expect(last.retryText).toBe('What is my balance?');
-    // The backend's sentence; the service invents none of its own.
+
     expect(last.text).toBe('You do not have access to this resource.');
   });
 
@@ -314,7 +280,7 @@ describe('ChatbotService', () => {
     const last = messages[messages.length - 1];
     expect(last.failed).toBe(true);
     expect(last.retryText).toBe('What is my balance?');
-    // A connection failure yields no figure and no claim about the student's money.
+
     expect(last.text).not.toMatch(/\d/);
     expect(service.isTyping()).toBe(false);
   });
@@ -338,7 +304,7 @@ describe('ChatbotService', () => {
     const first = httpMock.expectOne(apiUrl);
 
     service.sendMessage('And my budget?');
-    // One request, not two: the panel cannot queue a second question behind an unanswered one.
+
     httpMock.expectNone(apiUrl);
 
     first.flush({ reply: 'ok', model: 'm', toolsUsed: [] } as ChatResponse);

@@ -20,24 +20,7 @@ import org.springframework.http.ResponseEntity;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-/**
- * UC-18 against the real API and a real MySQL 8.
- *
- * <p>What is asserted here is the behaviour a student would notice: they see their own tips and no
- * one else's, they can pin one and have it lead the list, they can dismiss one and never see it
- * again, reading does not generate anything, and generating twice does not undo a choice they made.
- * The rules that decide <em>which</em> tips exist are the database's and are not re-tested here - a
- * test that asserted a tip's text or saving would be asserting {@code fn_render_template} and the six
- * rules, which this module does not own and must not restate.
- *
- * <p>Every test registers its own student, so nothing depends on another test's rows and the seeded
- * student's tips - which the dashboard suite reads - are left untouched.
- */
 class TipsApiIT extends AbstractTipsApiIT {
-
-    // ==================================================================
-    //  Reading a month's tips
-    // ==================================================================
 
     @Test
     @DisplayName("UC-18: with no month named, the current month is answered and named in the response")
@@ -57,9 +40,6 @@ class TipsApiIT extends AbstractTipsApiIT {
 
         JsonNode response = tips(token, asMonth(monthBefore(thisMonth())));
 
-        // The month exists and the student has no advice for it. That is a fact about their own data
-        // rather than a missing resource, so it is a 200 with nothing in it - and a client rendering
-        // the empty state depends on the difference.
         assertThat(response.get("tips")).isEmpty();
         assertThat(response.get("periodMonth").asText()).isEqualTo(asMonth(monthBefore(thisMonth())));
     }
@@ -75,8 +55,6 @@ class TipsApiIT extends AbstractTipsApiIT {
         spendInCategoryWithoutBudget(token, transport, "40.00", lastMonth);
         assertThat(countOf("SELECT COUNT(*) FROM user_tips WHERE user_id = ?", userId)).isZero();
 
-        // The spending would produce a NO_BUDGET_SET tip if the generator ran. Reading must not run
-        // it: a student opening the screen cannot be the thing that changes what is on it.
         tips(token, asMonth(lastMonth));
 
         assertThat(countOf("SELECT COUNT(*) FROM user_tips WHERE user_id = ?", userId)).isZero();
@@ -99,9 +77,7 @@ class TipsApiIT extends AbstractTipsApiIT {
         assertThat(fieldNamesOf(tip))
                 .as("a tip must publish exactly the documented fields")
                 .containsExactlyInAnyOrderElementsOf(DOCUMENTED_TIP_FIELDS);
-        // The text is the database's, rendered from the template, so it names the category the
-        // student actually spent in and carries the amount. Asserting the words would be asserting
-        // the template; asserting that it is not blank and not a placeholder proves it was rendered.
+
         assertThat(tip.get("title").asText()).isNotBlank().contains(TRANSPORT);
         assertThat(tip.get("body").asText()).isNotBlank().contains("40.00");
         assertThat(tip.get("state").asText()).isEqualTo("NEW");
@@ -120,7 +96,7 @@ class TipsApiIT extends AbstractTipsApiIT {
                     .as("month=%s body=%s", bad, response.getBody())
                     .isEqualTo(HttpStatus.BAD_REQUEST);
             assertThat(errorCodeOf(response)).isEqualTo("VALIDATION_ERROR");
-            // The refusal names the parameter, so a client can attach the message to the input.
+
             assertThat(body(response).get("fieldErrors").get(0).get("field").asText())
                     .isEqualTo("month");
         }
@@ -137,21 +113,15 @@ class TipsApiIT extends AbstractTipsApiIT {
 
         JsonNode before = body(generateTipsViaApi(token));
         assertThat(tipIdsOf(before).size()).as("two unbudgeted categories produce two tips").isEqualTo(2);
-        // The generated order is the database's ranking, highest potential saving first.
+
         List<Long> generatedOrder = tipIdsOf(before);
         Long toPin = generatedOrder.get(generatedOrder.size() - 1);
 
         assertThat(changeTipState(token, toPin, "PINNED").getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        // The pinned tip moves to the front and nothing is recomputed to make it happen: the list is
-        // the view's order, which already sorts pinned first.
         assertThat(tipIdsOf(currentTips(token)).get(0)).isEqualTo(toPin);
         assertThat(tipStatesOf(currentTips(token)).get(0)).isEqualTo("PINNED");
     }
-
-    // ==================================================================
-    //  Changing a tip's state
-    // ==================================================================
 
     @Test
     @DisplayName("UC-18: pinning writes the state and the timestamp together, as ck_tip_state requires")
@@ -164,8 +134,7 @@ class TipsApiIT extends AbstractTipsApiIT {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(body(response).get("state").asText()).isEqualTo("PINNED");
         assertThat(tipStateOf(tipId)).isEqualTo("PINNED");
-        // A pinned tip with no pinned_at is the row ck_tip_state exists to forbid, so the pair is
-        // asserted rather than the state alone.
+
         assertThat(tipColumnOf(tipId, "pinned_at")).isNotNull();
         assertThat(tipColumnOf(tipId, "dismissed_at")).isNull();
     }
@@ -199,11 +168,8 @@ class TipsApiIT extends AbstractTipsApiIT {
         assertThat(tipColumnOf(tipId, "dismissed_at")).isNotNull();
         assertThat(tipColumnOf(tipId, "pinned_at")).isNull();
 
-        // Gone from the list the moment it is dismissed.
         assertThat(tipIdsOf(currentTips(token))).doesNotContain(tipId);
 
-        // And still gone after a run of the generator, which is the part the unique key buys: the
-        // row's dedupe_key is already there, so the run skips it rather than producing it again.
         generateTipsViaApi(token);
 
         assertThat(tipIdsOf(currentTips(token))).doesNotContain(tipId);
@@ -223,9 +189,6 @@ class TipsApiIT extends AbstractTipsApiIT {
 
         changeTipState(token, tipId, "DISMISSED");
 
-        // The month still exists in the database and still has a row, but asking for it would show an
-        // empty screen - so it is not offered. The two lists are read from the same view for exactly
-        // this reason.
         List<String> offered = new ArrayList<>();
         months(token).get("months").forEach(month -> offered.add(month.asText()));
         assertThat(offered).doesNotContain(asMonth(thisMonth()));
@@ -247,10 +210,7 @@ class TipsApiIT extends AbstractTipsApiIT {
         assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(body(second).get("id").asLong()).isEqualTo(tipId);
         assertThat(body(second).get("state").asText()).isEqualTo("PINNED");
-        // The timestamp is the one from the first pin, not from this attempt - so a retry, or two
-        // devices pinning at once, settle on when it was actually pinned rather than on whoever
-        // asked last. This is the difference between an idempotent action and one that merely
-        // succeeds twice.
+
         assertThat(tipColumnOf(tipId, "pinned_at"))
                 .as("a second pin must not restamp the tip")
                 .isEqualTo(pinnedAtAfterFirstPin);
@@ -273,8 +233,6 @@ class TipsApiIT extends AbstractTipsApiIT {
                     .isEqualTo("state");
         }
 
-        // The refusal is the schema's meaning kept: the row is still dismissed and the timestamp it
-        // was dismissed at is unchanged.
         assertThat(tipStateOf(tipId)).isEqualTo("DISMISSED");
     }
 
@@ -293,10 +251,6 @@ class TipsApiIT extends AbstractTipsApiIT {
         assertThat(unknown.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
-    // ==================================================================
-    //  Ownership
-    // ==================================================================
-
     @Test
     @DisplayName("BR-02: one student's tips are not reachable from another student's token")
     void tipsAreScopedToTheirOwner() throws Exception {
@@ -307,18 +261,13 @@ class TipsApiIT extends AbstractTipsApiIT {
 
         String other = loginNewStudent();
 
-        // The other student's month is empty, not the owner's month.
         assertThat(tipIdsOf(currentTips(other))).isEmpty();
         assertThat(months(other).get("months")).isEmpty();
 
-        // Acting on the tip answers 404 rather than 403: "not yours" and "does not exist" are
-        // indistinguishable from outside, so this endpoint cannot be used to discover which tip
-        // identifiers exist (section 7.5).
         ResponseEntity<String> response = changeTipState(other, tipId, "PINNED");
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(errorCodeOf(response)).isEqualTo("NOT_FOUND");
 
-        // And nothing changed for the owner.
         assertThat(tipStateOf(tipId)).isEqualTo("NEW");
     }
 
@@ -343,18 +292,11 @@ class TipsApiIT extends AbstractTipsApiIT {
         assertThat(send(HttpMethod.POST, TIPS_GENERATE_URL, null, null).getStatusCode())
                 .isIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
 
-        // The only parameter any tips route accepts is the month; there is no user id to send. A
-        // query string that tries one is ignored rather than honoured, and the caller's own (empty)
-        // month is what comes back.
         ResponseEntity<String> ignoredUserId =
                 send(HttpMethod.GET, TIPS_URL + "?userId=2", null, null);
         assertThat(ignoredUserId.getStatusCode())
                 .isIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
     }
-
-    // ==================================================================
-    //  Generating
-    // ==================================================================
 
     @Test
     @DisplayName("UC-18: generating is idempotent - a second run neither duplicates nor restores a tip")
@@ -376,13 +318,9 @@ class TipsApiIT extends AbstractTipsApiIT {
 
         JsonNode second = body(generateTipsViaApi(token));
 
-        // No new rows: every rule that fired the first time is skipped the second, by the unique key
-        // rather than by a check in Java.
         assertThat(countOf("SELECT COUNT(*) FROM user_tips WHERE user_id = ?", userId))
                 .isEqualTo(rowsBefore);
-        // The pinned tip is still pinned and still leads; the dismissed one is still gone. This is
-        // the whole reason the generate endpoint is safe to expose: pressing refresh cannot undo a
-        // student's own decision.
+
         assertThat(tipIdsOf(second).get(0)).isEqualTo(pinnedTip);
         assertThat(tipIdsOf(second)).doesNotContain(dismissedTip);
         assertThat(tipStateOf(pinnedTip)).isEqualTo("PINNED");
@@ -401,8 +339,7 @@ class TipsApiIT extends AbstractTipsApiIT {
         assertThat(fieldNamesOf(response)).containsExactlyInAnyOrderElementsOf(DOCUMENTED_LIST_FIELDS);
         assertThat(response.get("periodMonth").asText()).isEqualTo(asMonth(thisMonth()));
         assertThat(tipIdsOf(response)).isNotEmpty();
-        // What it returned is what a subsequent read returns - the generate is the action and the
-        // list is its result, so the two agree rather than the client fetching twice.
+
         assertThat(tipIdsOf(response)).isEqualTo(tipIdsOf(currentTips(token)));
     }
 
@@ -413,9 +350,6 @@ class TipsApiIT extends AbstractTipsApiIT {
 
         JsonNode response = body(generateTipsViaApi(token));
 
-        // Rule 6 fires when the month has no rows at all, which is what makes this an honest answer
-        // to a new account rather than an empty screen. The tip is the database's, so this asserts
-        // that one exists, not what it says.
         assertThat(tipIdsOf(response)).isNotEmpty();
         assertThat(tipStatesOf(response)).containsOnly("NEW");
     }
@@ -440,12 +374,9 @@ class TipsApiIT extends AbstractTipsApiIT {
                 .containsExactlyInAnyOrderElementsOf(DOCUMENTED_MONTHS_FIELDS);
         List<String> offered = new ArrayList<>();
         response.get("months").forEach(month -> offered.add(month.asText()));
-        // Newest first, and only the two months that hold a tip - the current month was never
-        // generated, so it is absent rather than offered as an empty screen.
+
         assertThat(offered).containsExactly(asMonth(lastMonth), asMonth(twoMonthsAgo));
 
-        // Every month offered must actually return something, which is the property the list exists
-        // to promise.
         for (String month : offered) {
             assertThat(tipIdsOf(tips(token, month))).as("month %s is not empty", month).isNotEmpty();
         }
@@ -458,14 +389,8 @@ class TipsApiIT extends AbstractTipsApiIT {
 
         JsonNode response = months(token);
 
-        // An empty array rather than an invented current month: the list is what would return
-        // something, and nothing would.
         assertThat(response.get("months")).isEmpty();
     }
-
-    // ==================================================================
-    //  Concurrency
-    // ==================================================================
 
     @Test
     @DisplayName("UC-18: two pins of the same tip racing do not leave it in an inconsistent state")
@@ -484,8 +409,7 @@ class TipsApiIT extends AbstractTipsApiIT {
                 }));
             }
             for (Future<ResponseEntity<String>> result : results) {
-                // Both requests are for the same end state, so both succeed - the loser reads the
-                // row the winner wrote and finds nothing left to change.
+
                 assertThat(result.get(30, TimeUnit.SECONDS).getStatusCode())
                         .as("a concurrent pin of an already-pinned tip must not be refused")
                         .isEqualTo(HttpStatus.OK);
@@ -494,8 +418,6 @@ class TipsApiIT extends AbstractTipsApiIT {
             pool.shutdownNow();
         }
 
-        // One row, pinned once, with exactly one timestamp - never a pinned tip carrying a stale
-        // dismissed_at, which ck_tip_state would have refused anyway.
         assertThat(countOf("SELECT COUNT(*) FROM user_tips WHERE id = ?", tipId)).isEqualTo(1);
         assertThat(tipStateOf(tipId)).isEqualTo("PINNED");
         assertThat(tipColumnOf(tipId, "pinned_at")).isNotNull();
@@ -532,19 +454,11 @@ class TipsApiIT extends AbstractTipsApiIT {
             pool.shutdownNow();
         }
 
-        // One tip, still pinned. The two writers touch different columns of the row - the generator
-        // inserts (and inserts nothing, because the dedupe key is taken) and the pin updates state -
-        // so neither can undo the other.
         assertThat(countOf("SELECT COUNT(*) FROM user_tips WHERE user_id = ? AND period_month = ?",
                 userId, thisMonth())).isEqualTo(1);
         assertThat(tipStateOf(tipId)).isEqualTo("PINNED");
     }
 
-    // ==================================================================
-    //  Helpers
-    // ==================================================================
-
-    /** Registers a student, gives them spending that produces one tip, and returns the tip's id. */
     private Long aGeneratedTip(String token) throws Exception {
         Long categoryId = defaultCategoryId(TRANSPORT);
         spendInCategoryWithoutBudget(token, categoryId, "40.00", thisMonth());

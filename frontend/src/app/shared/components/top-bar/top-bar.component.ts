@@ -110,11 +110,6 @@ export class TopBarComponent implements OnInit {
 
   user = this.auth.currentUser;
 
-  /**
-   * The badge is a read of the dashboard, which is the one endpoint that publishes a month's
-   * income, expense and net together. It is fetched here rather than pushed in from a page so the
-   * figure is correct on every route, not only the Feed.
-   */
   private readonly summary = computed(() => this.dashboardService.dashboard()?.summary ?? null);
 
   balance = computed(() => {
@@ -126,7 +121,6 @@ export class TopBarComponent implements OnInit {
     };
   });
 
-  /** The month the dashboard reported, so the label cannot disagree with the figures. */
   periodLabel = computed(() => {
     const month = this.dashboardService.dashboard()?.periodMonth;
     if (!month) return 'This month';

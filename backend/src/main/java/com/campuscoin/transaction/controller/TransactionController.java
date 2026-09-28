@@ -35,24 +35,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * Recording and managing a student's transactions: UC-07 and UC-10.
- *
- * <p>Six endpoints: list, read, create, edit, delete and restore. They are addressed by id, so
- * ownership cannot be implied by the URL - it is enforced by queries that take the caller's id
- * alongside the record's ({@code TransactionRepository}), and asserted by tests in which one student
- * tries to reach another's transaction.
- *
- * <p>Every method reads the caller with {@code @AuthenticationPrincipal}, so identity comes from the
- * verified bearer token. No endpoint accepts a user id, a role, an account status or a
- * {@code source}: those are the fields a client would use to write a record it does not own, mark
- * its own record as reviewed, or date one in the future.
- *
- * <p><b>Delete and restore are separate operations rather than a {@code PATCH} of a flag.</b> BR-09
- * requires the record's history to show every removal and return, and the two stored procedures are
- * what append those rows. A request body able to set {@code isDeleted} would move the record without
- * the log entry, which is the one thing the soft-delete design exists to prevent.
- */
 @RestController
 @RequestMapping("/api/v1/transactions")
 @Tag(name = "Transactions",

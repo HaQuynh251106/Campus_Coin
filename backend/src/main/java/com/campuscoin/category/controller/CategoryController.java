@@ -31,23 +31,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * Personal categories: UC-06.
- *
- * <p>Five endpoints. The list returns the student's own categories and the shared defaults together,
- * because that is how they are used - one set of choices in a picker - and the client tells them
- * apart by {@code isDefault}.
- *
- * <p>It deliberately does not sit under {@code /profile/me}. The profile module manages one record
- * per student with no identifier in the path, so every endpoint there is the caller's own by
- * construction. A category is one of many, so these endpoints are addressed by id and ownership
- * cannot be implied by the URL; it is enforced by a query that takes the caller's id as well
- * ({@code CategoryRepository.findByIdAndUserId}), and asserted by a test that has one student try
- * to reach another's category.
- *
- * <p>Every method reads the caller with {@code @AuthenticationPrincipal}, so identity comes from the
- * verified bearer token. No endpoint here accepts a user id, a role or an account status.
- */
 @RestController
 @RequestMapping("/api/v1/categories")
 @Tag(name = "Categories",

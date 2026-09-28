@@ -4,17 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/**
- * Body of {@code POST /api/v1/auth/password-reset/complete} (UC-03 B7).
- *
- * <p>Carries the token from the reset link together with the new password and its confirmation.
- * The password rules match {@link RegisterRequest} so a student cannot set a password through the
- * reset flow that registration would have refused.
- *
- * <p>Confirmations are compared in the service, not with a class-level constraint, so the failure
- * is reported as a field error on {@code confirmPassword} - the same shape UC-01 A2 expects for
- * the registration form.
- */
 public record PasswordResetCompleteRequest(
 
         @NotBlank(message = "Reset token is required.")

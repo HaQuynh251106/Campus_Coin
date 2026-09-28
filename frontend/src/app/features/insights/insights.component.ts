@@ -6,14 +6,6 @@ import { InsightService } from '../../core/services/insight.service';
 import { ToastService } from '../../core/services/toast.service';
 import { MonthlyInsight } from '../../core/models/insight.model';
 
-/**
- * Module 12 (UC-17) — the monthly insight.
- *
- * The one rule this screen exists to honour is BR-13's: the prose must be labelled with where it
- * came from. `generatedBy` decides that label, and a `RULE_BASED` insight is never described as
- * AI-written — it says the figures were composed into a sentence by a fixed rule. The summary and
- * the advice are presented as something to consider, not as financial advice.
- */
 @Component({
   selector: 'app-insights',
   standalone: true,
@@ -233,8 +225,7 @@ export class InsightsComponent implements OnInit {
       },
       error: err => {
         this.isLoading = false;
-        // 404 is the documented answer for a month with no insight yet — that is the empty state,
-        // not an error, and the screen offers the generator rather than a failure message.
+
         if (err.status === 404) {
           this.insight = null;
         } else if (err.status === 400) {
@@ -259,7 +250,7 @@ export class InsightsComponent implements OnInit {
     this.insightService.generateInsight(this.selectedMonth || undefined).subscribe({
       next: res => {
         this.isGenerating = false;
-        // The generator's own response is the insight, so there is no follow-up read.
+
         this.insight = res;
         this.selectedMonth = res.periodMonth;
         this.toast.success(`Insight ready for ${this.monthLabel(res.periodMonth)}.`);
@@ -278,7 +269,6 @@ export class InsightsComponent implements OnInit {
     return Math.abs(value);
   }
 
-  /** Where the prose came from, in the student's terms. Never claims AI for a rule-based line. */
   sourceLabel(): string {
     return this.insight?.generatedBy === 'AI' ? 'AI-written' : 'Rule-based';
   }
@@ -289,7 +279,6 @@ export class InsightsComponent implements OnInit {
       : 'bg-neutral-100 text-neutral-600 border-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-700';
   }
 
-  /** `2026-09` → `September 2026`. The API sends `yyyy-MM` and no human label. */
   monthLabel(month: string): string {
     const [y, m] = (month || '').split('-');
     const names = [

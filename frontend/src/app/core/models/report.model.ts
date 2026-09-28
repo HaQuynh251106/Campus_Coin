@@ -48,7 +48,6 @@ export interface SpendingSeriesResponse {
   points: SpendingPoint[];
 }
 
-// UI view models used by charts & components
 export interface MonthlyTrendItem {
   periodCode: string;
   monthLabel: string;

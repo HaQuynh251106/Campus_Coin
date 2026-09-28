@@ -335,7 +335,6 @@ export class ReportsComponent implements OnInit {
     this.isLoading = true;
     const period = this.selectedPeriod === 'ALL_6M' ? undefined : this.selectedPeriod;
 
-    // Parallel fetch of report and daily spending via forkJoin
     forkJoin({
       report: this.txService.getReport(period).pipe(catchError(() => of(null))),
       dailySpend: this.txService.getDailySpending(period).pipe(catchError(() => of([])))
@@ -345,7 +344,7 @@ export class ReportsComponent implements OnInit {
         this.dailySpend = dailySpend || [];
 
         if (report) {
-          // 1. KPI Balances
+
           if (report.totals) {
             this.kpiTotalIncome = Number(report.totals.income || 0);
             this.kpiTotalExpense = Number(report.totals.expense || 0);
@@ -357,7 +356,6 @@ export class ReportsComponent implements OnInit {
             this.resetMetrics();
           }
 
-          // 2. Category Breakdown according to selectedFlow
           let items: any[] = [];
           if (this.selectedFlow === 'INCOME') {
             items = report.incomeByCategory || [];
@@ -377,7 +375,6 @@ export class ReportsComponent implements OnInit {
             transactionCount: Number(cb.transactionCount || 0)
           }));
 
-          // 3. 6-Month Trend
           this.sixMonthTrend = (report.sixMonthTrend || []).map(st => {
             const parts = st.periodMonth.split('-');
             const monthNum = parseInt(parts[1], 10);

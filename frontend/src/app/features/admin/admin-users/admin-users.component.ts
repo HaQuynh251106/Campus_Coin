@@ -341,26 +341,6 @@ export class AdminUsersComponent implements OnInit {
     this.loadUsers();
   }
 
-  /**
-   * The list is rendered exactly as `AdminUserResponse` publishes it — id, name, address, role,
-   * status, year, last sign-in, created. Nothing is embellished onto it.
-   *
-   * Two columns used to sit here showing a monthly allowance and a savings goal. There is no such
-   * field in the response and no administrative action that needs one: the DTO omits a student's
-   * financial position deliberately (VĐ-04), so those columns rendered a hardcoded `$0` for every
-   * account. A figure nobody supplied is worse than no column.
-   *
-   * Sorted newest-first for display only. The endpoint's own contract is "ordered by created time"
-   * — a bare `ORDER BY id ASC` — and it is the client that pages the result, ten rows at a time.
-   * Rendered in the service's order, a newly registered account lands on the *last* page rather than
-   * the first: with eleven accounts, the one just created is row 11 and the administrator opening
-   * "User Directory" sees ten rows that do not include it, which reads as "the new account is
-   * missing" when it is present and merely beyond the fold. Newest-first is what makes a freshly
-   * created account visible on the page that is shown by default, which is the whole reason an
-   * administrator opens this screen after a signup. Reversing here rather than in the query keeps
-   * the documented ordering of the API intact — the response itself is unchanged, so nothing that
-   * depends on it (the API tests assert ascending ids) is affected.
-   */
   loadUsers(): void {
     this.isLoading = true;
     this.adminService.getUsers().subscribe({
@@ -377,7 +357,6 @@ export class AdminUsersComponent implements OnInit {
     });
   }
 
-  /** First letters of the two name parts, for the avatar placeholder. */
   initials(fullName: string): string {
     const parts = (fullName || '').trim().split(/\s+/).filter(Boolean);
     if (parts.length === 0) return '?';
@@ -386,11 +365,6 @@ export class AdminUsersComponent implements OnInit {
     return (first + last).toUpperCase();
   }
 
-  /**
-   * Renders one of the response's timestamps. `lastLoginAt` is absent when the account has never
-   * signed in — the contract distinguishes that from a null date, so "Never" is shown rather than a
-   * substitute date.
-   */
   formatTimestamp(value: string | null | undefined): string {
     if (!value) return 'Never';
     const d = new Date(value);

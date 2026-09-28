@@ -25,28 +25,6 @@ import com.campuscoin.support.AbstractMySqlIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-/**
- * The fixtures UC-08's suite needs: identity, a record to categorise, and the database reads that can
- * show what the endpoint wrote.
- *
- * <p><b>Every test registers a fresh student.</b> UC-08 <em>learns</em>, and what it learns is stored
- * per student in {@code category_rules}. A suite that reused one account would have each test teaching
- * the rules the next one then matches against, so a failure would depend on the order the tests ran in -
- * which is exactly the kind of coupling that makes a suite stop being evidence. A random address per
- * test costs a registration and buys independence.
- *
- * <p><b>Records are created through the API rather than inserted.</b> The endpoint reads the record
- * through the same tables module 4 writes, so a fixture that inserted rows directly would have to invent
- * the ownership, the {@code is_deleted} state and the description's envelope - and the tests that assert
- * one student's record is invisible to another would then be testing the fixture's insert rather than the
- * query. Going through {@code POST /api/v1/transactions} means the rows under test are rows a real caller
- * creates, with the triggers and the encryption boundary running over them.
- *
- * <p><b>The description is read back decrypted rather than assumed.</b> {@link #storedDescriptionOf}
- * returns what MySQL actually holds, and {@link #decryptedDescriptionOf} proves the words survive; a test
- * that compared a stored description with the plaintext it sent would be asserting that encryption did
- * not happen.
- */
 abstract class AbstractCategorisationApiIT extends AbstractMySqlIntegrationTest {
 
     protected static final String SUGGEST_URL = "/api/v1/ai/suggest-category";
@@ -60,31 +38,18 @@ abstract class AbstractCategorisationApiIT extends AbstractMySqlIntegrationTest 
 
     protected static final String PASSWORD = "Student@123";
 
-    /** A seeded shared default the fixture's records are filed under. */
     protected static final String FOOD = "Food";
 
-    /** A second seeded shared default, for the filing that contradicts a suggestion. */
     protected static final String TRANSPORT = "Transport";
 
-    /** The description the acceptance scenario revolves around. */
     protected static final String CAMPUS_CAFE = "Campus Cafe";
 
-    /** The zone the application and the database session both run in (VĐ-10). */
     protected static final ZoneId APPLICATION_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
-    /**
-     * The complete set of properties the response may carry.
-     *
-     * <p>A literal rather than a reflected set, so a field added to the response fails a test instead of
-     * quietly widening the published contract. There is no {@code userId} and no {@code categoryRules}
-     * list: the answer is about one record and one mapping, and an entry says nothing about the account it
-     * belongs to.
-     */
     protected static final java.util.List<String> DOCUMENTED_RESPONSE_FIELDS = java.util.List.of(
             "transactionId", "source", "categoryId", "categoryName", "type", "confidence", "reason",
             "learned");
 
-    /** The complete set of properties the learned mapping may carry. */
     protected static final java.util.List<String> DOCUMENTED_LEARNED_FIELDS = java.util.List.of(
             "keyword", "categoryId", "categoryName", "source");
 
@@ -93,10 +58,6 @@ abstract class AbstractCategorisationApiIT extends AbstractMySqlIntegrationTest 
 
     @Autowired
     protected ObjectMapper objectMapper;
-
-    // ==================================================================
-    //  HTTP
-    // ==================================================================
 
     protected ResponseEntity<String> send(HttpMethod method, String url, String token, Object body) {
         HttpHeaders headers = new HttpHeaders();
@@ -107,12 +68,10 @@ abstract class AbstractCategorisationApiIT extends AbstractMySqlIntegrationTest 
         return restTemplate.exchange(url, method, new HttpEntity<>(body, headers), String.class);
     }
 
-    /** Asks for a suggestion, unasserted - most tests here are about what the answer says. */
     protected ResponseEntity<String> suggest(String token, Long transactionId) {
         return send(HttpMethod.POST, SUGGEST_URL, token, Map.of("transactionId", transactionId));
     }
 
-    /** Asks for a suggestion and asserts it succeeded, which is the setup most tests need. */
     protected JsonNode suggestExpectingOk(String token, Long transactionId) throws Exception {
         ResponseEntity<String> response = suggest(token, transactionId);
         assertThat(response.getStatusCode())
@@ -129,20 +88,9 @@ abstract class AbstractCategorisationApiIT extends AbstractMySqlIntegrationTest 
         return body(response).get("errorCode").asText();
     }
 
-    /**
-     * An error body with its timestamp removed, so two refusals can be compared field for field.
-     *
-     * <p>The timestamp is the one field that necessarily differs between two calls and it is carried in
-     * every {@code ApiError}. Comparing the bodies without it is what turns "the two answers are the
-     * same" into an assertion about the contract rather than a statement about the clock.
-     */
     protected static String withoutTimestamp(JsonNode error) {
         return error.toString().replaceAll("\"timestamp\":\"[^\"]*\",?", "");
     }
-
-    // ==================================================================
-    //  Identity
-    // ==================================================================
 
     protected String register(String email) {
         ResponseEntity<String> response = send(HttpMethod.POST, REGISTER_URL, null, Map.of(
@@ -156,7 +104,6 @@ abstract class AbstractCategorisationApiIT extends AbstractMySqlIntegrationTest 
         return email;
     }
 
-    /** A fresh student's token, on an account nobody else's tests have touched. */
     protected String loginNewStudent() throws Exception {
         String email = randomEmail();
         register(email);
@@ -189,19 +136,13 @@ abstract class AbstractCategorisationApiIT extends AbstractMySqlIntegrationTest 
         return "categorisation.test." + UUID.randomUUID() + "@student.campuscoin.edu";
     }
 
-    // ==================================================================
-    //  Records to categorise
-    // ==================================================================
-
     protected Long defaultCategoryId(String name) throws Exception {
         return longValueFrom("SELECT id FROM categories WHERE user_id IS NULL AND name = ?", name);
     }
 
-    /** Creates one transaction through the API, which is how the triggers and the queries see it. */
     protected Long createTransaction(String token, Long categoryId, String amount, LocalDate date,
                                      String description) throws Exception {
-        // LinkedHashMap rather than Map.of, which refuses null values - and a record with no description
-        // is a case this suite has to produce.
+
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("categoryId", categoryId);
         body.put("amount", amount);
@@ -214,26 +155,17 @@ abstract class AbstractCategorisationApiIT extends AbstractMySqlIntegrationTest 
         return body(response).get("id").asLong();
     }
 
-    /** A record in the named seeded shared category, described {@code description}. */
     protected Long aRecordIn(String token, String defaultCategoryName, String description)
             throws Exception {
         return createTransaction(token, defaultCategoryId(defaultCategoryName), "25000",
                 today(), description);
     }
 
-    /** A record in a category the student created themselves (UC-06), ided directly. */
     protected Long aRecordInCategory(String token, Long categoryId, String description)
             throws Exception {
         return createTransaction(token, categoryId, "25000", today(), description);
     }
 
-    /**
-     * Creates a category of the caller's own (UC-06) and returns its id.
-     *
-     * <p>The id is returned rather than looked up afterwards because a lookup by name is not scoped to an
-     * owner: the suite shares one database, so a fixed name like "Campus Food" would also find a category
-     * another test's student created. The id the create answered with is the only unambiguous handle.
-     */
     protected Long createPersonalCategory(String token, String name) throws Exception {
         ResponseEntity<String> response = send(HttpMethod.POST, CATEGORIES_URL, token,
                 Map.of("name", name, "type", "EXPENSE"));
@@ -243,19 +175,16 @@ abstract class AbstractCategorisationApiIT extends AbstractMySqlIntegrationTest 
         return body(response).get("id").asLong();
     }
 
-    /** A record with a description and no other claim on it - the ordinary case. */
     protected Long aRecord(String token, String description) throws Exception {
         return aRecordIn(token, FOOD, description);
     }
 
-    /** Moves a stored record to another category, through the endpoint the student uses (UC-10). */
     protected ResponseEntity<String> moveToCategory(String token, Long transactionId,
                                                     Long categoryId) {
         return send(HttpMethod.PATCH, TRANSACTIONS_URL + "/" + transactionId, token,
                 Map.of("categoryId", categoryId));
     }
 
-    /** Moves a record and asserts the module 4 contract, because most callers expect it to work. */
     protected void moveToCategoryExpectingOk(String token, Long transactionId, Long categoryId) {
         ResponseEntity<String> response = moveToCategory(token, transactionId, categoryId);
         assertThat(response.getStatusCode())
@@ -263,7 +192,6 @@ abstract class AbstractCategorisationApiIT extends AbstractMySqlIntegrationTest 
                 .isEqualTo(HttpStatus.OK);
     }
 
-    /** Moves a record to the trash through the endpoint the student uses (BR-09). */
     protected void trash(String token, Long transactionId) {
         ResponseEntity<String> response =
                 send(HttpMethod.DELETE, TRANSACTIONS_URL + "/" + transactionId, token, null);
@@ -276,11 +204,6 @@ abstract class AbstractCategorisationApiIT extends AbstractMySqlIntegrationTest 
         return LocalDate.now(APPLICATION_ZONE);
     }
 
-    // ==================================================================
-    //  Database assertions
-    // ==================================================================
-
-    /** The three suggestion columns exactly as the database holds them. */
     protected record StoredSuggestion(Long suggestedCategoryId, java.math.BigDecimal confidence,
                                       boolean overridden) {
     }
@@ -302,37 +225,19 @@ abstract class AbstractCategorisationApiIT extends AbstractMySqlIntegrationTest 
         }
     }
 
-    /** The category a record is filed under, which UC-08 must never change (BR-13). */
     protected Long storedCategoryIdOf(Long transactionId) throws Exception {
         return longValueFrom("SELECT category_id FROM transactions WHERE id = ?", transactionId);
     }
 
-    /**
-     * {@code transactions.description} exactly as MySQL holds it.
-     *
-     * <p>Two encryptions of the same words are not the same string - the envelope carries a fresh random
-     * IV - so a fixture can compare this against another envelope to prove the column was rewritten, and
-     * decrypt it to prove the words are still recoverable.
-     */
     protected String storedDescriptionOf(Long transactionId) throws Exception {
         return columnInDatabase(transactionId, "transactions", "description");
     }
 
-    /** How many {@code transaction_history} rows a record has (BR-09). */
     protected int historyCountOf(Long transactionId) throws Exception {
         return countOf("SELECT COUNT(*) FROM transaction_history WHERE transaction_id = ?",
                 transactionId);
     }
 
-    /**
-     * The history row a categorisation write added, or {@code null} when none did.
-     *
-     * <p>Found by its {@code changed_fields} text rather than by counting, because a record's history
-     * begins with the row its creation wrote - so "the count went up by one" is only meaningful once that
-     * row is excluded. {@code trg_transactions_after_insert} records {@code changed_fields = 'created'},
-     * and {@code trg_transactions_after_update} writes the columns that moved, so a row naming one of the
-     * three {@code ai_} columns is the one this module caused and nothing else can be.
-     */
     protected String categorisationHistoryFieldsOf(Long transactionId) throws Exception {
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(
@@ -349,7 +254,6 @@ abstract class AbstractCategorisationApiIT extends AbstractMySqlIntegrationTest 
         }
     }
 
-    /** The student's stored mapping for a keyword, or {@code null} if they have none (UC-08 B6). */
     protected String storedRuleCategoryNameOf(Long userId, String keyword) throws Exception {
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(
@@ -364,15 +268,13 @@ abstract class AbstractCategorisationApiIT extends AbstractMySqlIntegrationTest 
         }
     }
 
-    /** How many mapping rows the student has for a keyword, which the unique key should hold at one. */
     protected int storedRuleCountOf(Long userId, String keyword) throws Exception {
         return countOf("SELECT COUNT(*) FROM category_rules WHERE user_id = ? AND keyword = ?",
                 userId, keyword);
     }
 
     protected String columnInDatabase(Long id, String table, String column) throws Exception {
-        // The table and column names come from test literals only, never from a request, so
-        // interpolating them is safe; the id is bound.
+
         try (Connection connection = openDatabaseConnection();
              PreparedStatement statement = connection.prepareStatement(
                      "SELECT " + column + " FROM " + table + " WHERE id = ?")) {
@@ -407,7 +309,6 @@ abstract class AbstractCategorisationApiIT extends AbstractMySqlIntegrationTest 
         }
     }
 
-    /** Binds fixture parameters, using the declared type for a date and a null-safe set for the rest. */
     private static void bind(PreparedStatement statement, Object... parameters) throws Exception {
         for (int index = 0; index < parameters.length; index++) {
             Object value = parameters[index];

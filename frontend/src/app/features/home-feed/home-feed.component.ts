@@ -309,14 +309,13 @@ export class HomeFeedComponent implements OnInit {
   refreshAll(): void {
     this.isLoadingTxs = true;
 
-    // Parallel fetch via forkJoin with individual error boundaries
     forkJoin({
       dashboard: this.dashboardService.getDashboard().pipe(catchError(() => of(null))),
       budgets: this.budgetService.getBudgets('2026-09').pipe(catchError(() => of([]))),
       transactions: this.txService.getTransactions({ from: '2026-08-01', to: '2026-09-30' }).pipe(catchError(() => of([])))
     }).subscribe({
       next: ({ dashboard, budgets, transactions }) => {
-        // 1. Dashboard summary
+
         if (dashboard && dashboard.summary) {
           this.balance = {
             income: dashboard.summary.totalIncome,
@@ -326,22 +325,14 @@ export class HomeFeedComponent implements OnInit {
           };
           this.periodLabel = dashboard.periodMonth || '2026-09';
 
-          // UC-12 B3. The dashboard filters these to the caller's audience and to their own window
-          // before the response is built, so there is nothing to re-filter here. A failed dashboard
-          // call leaves `dashboard` null and this list empty, which reads as "nothing to show" — the
-          // banner is one block of a screen that has already visibly failed to load its figures.
           this.announcements = dashboard.announcements || [];
         } else {
           this.balance = this.txService.getMonthlyBalance('2026-09');
           this.announcements = [];
         }
 
-        // 2. Budgets. Ranked by the server's consumption status before the strip is capped — see
-        // `rankBudgetsBySeverity`. Taking the API's first four rows would show whichever categories
-        // sort first by name, which can hide a category that is over its limit.
         this.topBudgets = rankBudgetsBySeverity(budgets || []).slice(0, 4);
 
-        // 3. Transactions
         this.groupTransactionsByDay((transactions || []).slice(0, 15));
         this.isLoadingTxs = false;
         this.cdr.markForCheck();
@@ -398,7 +389,6 @@ export class HomeFeedComponent implements OnInit {
       });
     });
 
-    // Sort descending by date
     this.groupedTransactions = groups.sort((a, b) => b.date.localeCompare(a.date));
   }
 

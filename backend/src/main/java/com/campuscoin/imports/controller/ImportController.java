@@ -32,46 +32,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * Importing a student's records from a CSV file: UC-11.
- *
- * <p>Six operations on four paths, and the shape they describe is one workflow: upload a file to
- * preview it, look at the preview, correct any row whose category was read wrong, commit what is left,
- * or abandon it.
- *
- * <table>
- *   <caption>Endpoints</caption>
- *   <tr><th>Method</th><th>Path</th><th>UC-11 step</th></tr>
- *   <tr><td>{@code POST}</td><td>{@code /api/v1/imports}</td><td>A1 - upload and preview</td></tr>
- *   <tr><td>{@code GET}</td><td>{@code /api/v1/imports}</td><td>the student's import history</td></tr>
- *   <tr><td>{@code GET}</td><td>{@code /api/v1/imports/{batchId}}</td><td>B5 - one preview, with its rows</td></tr>
- *   <tr><td>{@code PATCH}</td><td>{@code /api/v1/imports/{batchId}/rows/{rowId}}</td><td>B6 - choose a row's category</td></tr>
- *   <tr><td>{@code POST}</td><td>{@code /api/v1/imports/{batchId}/commit}</td><td>B9 - import it</td></tr>
- *   <tr><td>{@code POST}</td><td>{@code /api/v1/imports/{batchId}/cancel}</td><td>A2 - abandon it</td></tr>
- * </table>
- *
- * <p><b>Why the commit and the cancel are {@code POST}s on named sub-resources rather than a status
- * update.</b> Each is a transition whose effect exceeds any single column: a commit steps through every
- * importable row and generates transactions, then rewrites the batch's five counters; a cancel ends the
- * batch without touching its rows. A {@code PATCH} carrying {@code {"status": "COMMITTED"}} would
- * suggest the client was naming a state rather than asking for the work to be done, and UC-11 requires
- * the commit to be an action - the student presses a button and the records appear. The shape matches
- * {@code POST /recent-activity} and {@code POST /notifications/{id}/read}, which are the project's
- * other "do this" endpoints.
- *
- * <p><b>Why the file arrives as JSON text and not as a multipart upload.</b> See
- * {@code UploadCsvRequest}: there is no {@code MultipartFile}, no multipart configuration and no
- * over-size error handler anywhere in this build, and adding all three for one endpoint would leave the
- * one refusal a multipart route is most likely to hit answered by Spring's default rather than by this
- * API's error contract.
- *
- * <p><b>Every method reads the caller with {@code @AuthenticationPrincipal}, so identity comes from
- * the verified bearer token.</b> No request accepts a user id, and the two identifiers that do appear
- * in a path - a batch and a row - are resolved through ownership-narrowed reads, so a batch or row
- * belonging to another student is indistinguishable from one that does not exist (section 7.5). The
- * commit is the case where that does real work rather than merely holding a policy: see
- * {@code ImportService#commit}.
- */
 @RestController
 @RequestMapping("/api/v1/imports")
 @Tag(name = "CSV import",

@@ -393,7 +393,6 @@ export class CategoriesComponent implements OnInit {
       return;
     }
 
-    // Client-side duplicate check before submit
     const duplicate = this.categories.some(c =>
       c.type === this.modalType &&
       c.name.trim().toLowerCase() === trimmedName.toLowerCase() &&

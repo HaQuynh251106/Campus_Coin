@@ -180,15 +180,6 @@ export class AdminDashboardComponent implements OnInit {
   stats: AdminUsageStats | null = null;
   topCategories: Array<{ id: number; name: string; percentage: number; color: string; totalAmount: number }> = [];
 
-  /**
-   * Count-based figures only. Every bar here is a number of records, so the bars share one unit and
-   * one scale honestly.
-   *
-   * This panel used to be a "Daily Campus Activity (Past 14 Days)" bar chart with fourteen invented
-   * day/count pairs. No route publishes per-day activity — `GET /admin/stats` returns ten scalar
-   * aggregates and nothing with a date on it — so those bars were fabricated. Money is deliberately
-   * not mixed in here either: a dollar sum and a row count cannot share an axis.
-   */
   get volumeBars(): Array<{ label: string; value: number; hint: string; heightPercent: number }> {
     const s = this.stats;
     const items = [
@@ -213,16 +204,6 @@ export class AdminDashboardComponent implements OnInit {
     return Number(this.stats?.disabledStudents ?? 0);
   }
 
-  /**
-   * Formats a money figure with US grouping, so 1187.00 reads as `$1,187.00`.
-   *
-   * `toLocaleString()` with no argument follows the *browser's* locale, which on this machine
-   * resolves to `vi_CN` — a locale whose grouping separator is a full stop. `$1.187` was therefore
-   * rendered for one thousand one hundred and eighty-seven dollars, which is the amount
-   * one-thousandth of that to anyone reading it in an en-US context. Every other money value in the
-   * app is a fixed two-decimal USD string, so the locale is pinned here rather than left to the
-   * reader's machine.
-   */
   money(value: number): string {
     return `$${Number(value || 0).toLocaleString('en-US', {
       minimumFractionDigits: 2,
@@ -253,11 +234,6 @@ export class AdminDashboardComponent implements OnInit {
     });
   }
 
-  /**
-   * The four KPI cards read from the same `GET /admin/stats` response the breakdown panel uses, so
-   * one request fills the screen. The shape is derived here rather than through
-   * `AdminService.getKpiMetrics()` to avoid a second round trip for figures already in hand.
-   */
   private toKpis(stats: AdminUsageStats): AdminKpis {
     const avg = stats.activeStudents > 0
       ? Math.round(stats.totalExpenseLogged / stats.activeStudents)

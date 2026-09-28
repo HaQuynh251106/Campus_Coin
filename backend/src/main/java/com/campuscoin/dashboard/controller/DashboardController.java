@@ -18,30 +18,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * The student's dashboard: UC-12.
- *
- * <p>One endpoint. The screen has four blocks and they are four of the UC-12 views, but they describe
- * one student's one month, so they are read together rather than at four URLs - see
- * {@link DashboardResponse} for why, and for what the composition does and does not add.
- *
- * <p><b>There is no parameter, and the absence is deliberate.</b> A {@code ?month=} would look
- * harmless and would be a lie: {@code v_dashboard_summary} and {@code v_top_category_current_month}
- * both derive their month from {@code CURDATE()} inside the database session and cannot be asked
- * about any other, so a caller sending {@code 2026-01} would silently receive September's figures
- * under the January heading it asked for. Rather than accept a parameter that only one value honours,
- * the endpoint takes none and says which month it answered for in the response. A month-selectable
- * view is a report, UC-15's, and it reads different views in module 8.
- *
- * <p><b>There is no write on the screen, and no write endpoint here to add one.</b> Marking a
- * notification read is UC-14's endpoint, pinning or dismissing a tip is UC-18's, and neither is
- * something a dashboard render should cause. Every row this endpoint returns is read-only, and the
- * only state a student can change from the dashboard is changed through the endpoint that owns it.
- *
- * <p>Every method reads the caller with {@code @AuthenticationPrincipal}, so identity comes from the
- * verified bearer token. No endpoint accepts a user id, which is what makes reading another student's
- * dashboard impossible rather than merely refused.
- */
 @RestController
 @RequestMapping("/api/v1/dashboard")
 @Tag(name = "Dashboard",

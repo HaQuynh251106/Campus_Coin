@@ -213,9 +213,6 @@ export class ForgotPasswordComponent implements OnDestroy {
     email: ['', [Validators.required, Validators.email]]
   });
 
-  // The rules mirror PasswordResetCompleteRequest, which reuses the registration policy: a
-  // password this form accepts must not be one the server refuses. Without the pattern checks the
-  // form reported "valid" and the refusal only came back from the API.
   resetForm = this.fb.group({
     newPassword: ['', [
       Validators.required,
@@ -234,9 +231,6 @@ export class ForgotPasswordComponent implements OnDestroy {
       if (incomingToken) {
         this.resetToken = incomingToken;
 
-        // Security Hardening: Immediately strip the sensitive token parameter from the browser
-        // address bar and history to prevent token leakage via history inspection, shoulder surfing,
-        // or HTTP Referer headers.
         if (typeof window !== 'undefined' && window.history) {
           window.history.replaceState({}, document.title, window.location.pathname);
         }
@@ -252,8 +246,7 @@ export class ForgotPasswordComponent implements OnDestroy {
             this.isLoading = false;
             this.resetToken = '';
             this.errorMessage = err.error?.message || 'Invalid or expired reset link. Please request a new one.';
-            // Zoneless: a token that fails verification kept the screen on "Reset Password" with
-            // no explanation, because this state write did not schedule a render.
+
             this.cdr.markForCheck();
           }
         });
@@ -262,7 +255,7 @@ export class ForgotPasswordComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
-    // Zero-out the sensitive token from memory upon component destruction
+
     this.resetToken = '';
   }
 
@@ -276,16 +269,12 @@ export class ForgotPasswordComponent implements OnDestroy {
       next: () => {
         this.isLoading = false;
         this.step = 'sent';
-        // Zoneless: the POST succeeds but nothing re-renders without this, so the screen stayed on
-        // the email form and the reset could never be completed. The response is deliberately
-        // identical whether or not the address exists, so this branch always advances.
+
         this.cdr.markForCheck();
       },
       error: (err) => {
         this.isLoading = false;
-        // A 429 (TOO_MANY_ATTEMPTS, authentication.md §7.10) is not the anonymous success case:
-        // no mail is sent, and the guide says to show the message. Advancing to "check your inbox"
-        // there would send the student looking for a link that was never dispatched.
+
         if (err?.status === 429) {
           this.errorMessage = err.error?.message || 'Too many reset requests. Please wait a few minutes and try again.';
         } else {
@@ -306,7 +295,7 @@ export class ForgotPasswordComponent implements OnDestroy {
       next: () => {
         this.isLoading = false;
         this.resetSuccess = true;
-        this.resetToken = ''; // Instantly wipe token in memory once consumed
+        this.resetToken = '';
         this.toast.success('Password reset successfully! Redirecting...');
         this.cdr.markForCheck();
         setTimeout(() => {

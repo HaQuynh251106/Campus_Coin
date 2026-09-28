@@ -8,24 +8,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * One announcement as the administration screen shows it (UC-21).
- *
- * <p><b>The fields are the union of what a student sees and what only an administrator may see.</b>
- * A student's dashboard response carries the severity, the prose and the window; this one adds
- * {@code audience} and {@code isActive}, and both are needed to administer a notice. Without
- * {@code audience} an administrator could not tell a student-facing notice from one written for
- * other administrators, and without {@code isActive} there would be no way to see which notices are
- * currently suppressed. Neither is published to a student: the dashboard answers "is this notice for
- * me" in its own query and never says why.
- *
- * <p>{@code endsAt} is omitted when null rather than sent as {@code null}, matching how the other
- * responses in this API treat a nullable field with a meaning: absent means open-ended, and a notice
- * with no end date is one meant to stay up until it is deactivated.
- *
- * <p>Deliberately absent: {@code createdBy}. The API does not publish an author's identity - the same
- * position {@code DashboardViewDao} takes - and the audit trail records who published what.
- */
 @Schema(description = "A system announcement (UC-21).")
 public record AnnouncementResponse(
 

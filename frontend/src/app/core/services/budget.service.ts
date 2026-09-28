@@ -24,11 +24,7 @@ export class BudgetService {
   readonly budgets = signal<Budget[]>([]);
 
   private mapBackendBudget(raw: any): Budget {
-    // The server's own classification is read first and only derived when it is missing. It is
-    // `ON_TRACK | NEAR | EXCEEDED` — `v_budget_consumption`'s `CASE`, the same comparison
-    // `sp_check_budget_alerts` makes against the thresholds in `system_settings`. Deriving it here
-    // from `consumedPct` when the field is present would put an 80%/100% pair in the client that
-    // could disagree with the alert the server already stored.
+
     const consumptionStatus: NonNullable<Budget['consumptionStatus']> =
       raw.consumptionStatus === 'EXCEEDED' || raw.consumptionStatus === 'NEAR' || raw.consumptionStatus === 'ON_TRACK'
         ? raw.consumptionStatus
@@ -38,8 +34,6 @@ export class BudgetService {
             ? 'NEAR'
             : 'ON_TRACK';
 
-    // The display classification the budget screens already switch on, derived from the server's
-    // one rather than computed a second time.
     let alertStatus: BudgetAlertStatus = 'SAFE';
     if (consumptionStatus === 'EXCEEDED') {
       alertStatus = 'DANGER';

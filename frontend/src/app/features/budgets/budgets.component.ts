@@ -337,7 +337,6 @@ export class BudgetsComponent implements OnInit {
           ? Math.round((this.totalSpent / this.totalLimit) * 100)
           : 0;
 
-        // Derive alerts directly without redundant second HTTP call
         const computedAlerts: BudgetAlertNotification[] = [];
         for (const b of data) {
           const percent = Math.round(b.consumedPct || (b.monthlyLimit > 0 ? (b.spent / b.monthlyLimit) * 100 : 0));

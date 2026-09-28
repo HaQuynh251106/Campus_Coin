@@ -7,18 +7,6 @@ import { AnomalyService } from '../../core/services/anomaly.service';
 import { ToastService } from '../../core/services/toast.service';
 import { FlaggedTransaction } from '../../core/models/anomaly.model';
 
-/**
- * Module 12 (UC-24) — records the anomaly check has marked.
- *
- * The screen is read-and-scan only, because that is all the module allows. A flag is the
- * detector's verdict: there is no route that lets this page set one, and the page does not pretend
- * otherwise. What it can do is explain each mark in the detector's own words and hand the student
- * the transaction's id, so correcting the record happens on the transactions screen where
- * correcting records belongs.
- *
- * The ordinary answer is an empty list, so the empty state is written as a real result rather than
- * as something that went wrong.
- */
 @Component({
   selector: 'app-anomalies',
   standalone: true,
@@ -204,7 +192,7 @@ export class AnomaliesComponent implements OnInit {
     this.anomalyService.scan().subscribe({
       next: res => {
         this.isScanning = false;
-        // The scan's response carries the list as it stands afterwards, so there is no second read.
+
         this.scanResult = {
           examined: res.examined,
           flagged: res.flagged,

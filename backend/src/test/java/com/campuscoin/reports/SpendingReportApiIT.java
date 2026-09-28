@@ -18,27 +18,9 @@ import org.springframework.http.ResponseEntity;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-/**
- * UC-15's spending breakdown over the real HTTP stack: request, security filter, controller, service,
- * DAO, MySQL.
- *
- * <p>This suite exists separately from {@link ReportsApiIT} because the endpoint's defining property
- * is a refusal. The daily and weekly views derive their range from {@code CURDATE()} inside the
- * database session, so unlike the rest of a report they cannot be asked about another month. The
- * suite therefore spends most of its assertions on the cases that must fail - a previous month, a
- * window outside the current one, an inverted window, an unknown granularity - because the failure
- * mode being guarded against is a request answered from the wrong month, and no successful response
- * would reveal it.
- *
- * <p>Each test registers its own student with a random address, so no test depends on another's rows.
- */
 class SpendingReportApiIT extends AbstractReportsApiIT {
 
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-
-    // ==================================================================
-    //  The window
-    // ==================================================================
 
     @Test
     @DisplayName("UC-15: with no parameters the window is the whole of the current month")
@@ -88,10 +70,6 @@ class SpendingReportApiIT extends AbstractReportsApiIT {
         assertThat(series.get("from").asText()).isEqualTo(thisMonth().format(DAY));
     }
 
-    // ==================================================================
-    //  The refusals - a month the views cannot answer about
-    // ==================================================================
-
     @Test
     @DisplayName("UC-15: another month is refused rather than answered from the current one")
     void anotherMonthIsRefused() throws Exception {
@@ -100,8 +78,6 @@ class SpendingReportApiIT extends AbstractReportsApiIT {
         ResponseEntity<String> response =
                 spendingResponse(token, "month=" + monthKey(monthBefore(1)));
 
-        // The refusal is the point. Answering 200 with the current month's bars under the requested
-        // month's heading would be a wrong answer, and nothing in the payload would reveal it.
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(errorCodeOf(response)).isEqualTo("VALIDATION_ERROR");
         assertThat(body(response).get("fieldErrors").get(0).get("field").asText())
@@ -147,9 +123,6 @@ class SpendingReportApiIT extends AbstractReportsApiIT {
         LocalDate from = thisMonthOn(8);
         LocalDate to = thisMonthOn(6);
 
-        // Only meaningful when the two clamp to different days; on the first day of a month both are
-        // the same date and the request is valid, so the test skips rather than asserting a refusal
-        // the input does not warrant.
         if (from.equals(to)) {
             assertThat(spendingResponse(token, "from=" + from.format(DAY) + "&to=" + to.format(DAY))
                     .getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -195,10 +168,6 @@ class SpendingReportApiIT extends AbstractReportsApiIT {
         }
     }
 
-    // ==================================================================
-    //  DAILY
-    // ==================================================================
-
     @Test
     @DisplayName("UC-15: a daily point is one day's spending, and quiet days are absent")
     void dailyPointsCoverOnlyTheDaysWithSpending() throws Exception {
@@ -211,8 +180,6 @@ class SpendingReportApiIT extends AbstractReportsApiIT {
         JsonNode series = spending(token, "granularity=DAILY");
         JsonNode points = series.get("points");
 
-        // One transaction on one day is one bar - the month's other days are missing rather than
-        // zero, so a client draws its axis from `from`/`to` and not from the array's length.
         assertThat(points).hasSize(1);
         assertThat(points.get(0).get("intervalStart").asText()).isEqualTo(day.format(DAY));
         assertThat(points.get(0).get("intervalEnd").asText()).isEqualTo(day.format(DAY));
@@ -220,7 +187,6 @@ class SpendingReportApiIT extends AbstractReportsApiIT {
                 .isEqualByComparingTo("24.00");
         assertThat(points.get(0).get("transactionCount").asLong()).isEqualTo(2);
 
-        // The window total is the sum of the bars.
         assertThat(new BigDecimal(series.get("totalExpense").asText()))
                 .isEqualByComparingTo("24.00");
 
@@ -256,7 +222,6 @@ class SpendingReportApiIT extends AbstractReportsApiIT {
             expectedTotal = expectedTotal.add(new BigDecimal(point.get("totalExpense").asText()));
         }
 
-        // 10 + 6 on the first day, 30 on the second, unless the two clamped to the same day.
         BigDecimal expected = distinct.size() == 1 ? new BigDecimal("46.00") : new BigDecimal("46.00");
         assertThat(expectedTotal).isEqualByComparingTo(expected);
     }
@@ -294,10 +259,6 @@ class SpendingReportApiIT extends AbstractReportsApiIT {
                 .isEqualByComparingTo("0.00");
     }
 
-    // ==================================================================
-    //  WEEKLY
-    // ==================================================================
-
     @Test
     @DisplayName("UC-15, VĐ-10: a weekly point is a real Monday-to-Sunday ISO week")
     void weeklyPointsAreRealIsoWeeks() throws Exception {
@@ -313,8 +274,6 @@ class SpendingReportApiIT extends AbstractReportsApiIT {
         LocalDate start = LocalDate.parse(points.get(0).get("intervalStart").asText());
         LocalDate end = LocalDate.parse(points.get(0).get("intervalEnd").asText());
 
-        // The week is the ISO week the day falls in, and its boundaries are the database's own:
-        // the Monday on or before the day, and six days later.
         LocalDate expectedMonday = day.minusDays(day.getDayOfWeek().getValue() - 1L);
         assertThat(start).isEqualTo(expectedMonday);
         assertThat(start.getDayOfWeek()).isEqualTo(DayOfWeek.MONDAY);
@@ -337,16 +296,10 @@ class SpendingReportApiIT extends AbstractReportsApiIT {
         assertThat(points).hasSize(1);
         LocalDate start = LocalDate.parse(points.get(0).get("intervalStart").asText());
 
-        // The first of the month falls in the ISO week beginning on its own Monday, which may be in
-        // the previous month. The view reports the real week rather than clipping it to the month, so
-        // the point is whole and its start is the Monday - not the first of the month.
         assertThat(start).isEqualTo(
                 firstOfMonth.minusDays(firstOfMonth.getDayOfWeek().getValue() - 1L));
         assertThat(start.getDayOfWeek()).isEqualTo(DayOfWeek.MONDAY);
 
-        // The view filters transactions to the month before grouping, so the bar's dates may be wider
-        // than the month while the amount it carries cannot be. When the month starts on a Monday
-        // there is nothing outside it, and both cases are correct for a report whose unit is the week.
         if (firstOfMonth.getDayOfWeek() != DayOfWeek.MONDAY) {
             assertThat(start).isBefore(firstOfMonth);
         }
@@ -365,9 +318,6 @@ class SpendingReportApiIT extends AbstractReportsApiIT {
         BigDecimal weekly = new BigDecimal(spending(token, "granularity=WEEKLY")
                 .get("totalExpense").asText());
 
-        // Both views filter the transactions to the current month before grouping, so the only
-        // difference between them is how wide a bar is - not which records are counted. A weekly
-        // bar's dates may reach outside the month, but the amount it carries cannot.
         assertThat(daily).isEqualByComparingTo("36.00");
         assertThat(weekly).isEqualByComparingTo("36.00");
     }
@@ -381,8 +331,6 @@ class SpendingReportApiIT extends AbstractReportsApiIT {
         LocalDate day = thisMonthOn(24);
         LocalDate monday = day.minusDays(day.getDayOfWeek().getValue() - 1L);
 
-        // The bar is the ISO week, so a second record earlier in that same week is inside the bar but
-        // outside a window that names only `day`.
         boolean weekStartsThisMonth = !monday.isBefore(thisMonth()) && monday.isBefore(day);
 
         createTransaction(token, defaultCategoryId(FOOD), "30.00", day, "Campus Cafe");
@@ -398,9 +346,6 @@ class SpendingReportApiIT extends AbstractReportsApiIT {
 
         assertThat(daily).isEqualByComparingTo("30.00");
 
-        // The overlap predicate returns a bar that merely touches the window, with all of its own
-        // week's spending - which is why a weekly total can be larger than the daily one over the
-        // same narrow window, though neither can exceed the month's expense.
         if (weekStartsThisMonth) {
             assertThat(weekly).isEqualByComparingTo("40.00");
             assertThat(weekly).isGreaterThan(daily);
@@ -408,10 +353,6 @@ class SpendingReportApiIT extends AbstractReportsApiIT {
             assertThat(weekly).isEqualByComparingTo(daily);
         }
     }
-
-    // ==================================================================
-    //  The published contract and access
-    // ==================================================================
 
     @Test
     @DisplayName("Section 7.2: the series response carries exactly the documented fields")

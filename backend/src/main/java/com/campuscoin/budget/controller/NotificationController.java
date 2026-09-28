@@ -22,27 +22,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * Reading a student's notifications and marking them read: UC-14.
- *
- * <p>Three endpoints: list, read one, and mark one read. There is no create and no delete: every
- * notification is written by the procedure that owns it - a budget alert by
- * {@code sp_check_budget_alerts}, an announcement by the administrator procedure in module 11, a tip
- * or insight by later modules - and none of them is the student's to author. Giving a student a way
- * to write a notification would be a way to write one to somebody else; giving them a way to delete
- * one would erase a record of having been warned.
- *
- * <p><b>Marking read is a {@code POST} to a {@code /read} sub-path, not a {@code PATCH} of a
- * field.</b> Read-state is a one-way transition the database performs in a single statement that also
- * proves ownership ({@code sp_mark_notification_read}); a request body able to set {@code isRead}
- * would move the row without that predicate and would also allow un-reading, which the schema's
- * {@code ck_notif_read} pair and the notification's meaning both treat as not a thing that happens.
- *
- * <p>Every method reads the caller with {@code @AuthenticationPrincipal}, so identity comes from the
- * verified bearer token. No endpoint accepts a user id, so there is no way to reach another student's
- * messages - which matters more here than elsewhere, because a notification's body is readable prose
- * about one student's spending.
- */
 @RestController
 @RequestMapping("/api/v1/notifications")
 @Tag(name = "Notifications",

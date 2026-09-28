@@ -27,18 +27,12 @@ export class TransactionService {
   private http = inject(HttpClient);
   private baseUrl = `${environment.apiUrl}/v1`;
 
-  // Master transactions list signal
   private transactions = signal<Transaction[]>([]);
 
-  // Active (non-deleted) transactions
   readonly activeTransactions = computed(() =>
     this.transactions().filter(t => !t.isDeleted)
   );
 
-  /**
-   * Maps the response onto the model. `source` is the only provenance the API publishes — there is
-   * no `recurringFrequency` to read, because a transaction carries no frequency at all.
-   */
   private mapBackendTx(raw: any): Transaction {
     const txnDate = raw.txnDate || raw.date || new Date().toLocaleDateString('sv-SE');
     const type: TransactionType = raw.categoryType || raw.type || 'EXPENSE';

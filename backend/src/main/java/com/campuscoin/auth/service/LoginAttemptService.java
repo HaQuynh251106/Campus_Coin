@@ -14,33 +14,11 @@ import com.campuscoin.auth.security.LoginProperties;
 import com.campuscoin.common.exception.TooManyAttemptsException;
 import com.campuscoin.common.setting.SettingReader;
 
-/**
- * Throttles repeated failures for sign-in and password-reset requests (section 7.10).
- *
- * <p>Two abuses are named in the requirement: brute-force sign-in, and flooding the reset
- * endpoint. Both are answered the same way - after the configured number of failures within the
- * cooling-off window the identifier is refused with 429 and error code
- * {@code TOO_MANY_ATTEMPTS}.
- *
- * <p>The counter is keyed by email address, not by account id, and reset requests are counted
- * whether or not the address exists. A throttle that behaved differently for a registered
- * address would be an account-enumeration oracle, which UC-03 A2 and section 7.10 both forbid.
- *
- * <p>Counters live in memory and are therefore per instance. That is a deliberate trade-off for
- * this deployment: it needs no schema change (which section 2 forbids) and no extra
- * infrastructure, at the cost of a limit that scales with the number of instances. The
- * consequences, and how to move the counters to shared storage, are documented in
- * {@code docs/SECURITY.md}.
- *
- * <p>The map is pruned as it is used, so a long-running instance does not accumulate an entry per
- * address ever seen.
- */
 @Service
 public class LoginAttemptService {
 
     private static final Logger log = LoggerFactory.getLogger(LoginAttemptService.class);
 
-    /** Prefixes keep sign-in and reset counters for the same address independent. */
     private static final String LOGIN_SCOPE = "login:";
     private static final String RESET_SCOPE = "reset:";
 
@@ -57,13 +35,6 @@ public class LoginAttemptService {
         this.properties = properties;
     }
 
-    /**
-     * Refuses the attempt if this address is currently locked out.
-     *
-     * <p>Called before the password is checked, so a locked identifier costs no bcrypt work.
-     *
-     * @throws TooManyAttemptsException when the limit has been reached and the window is still open
-     */
     public void assertLoginAllowed(String email) {
         if (isLocked(LOGIN_SCOPE + normalise(email), maxLoginAttempts())) {
             log.warn("Sign-in throttled: too many failed attempts");
@@ -72,13 +43,6 @@ public class LoginAttemptService {
         }
     }
 
-    /**
-     * Refuses the request if this address has asked for too many reset links.
-     *
-     * <p>The limit is configured rather than derived from the sign-in limit. Deriving it would
-     * make it too low to be usable: the seeded sign-in allowance is 5, so a third of it is 1, and
-     * a student who let one link expire could no longer request another.
-     */
     public void assertResetAllowed(String email) {
         if (isLocked(RESET_SCOPE + normalise(email), maxResetRequests())) {
             log.warn("Password reset throttled: too many requests");
@@ -87,27 +51,18 @@ public class LoginAttemptService {
         }
     }
 
-    /** Records a failed sign-in. Called only after the credentials were actually rejected. */
     public void recordLoginFailure(String email) {
         record(LOGIN_SCOPE + normalise(email));
     }
 
-    /**
-     * Clears the counter after a successful sign-in.
-     *
-     * <p>Without this, a student who mistypes their password a few times over a term would be
-     * locked out by accumulated failures rather than by consecutive ones.
-     */
     public void recordLoginSuccess(String email) {
         attempts.remove(LOGIN_SCOPE + normalise(email));
     }
 
-    /** Records a reset request, whether or not the address has an account. */
     public void recordResetRequest(String email) {
         record(RESET_SCOPE + normalise(email));
     }
 
-    /** True when the identifier has reached the limit and its window has not yet closed. */
     private boolean isLocked(String key, int limit) {
         Attempt attempt = attempts.get(key);
         if (attempt == null) {
@@ -118,7 +73,7 @@ public class LoginAttemptService {
         Duration window = lockoutDuration();
 
         if (attempt.isExpired(now, window)) {
-            // The cooling-off period has lapsed, so the slate starts clean.
+
             attempts.remove(key, attempt);
             return false;
         }
@@ -136,10 +91,6 @@ public class LoginAttemptService {
         });
     }
 
-    /**
-     * The live attempt limit. {@code auth.max_login_attempts} is authoritative because VĐ-05
-     * makes it administrator-editable; the configured value is only a fallback for a missing row.
-     */
     private int maxLoginAttempts() {
         int fallback = properties.defaultMaxAttempts() == null
                 ? DEFAULT_MAX_ATTEMPTS
@@ -164,7 +115,6 @@ public class LoginAttemptService {
         return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
     }
 
-    /** Consecutive failures for one identifier and when the first of them happened. */
     private record Attempt(int failures, Instant firstFailureAt) {
 
         boolean isExpired(Instant now, Duration window) {

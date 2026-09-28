@@ -7,7 +7,6 @@ export interface CategoryColorDef {
   light: { text: string; bg: string; border: string };
 }
 
-// Curated 8-hue categorical palette strictly excluding gold/amber
 const CURATED_HUES: Record<string, CategoryColorDef> = {
   emerald: {
     dark: { text: '#34D399', bg: 'rgba(16, 185, 129, 0.15)', border: 'rgba(16, 185, 129, 0.35)' },
@@ -43,7 +42,6 @@ const CURATED_HUES: Record<string, CategoryColorDef> = {
   }
 };
 
-// Map category names or hex to one of the 8 curated hues
 const NAME_TO_HUE: Record<string, string> = {
   'food & dining': 'orange',
   'dining': 'orange',
@@ -100,7 +98,7 @@ const HEX_TO_HUE: Record<string, string> = {
   '#10b981': 'emerald',
   '#34d399': 'emerald',
   '#22c55e': 'emerald',
-  // Guard against any accidental gold/yellow mapped to category: redirect to orange/teal
+
   '#ffe600': 'orange',
   '#eab308': 'orange',
   '#f59e0b': 'orange'
@@ -163,7 +161,7 @@ export class CategoryTagComponent {
   }
 
   get styles(): CategoryColorDef {
-    // 1. Try color hex lookup
+
     if (this.color) {
       const lower = this.color.toLowerCase();
       const hueKey = HEX_TO_HUE[lower];
@@ -172,7 +170,6 @@ export class CategoryTagComponent {
       }
     }
 
-    // 2. Try name lookup
     if (this.name) {
       const lowerName = this.name.toLowerCase().trim();
       const hueKey = NAME_TO_HUE[lowerName];
@@ -181,12 +178,10 @@ export class CategoryTagComponent {
       }
     }
 
-    // 3. Fallback to custom color calculation if valid hex provided
     if (this.color && /^#[0-9A-Fa-f]{6}$/.test(this.color)) {
       return this.computeDynamicStyle(this.color);
     }
 
-    // Default to Sky hue
     return CURATED_HUES['sky'];
   }
 

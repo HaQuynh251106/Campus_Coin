@@ -41,16 +41,13 @@ describe('SitemapComponent', () => {
   it('should list all active application routes across sections', () => {
     const allPaths = component.sections.flatMap(s => s.routes.map(r => r.path));
 
-    // Public routes
     expect(allPaths).toContain('/');
     expect(allPaths).toContain('/sitemap');
 
-    // Auth routes
     expect(allPaths).toContain('/auth/login');
     expect(allPaths).toContain('/auth/register');
     expect(allPaths).toContain('/auth/forgot-password');
 
-    // Student Portal routes
     expect(allPaths).toContain('/app/home');
     expect(allPaths).toContain('/app/quick-add');
     expect(allPaths).toContain('/app/reports');
@@ -66,7 +63,6 @@ describe('SitemapComponent', () => {
     expect(allPaths).toContain('/app/forecast');
     expect(allPaths).toContain('/app/recent-activity');
 
-    // Admin Portal routes
     expect(allPaths).toContain('/admin/dashboard');
     expect(allPaths).toContain('/admin/users');
     expect(allPaths).toContain('/admin/categories');

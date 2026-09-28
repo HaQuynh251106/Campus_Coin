@@ -31,26 +31,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * Setting up and managing a student's recurring rules: UC-09.
- *
- * <p>Five endpoints: list, read, create, edit and delete. There is no separate pause, resume or end
- * endpoint, because those are not separate operations - each one sets {@code status} on the same
- * row, and a {@code /pause} route would be a second way to write it that could disagree with
- * {@code PATCH}. The contract documents the {@code status} values explicitly instead, including the
- * one that matters most: {@code ENDED} is how a rule is stopped for good.
- *
- * <p>Every method reads the caller with {@code @AuthenticationPrincipal}, so identity comes from the
- * verified bearer token. No endpoint accepts a user id, a type or a status at creation: those are
- * the fields a client would use to write a rule it does not own, disagree with its category
- * (BR-05), or create one already stopped.
- *
- * <p>There is no endpoint that runs the scheduler. Which periods are due is
- * {@code sp_post_recurring_transactions}'s decision, made once a day by
- * {@code com.campuscoin.recurring.scheduler.RecurringScheduler}; exposing it would let a client
- * trigger posting for every student in the system, and giving a student a way to post their own
- * rules early would make the schedule advisory rather than authoritative.
- */
 @RestController
 @RequestMapping("/api/v1/recurring-rules")
 @Tag(name = "Recurring rules",

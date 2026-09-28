@@ -75,7 +75,7 @@ export class StudentLayoutComponent implements OnInit, OnDestroy {
       if (this.mql.addEventListener) {
         this.mql.addEventListener('change', this.mediaQueryListener);
       } else {
-        // Fallback for older browsers
+
         (this.mql as any).addListener(this.mediaQueryListener);
       }
     }
